@@ -7,9 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>KSP.Retooled.Patch</RootNamespace>
     <AssemblyName>RetooledPatch</AssemblyName>
-    <InvariantGlobalization>true</InvariantGlobalization>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
+    <InvariantGlobalization>true</InvariantGlobalization>  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />

@@ -181,6 +181,9 @@ public sealed class PatchApplier(string install, TextWriter log)
             if (!File.Exists(full)) continue;
             File.Delete(full);
             removed++;
+            for (string? dir = Path.GetDirectoryName(full); dir != null && dir.Length > install.Length
+                 && !Directory.EnumerateFileSystemEntries(dir).Any(); dir = Path.GetDirectoryName(dir))
+                Directory.Delete(dir);
         }
         Directory.Delete(staging, recursive: true);
         log.WriteLine($"moved {staged.Count} files into the install, removed {removed} stock files");
