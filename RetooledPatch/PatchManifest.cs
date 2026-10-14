@@ -19,6 +19,8 @@ public sealed class PatchManifest
     public List<OutputFile> Outputs { get; set; } = [];
     /// <summary>Stock files an in-place apply deletes because the retooled install has no counterpart.</summary>
     public List<string> Remove { get; set; } = [];
+    /// <summary>Empty directories of the retooled install (stock's Missions, sounds, ...), created by every apply.</summary>
+    public List<string> Directories { get; set; } = [];
 
     public byte[] ToJson() => JsonSerializer.SerializeToUtf8Bytes(this, ManifestJson.Default.PatchManifest);
 

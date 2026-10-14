@@ -8,7 +8,8 @@ namespace KSP.Retooled.Patch;
 /// Applies patch archives to a stock install. Every base file is hash-checked before anything is written. Side-by-side
 /// writes the retooled install to a new directory (unchanged files hard-linked). In-place builds every output in a
 /// staging directory inside the install first, then moves them over the stock files and deletes the stock files the
-/// manifest lists in <see cref="PatchManifest.Remove"/>, so a failed apply never leaves a half-patched install.
+/// manifest lists in <see cref="PatchManifest.Remove"/>, so a failed apply never leaves a half-patched install. Both
+/// modes create the manifest's empty <see cref="PatchManifest.Directories"/>.
 /// </summary>
 public sealed class PatchApplier(string install, TextWriter log)
 {
@@ -46,6 +47,8 @@ public sealed class PatchApplier(string install, TextWriter log)
                 WriteOutputs(manifest, blobs, root, inPlace, staged);
 
             if (inPlace) Commit(root, staged, components.SelectMany(c => c.Manifest.Remove));
+            foreach (string directory in components.SelectMany(c => c.Manifest.Directories))
+                Directory.CreateDirectory(Path.Combine(inPlace ? install : root, directory));
             log.WriteLine(inPlace ? $"patched {install} in place" : $"wrote {root}");
         }
         finally
