@@ -20,18 +20,16 @@ public sealed class PatchManifest
     /// <summary>Stock files an in-place apply deletes because the retooled install has no counterpart.</summary>
     public List<string> Remove { get; set; } = [];
 
-    static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
-
-    public byte[] ToJson() => JsonSerializer.SerializeToUtf8Bytes(this, JsonOptions);
+    public byte[] ToJson() => JsonSerializer.SerializeToUtf8Bytes(this, ManifestJson.Default.PatchManifest);
 
     public static PatchManifest FromJson(ReadOnlySpan<byte> json) =>
-        JsonSerializer.Deserialize<PatchManifest>(json, JsonOptions) ?? throw new InvalidDataException("empty manifest");
+        JsonSerializer.Deserialize(json, ManifestJson.Default.PatchManifest) ?? throw new InvalidDataException("empty manifest");
 }
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, UseStringEnumConverter = true)]
+[JsonSerializable(typeof(PatchManifest))]
+sealed partial class ManifestJson : JsonSerializerContext;
 
 public sealed class BaseFile
 {
