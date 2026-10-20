@@ -1,84 +1,148 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;
 
 namespace KSP.Retooled.Patch;
 
-/// <summary>
-/// Applies patch archives to a stock install. Every base file is hash-checked before anything is written. Side-by-side
-/// writes the retooled install to a new directory (unchanged files hard-linked). In-place builds every output in a
-/// staging directory inside the install first, then moves them over the stock files and deletes the stock files the
-/// manifest lists in <see cref="PatchManifest.Remove"/>, so a failed apply never leaves a half-patched install. Both
-/// modes create the manifest's empty <see cref="PatchManifest.Directories"/>.
-/// </summary>
-public sealed class PatchApplier(string install, TextWriter log)
+/// <summary>Where an apply or revert is: <see cref="Done"/> of <see cref="Total"/> (bytes or files) in <see cref="Stage"/>.</summary>
+public readonly record struct PatchProgress(string Stage, long Done, long Total);
+
+public sealed class ApplyOptions
 {
-    public const string StagingDirectory = ".retooled-staging";
+    /// <summary>Write the retooled install here (unchanged files hard-linked) and leave the stock install alone; null patches in place.</summary>
+    public string? OutputDirectory { get; init; }
+    public TextWriter Log { get; init; } = TextWriter.Null;
+    public IProgress<PatchProgress>? Progress { get; init; }
+    public CancellationToken Cancellation { get; init; }
+}
 
-    readonly string install = Path.GetFullPath(install);
+/// <summary>What <see cref="PatchApplier.Check"/> found: whether the install can be patched and which source it matches.</summary>
+public sealed class InstallCheck
+{
+    /// <summary>The source whose files the chosen recipes read, or null for a mix of sources.</summary>
+    public string? Variant { get; init; }
+    public bool AlreadyPatched { get; init; }
+    /// <summary>Stock files that are missing or modified, leaving some output with no usable recipe.</summary>
+    public IReadOnlyList<string> Problems { get; init; } = [];
+    public IReadOnlyList<string> SkippedComponents { get; init; } = [];
+    public bool CanApply => !AlreadyPatched && Problems.Count == 0;
 
-    public void Apply(IReadOnlyList<string> archives, string? outputDirectory)
+    internal Recipe?[] Chosen = [];
+    internal Dictionary<string, string?> Hashes = [];
+}
+
+/// <summary>
+/// Applies a patch file to a stock install. Each output uses the first recipe whose stock files are all present with
+/// the recorded content, and every such file is hash-checked before anything is written. Side-by-side writes the
+/// retooled install to a new directory. In-place builds every output in <c>.retooled/staging</c> first, then records
+/// the plan in the <see cref="InstallJournal"/>, moves each stock file it replaces or removes into
+/// <c>.retooled/original</c> and the new file into place, so <see cref="PatchReverter"/> can restore the stock install.
+/// </summary>
+public sealed class PatchApplier(PatchFile patch, string install)
+{
+    readonly string install = Path.TrimEndingDirectorySeparator(Path.GetFullPath(install));
+    readonly PatchManifest manifest = patch.Manifest;
+
+    public InstallCheck Check(ApplyOptions? options = null)
     {
-        var components = new List<(PatchManifest Manifest, Stream Blobs)>();
-        try
+        options ??= new ApplyOptions();
+        var skipped = new List<string>();
+        var applicable = new bool[manifest.Components.Count];
+        for (int c = 0; c < applicable.Length; c++)
         {
-            foreach (string archive in archives)
+            var component = manifest.Components[c];
+            applicable[c] = component.Requires == null || Directory.Exists(Path.Combine(install, component.Requires));
+            if (!applicable[c]) skipped.Add(component.Name);
+        }
+        if (InstallJournal.Exists(install))
+            return new InstallCheck { AlreadyPatched = true, SkippedComponents = skipped, Problems = ["already patched; revert it first"] };
+
+        var outputs = Enumerable.Range(0, manifest.Outputs.Count).Where(i => applicable[manifest.Outputs[i].Component]).ToList();
+        var hashes = HashInputs(outputs.SelectMany(i => manifest.Outputs[i].Recipes.SelectMany(r => r.Inputs())), options);
+        bool Matches(int source) => hashes[manifest.Sources[source].Path] == manifest.Sources[source].Sha256;
+
+        var chosen = new Recipe?[manifest.Outputs.Count];
+        var problems = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (int i in outputs)
+        {
+            var recipes = manifest.Outputs[i].Recipes;
+            chosen[i] = recipes.FirstOrDefault(r => r.Inputs().All(Matches));
+            if (chosen[i] != null) continue;
+            var closest = recipes.MinBy(r => r.Inputs().Distinct().Count(s => !Matches(s)));
+            foreach (int s in closest?.Inputs().Where(s => !Matches(s)) ?? [])
             {
-                var (manifest, blobs) = PatchArchive.OpenRead(archive);
-                if (manifest.Requires != null && !Directory.Exists(Path.Combine(install, manifest.Requires)))
-                {
-                    log.WriteLine($"skip {manifest.Component}: {manifest.Requires} is not installed");
-                    blobs.Dispose();
-                    continue;
-                }
-                log.WriteLine("apply " + PatchArchive.Describe(manifest));
-                components.Add((manifest, blobs));
+                string path = manifest.Sources[s].Path;
+                problems.Add((File.Exists(Path.Combine(install, path)) ? "modified " : "missing  ") + path);
             }
-            if (components.Count == 0) throw new PatchException("no applicable patch components");
-
-            VerifyBase(components.Select(c => c.Manifest));
-
-            bool inPlace = outputDirectory == null;
-            string root = inPlace ? Path.Combine(install, StagingDirectory) : PrepareOutput(outputDirectory!);
-            if (inPlace && Directory.Exists(root)) Directory.Delete(root, recursive: true);
-
-            var staged = new List<string>();
-            foreach (var (manifest, blobs) in components)
-                WriteOutputs(manifest, blobs, root, inPlace, staged);
-
-            if (inPlace) Commit(root, staged, components.SelectMany(c => c.Manifest.Remove));
-            foreach (string directory in components.SelectMany(c => c.Manifest.Directories))
-                Directory.CreateDirectory(Path.Combine(inPlace ? install : root, directory));
-            log.WriteLine(inPlace ? $"patched {install} in place" : $"wrote {root}");
         }
-        finally
-        {
-            foreach (var (_, blobs) in components) blobs.Dispose();
-        }
+
+        var used = outputs.SelectMany(i => chosen[i]?.Inputs() ?? []).ToHashSet();
+        string? variant = manifest.Variants.FirstOrDefault(v => used.IsSubsetOf(v.Files))?.Id;
+        return new InstallCheck { Variant = variant, Problems = [.. problems], SkippedComponents = skipped, Chosen = chosen, Hashes = hashes };
     }
 
-    void VerifyBase(IEnumerable<PatchManifest> manifests)
+    /// <summary>Hashes the install's copy of every listed source path, skipping files whose size matches no source there.</summary>
+    Dictionary<string, string?> HashInputs(IEnumerable<int> sources, ApplyOptions options)
     {
-        var expected = new Dictionary<string, BaseFile>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in manifests.SelectMany(m => m.Base))
+        var sizes = sources.Distinct().Select(s => manifest.Sources[s])
+            .GroupBy(s => s.Path, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Select(s => s.Size).ToHashSet(), StringComparer.Ordinal);
+        var hashes = new ConcurrentDictionary<string, string?>(StringComparer.Ordinal);
+        var work = new List<(string Path, long Size)>();
+        foreach (var (path, candidates) in sizes)
         {
-            if (expected.TryGetValue(file.Path, out var other) && other.Sha256 != file.Sha256)
-                throw new PatchException($"patch components disagree about base file {file.Path}");
-            expected[file.Path] = file;
+            var info = new FileInfo(Path.Combine(install, path));
+            if (info.Exists && candidates.Contains(info.Length)) work.Add((path, info.Length));
+            else hashes[path] = null;
         }
 
-        var problems = new System.Collections.Concurrent.ConcurrentBag<string>();
-        Parallel.ForEach(expected.Values, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, file =>
-        {
-            string path = Path.Combine(install, file.Path);
-            if (!File.Exists(path)) problems.Add($"missing  {file.Path}");
-            else if (new FileInfo(path).Length != file.Size || Sha256Hex(path) != file.Sha256) problems.Add($"modified {file.Path}");
-        });
-        if (!problems.IsEmpty)
+        long total = work.Sum(w => w.Size), done = 0;
+        Parallel.ForEach(work.OrderByDescending(w => w.Size),
+            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = options.Cancellation }, w =>
+            {
+                hashes[w.Path] = Sha256Hex(Path.Combine(install, w.Path));
+                options.Progress?.Report(new PatchProgress("verify", Interlocked.Add(ref done, w.Size), total));
+            });
+        options.Log.WriteLine($"hashed {work.Count} stock files ({total / 1048576.0:F0} MB)");
+        return new Dictionary<string, string?>(hashes, StringComparer.Ordinal);
+    }
+
+    public InstallCheck Apply(ApplyOptions options)
+    {
+        var check = Check(options);
+        if (check.AlreadyPatched) throw new PatchException($"{install} is already patched; revert it first");
+        if (check.Problems.Count > 0)
             throw new PatchException(
-                $"{install} does not match the stock KSP 1.12.5 files this patch needs ({problems.Count} files):\n  "
-                + string.Join("\n  ", problems.Order(StringComparer.OrdinalIgnoreCase)));
-        log.WriteLine($"verified {expected.Count} base files");
+                $"{install} does not match any stock KSP install this patch was built from ({PatchFile.Describe(manifest)}); "
+                + $"{check.Problems.Count} files differ:\n  " + string.Join("\n  ", check.Problems));
+        foreach (string name in check.SkippedComponents) options.Log.WriteLine($"skip {name}: not installed");
+        options.Log.WriteLine($"install matches {check.Variant ?? "a mix of the known sources"}");
+
+        bool inPlace = options.OutputDirectory == null;
+        string root = inPlace ? Path.Combine(install, InstallJournal.StagingDirectory) : PrepareOutput(options.OutputDirectory!);
+        if (inPlace && Directory.Exists(root)) Directory.Delete(root, recursive: true);
+
+        var staged = WriteOutputs(check, root, inPlace, options);
+        var components = manifest.Components.Where(c => !check.SkippedComponents.Contains(c.Name)).ToList();
+        if (inPlace)
+        {
+            var journal = new InstallJournal
+            {
+                Platform = manifest.Platform,
+                Variant = check.Variant,
+                Patch = Path.GetFileName(patch.FilePath),
+                Applied = DateTime.UtcNow,
+            };
+            new InstallCommit(install, journal, check.Hashes, options.Log).Run(root, staged,
+                components.SelectMany(c => c.Remove), components.SelectMany(c => c.Directories));
+        }
+        else
+        {
+            foreach (string directory in components.SelectMany(c => c.Directories)) Directory.CreateDirectory(Path.Combine(root, directory));
+        }
+        options.Log.WriteLine(inPlace ? $"patched {install} in place" : $"wrote {root}");
+        return check;
     }
 
     string PrepareOutput(string directory)
@@ -93,61 +157,88 @@ public sealed class PatchApplier(string install, TextWriter log)
         return full;
     }
 
-    void WriteOutputs(PatchManifest manifest, Stream blobs, string root, bool inPlace, List<string> staged)
+    /// <summary>Writes every chosen output under <paramref name="root"/>; returns the staged outputs (in-place skips unchanged same-path files).</summary>
+    List<OutputFile> WriteOutputs(InstallCheck check, string root, bool inPlace, ApplyOptions options)
     {
         var handles = new Dictionary<int, SafeFileHandle>();
+        var sections = new Dictionary<int, SectionReader>();
         try
         {
-            SafeFileHandle Handle(int index)
+            SafeFileHandle Handle(int source)
             {
-                if (!handles.TryGetValue(index, out var handle))
-                    handles[index] = handle = File.OpenHandle(Path.Combine(install, manifest.Base[index].Path));
+                if (!handles.TryGetValue(source, out var handle))
+                    handles[source] = handle = File.OpenHandle(Path.Combine(install, manifest.Sources[source].Path));
                 return handle;
             }
 
+            var staged = new List<OutputFile>();
             int linked = 0, written = 0;
-            foreach (var output in manifest.Outputs)
+            long total = manifest.Outputs.Where((o, i) => check.Chosen[i] != null).Sum(o => o.Size), done = 0;
+            for (int i = 0; i < manifest.Outputs.Count; i++)
             {
-                if (output.Same is int same)
+                if (check.Chosen[i] is not Recipe recipe) continue;
+                options.Cancellation.ThrowIfCancellationRequested();
+                var output = manifest.Outputs[i];
+                if (recipe.Same is int same)
                 {
-                    string source = manifest.Base[same].Path;
-                    if (inPlace && string.Equals(source, output.Path, StringComparison.OrdinalIgnoreCase)) continue;
-                    string destination = Destination(root, output.Path);
-                    if (inPlace) File.Copy(Path.Combine(install, source), destination);
-                    else LinkOrCopy(Path.Combine(install, source), destination);
-                    if (inPlace) staged.Add(output.Path);
+                    string source = manifest.Sources[same].Path;
+                    if (!(inPlace && source == output.Path))
+                    {
+                        string destination = Destination(root, output.Path);
+                        if (inPlace) File.Copy(Path.Combine(install, source), destination);
+                        else LinkOrCopy(Path.Combine(install, source), destination);
+                        if (inPlace) staged.Add(output);
+                    }
                     linked++;
-                    continue;
                 }
-
-                using (var file = new FileStream(Destination(root, output.Path), FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 20))
-                using (var hashing = new HashingStream(file))
+                else
                 {
-                    foreach (var segment in output.Segments ?? [])
-                        WriteSegment(segment, manifest, blobs, Handle, hashing);
-                    if (hashing.Length != output.Size || Convert.ToHexStringLower(hashing.Hash()) != output.Sha256)
-                        throw new PatchException($"{output.Path}: patched content does not match the manifest hash");
+                    SectionReader? section = null;
+                    if (recipe.Section is int index && !sections.TryGetValue(index, out section))
+                        sections[index] = section = patch.OpenSection(index);
+                    section?.SkipTo(recipe.Offset ?? 0);
+                    string destination = Destination(root, output.Path);
+                    using (var file = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 20))
+                    using (var hashing = new HashingStream(file))
+                    {
+                        foreach (var segment in recipe.Segments ?? [])
+                            WriteSegment(segment, section, Handle, hashing);
+                        if (hashing.Length != output.Size || Convert.ToHexStringLower(hashing.Hash()) != output.Sha256)
+                            throw new PatchException($"{output.Path}: patched content does not match the manifest hash");
+                    }
+                    if (output.Executable) MarkExecutable(destination);
+                    if (inPlace) staged.Add(output);
+                    written++;
                 }
-                if (inPlace) staged.Add(output.Path);
-                written++;
+                options.Progress?.Report(new PatchProgress("write", done += output.Size, total));
             }
-            log.WriteLine($"  {manifest.Component}: {written} files patched, {linked} unchanged");
+            options.Log.WriteLine($"{written} files patched, {linked} unchanged");
+            return staged;
         }
         finally
         {
             foreach (var handle in handles.Values) handle.Dispose();
+            foreach (var section in sections.Values) section.Dispose();
         }
     }
 
-    static void WriteSegment(Segment segment, PatchManifest manifest, Stream blobs, Func<int, SafeFileHandle> handle, Stream output)
+    static void WriteSegment(Segment segment, SectionReader? section, Func<int, SafeFileHandle> handle, Stream output)
     {
+        if (segment.ArchiveBytes > 0 && section == null) throw new InvalidDataException("a recipe with blobs has no section");
         switch (segment.Kind)
         {
             case SegmentKind.Copy:
                 CopyRange(handle(segment.File!.Value), segment.Offset!.Value, segment.Length, output);
                 break;
             case SegmentKind.Literal:
-                CopyStream(blobs, segment.Length, output);
+                byte[] buffer = new byte[(int)Math.Min(segment.Length, 1 << 20)];
+                for (long left = segment.Length; left > 0;)
+                {
+                    int n = (int)Math.Min(buffer.Length, left);
+                    section!.Read(buffer.AsSpan(0, n));
+                    output.Write(buffer, 0, n);
+                    left -= n;
+                }
                 break;
             case SegmentKind.BsDiff:
                 var reference = new byte[segment.Refs!.Sum(r => r.Length)];
@@ -158,38 +249,15 @@ public sealed class PatchApplier(string install, TextWriter log)
                     at += (int)extent.Length;
                 }
                 var patch = new byte[segment.Blob!.Value];
-                blobs.ReadExactly(patch);
+                section!.Read(patch);
                 long before = output.Position;
                 BsPatch.Apply(reference, patch, output);
                 if (output.Position - before != segment.Length)
                     throw new PatchException($"bsdiff segment produced {output.Position - before} bytes, expected {segment.Length}");
                 break;
             default:
-                throw new InvalidDataException($"unknown segment kind {segment.Kind} in {manifest.Component}");
+                throw new InvalidDataException($"unknown segment kind {segment.Kind}");
         }
-    }
-
-    void Commit(string staging, List<string> staged, IEnumerable<string> remove)
-    {
-        foreach (string path in staged)
-        {
-            string destination = Path.Combine(install, path);
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            File.Move(Path.Combine(staging, path), destination, overwrite: true);
-        }
-        int removed = 0;
-        foreach (string path in remove)
-        {
-            string full = Path.Combine(install, path);
-            if (!File.Exists(full)) continue;
-            File.Delete(full);
-            removed++;
-            for (string? dir = Path.GetDirectoryName(full); dir != null && dir.Length > install.Length
-                 && !Directory.EnumerateFileSystemEntries(dir).Any(); dir = Path.GetDirectoryName(dir))
-                Directory.Delete(dir);
-        }
-        Directory.Delete(staging, recursive: true);
-        log.WriteLine($"moved {staged.Count} files into the install, removed {removed} stock files");
     }
 
     static string Destination(string root, string path)
@@ -205,33 +273,36 @@ public sealed class PatchApplier(string install, TextWriter log)
         while (length > 0)
         {
             int n = RandomAccess.Read(source, buffer.AsSpan(0, (int)Math.Min(buffer.Length, length)), offset);
-            if (n == 0) throw new EndOfStreamException("base file is shorter than its manifest entry");
+            if (n == 0) throw new EndOfStreamException("stock file is shorter than its manifest entry");
             output.Write(buffer, 0, n);
             offset += n;
             length -= n;
         }
     }
 
-    static void CopyStream(Stream source, long length, Stream output)
-    {
-        byte[] buffer = new byte[(int)Math.Min(length, 1 << 20)];
-        while (length > 0)
-        {
-            int n = (int)Math.Min(buffer.Length, length);
-            source.ReadExactly(buffer, 0, n);
-            output.Write(buffer, 0, n);
-            length -= n;
-        }
-    }
-
     static void LinkOrCopy(string source, string destination)
     {
-        if (OperatingSystem.IsWindows() && CreateHardLink(destination, source, IntPtr.Zero)) return;
+        try
+        {
+            if (OperatingSystem.IsWindows() ? CreateHardLink(destination, source, IntPtr.Zero) : link(source, destination) == 0) return;
+        }
+        catch (EntryPointNotFoundException) { }
+        catch (DllNotFoundException) { }
         File.Copy(source, destination);
     }
 
     [DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]
     static extern bool CreateHardLink(string fileName, string existingFileName, IntPtr securityAttributes);
+
+    [DllImport("libc", SetLastError = true)]
+    static extern int link(string existing, string link);
+
+    static void MarkExecutable(string path)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        File.SetUnixFileMode(path, File.GetUnixFileMode(path)
+            | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+    }
 
     public static string Sha256Hex(string path)
     {

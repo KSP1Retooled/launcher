@@ -1,0 +1,323 @@
+using Xunit;
+
+namespace KSP.Retooled.Patch.Tests;
+
+public sealed class BsDiffTests
+{
+    // returns the compressed patch size: raw patches are about as long as the new data
+    static int RoundTrip(byte[] old, byte[] @new)
+    {
+        byte[] patch = BsDiff.Diff(old, @new);
+        using var output = new MemoryStream();
+        BsPatch.Apply(old, patch, output);
+        Assert.Equal(@new, output.ToArray());
+        using var compressor = new ZstdSharp.Compressor(3);
+        return compressor.Wrap(patch).Length;
+    }
+
+    static byte[] Random(int seed, int length)
+    {
+        var bytes = new byte[length];
+        new Random(seed).NextBytes(bytes);
+        return bytes;
+    }
+
+    [Fact]
+    public void EditedDataProducesSmallPatch()
+    {
+        var old = Random(1, 200_000);
+        var edited = new List<byte>(old);
+        var rng = new Random(2);
+        for (int i = 0; i < 50; i++) edited[rng.Next(edited.Count)] ^= 0x5A;
+        edited.InsertRange(1000, Random(3, 300));
+        edited.RemoveRange(150_000, 2000);
+        int compressed = RoundTrip(old, edited.ToArray());
+        Assert.True(compressed < 5_000, $"patch {compressed} bytes compressed");
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0, 1000)]
+    [InlineData(1000, 0)]
+    [InlineData(5000, 5000)]
+    [InlineData(1, 70_000)]
+    public void UnrelatedAndEmptyInputs(int oldLength, int newLength) =>
+        RoundTrip(Random(oldLength, oldLength), Random(newLength + 7, newLength));
+
+    [Fact]
+    public void RepetitiveData()
+    {
+        var old = new byte[100_000];
+        var @new = new byte[120_000];
+        for (int i = 0; i < @new.Length; i++) @new[i] = (byte)(i % 7 == 0 ? 1 : 0);
+        RoundTrip(old, @new);
+    }
+}
+
+/// <summary>
+/// Two store variants of one stock install (Steam and GOG: different player data, executable and store DLL) patched
+/// into one build that ships Steam's DLL.
+/// </summary>
+public sealed class PatchRoundTripTests : IDisposable
+{
+    readonly string root = Path.Combine(Path.GetTempPath(), "retooled-patch-" + Guid.NewGuid().ToString("N"));
+    string Steam => Path.Combine(root, "steam");
+    string Gog => Path.Combine(root, "gog");
+    string Build => Path.Combine(root, "build");
+    string PatchPath => Path.Combine(root, "retooled-windows.rtpatch");
+
+    readonly Dictionary<string, string> gogTree;
+
+    public PatchRoundTripTests()
+    {
+        var rng = new Random(42);
+        byte[] Bytes(int n)
+        {
+            var b = new byte[n];
+            rng.NextBytes(b);
+            return b;
+        }
+        void Both(string relative, byte[] bytes)
+        {
+            Write(Steam, relative, bytes);
+            Write(Gog, relative, bytes);
+        }
+
+        byte[] shared = Bytes(50_000), data = Bytes(300_000), dlc = Bytes(20_000), steamDll = Bytes(3000);
+        Both("GameData/Squad/same.cfg", shared);
+        Write(Steam, "KSP_x64_Data/level0", data);
+        var gogData = (byte[])data.Clone();
+        gogData[100_000] ^= 0xFF;
+        Write(Gog, "KSP_x64_Data/level0", gogData);
+        Both("KSP_x64_Data/gone.assets", Bytes(1000));
+        Write(Steam, "KSP_x64.exe", Bytes(4000));
+        Write(Gog, "KSP_x64.exe", Bytes(4100));
+        Write(Steam, "KSP_x64_Data/Plugins/x86_64/steam_api64.dll", steamDll);
+        Write(Gog, "KSP_x64_Data/Plugins/x86_64/galaxy64.dll", Bytes(2000));
+        Write(Steam, "buildID64.txt", "build id = 03190\ndistribution name = Steam\n"u8.ToArray());
+        Write(Gog, "buildID64.txt", "build id = 03190\ndistribution name = GOG\n"u8.ToArray());
+        Both("GameData/SquadExpansion/Serenity/dlc.bin", dlc);
+        Both("saves/default/persistent.sfs", Bytes(100));
+        byte[] scenario = Bytes(300);
+        Both("saves/scenarios/Mun Orbit.sfs", scenario);
+        Write(Build, "saves/scenarios/Mun Orbit.sfs", scenario);
+        Directory.CreateDirectory(Path.Combine(Steam, "Missions"));
+        Directory.CreateDirectory(Path.Combine(Gog, "Missions"));
+        Directory.CreateDirectory(Path.Combine(Build, "Missions"));
+
+        Write(Build, "GameData/Squad/same.cfg", shared);
+        var edited = (byte[])data.Clone();
+        edited[1234] ^= 0xFF;
+        Write(Build, "KSP_x64_Data/level0", edited);
+        Write(Build, "KSP_x64_Data/moved.cfg", shared);
+        Write(Build, "KSP_x64.exe", Bytes(4000));
+        Write(Build, "KSP_x64_Data/Plugins/x86_64/steam_api64.dll", steamDll);
+        Write(Build, "buildID64.txt", "build id = retooled\n"u8.ToArray());
+        Write(Build, "GameData/Retooled/new.dll", Bytes(10_000));
+        var dlcEdited = (byte[])dlc.Clone();
+        dlcEdited[0] ^= 1;
+        Write(Build, "GameData/SquadExpansion/Serenity/dlc.bin", dlcEdited);
+        Write(Build, "KSP_BackUpThisFolder_ButDontShipItWithYourGame/x.pdb", Bytes(10));
+
+        // payloads relocated between files, as Unity does with .resS data; GOG's second payload differs
+        byte[] payloadA = Bytes(400_000), payloadB = Bytes(400_000);
+        Both("KSP_x64_Data/sharedassets1.assets.resS", payloadA);
+        Write(Steam, "KSP_x64_Data/sharedassets2.assets.resS", payloadB);
+        Write(Gog, "KSP_x64_Data/sharedassets2.assets.resS", [.. payloadB.AsSpan(0, 200_000), .. Bytes(200_000)]);
+        Write(Build, "KSP_x64_Data/sharedassets1.assets.resS", [.. payloadB.AsSpan(100_000, 250_000), .. Bytes(5000), .. payloadA.AsSpan(0, 300_000)]);
+
+        // a chunk straddling the end of one copy run can match another stock file (C holds A's tail and the new data)
+        byte[] tail = Bytes(150_000);
+        Both("KSP_x64_Data/sharedassets3.assets.resS", [.. payloadA.AsSpan(200_000, 100_000), .. tail]);
+        Write(Build, "KSP_x64_Data/sharedassets3.assets.resS", [.. payloadA.AsSpan(0, 300_000), .. tail]);
+
+        gogTree = Tree(Gog);
+        PatchBuilder.Build(Options(PatchPath));
+    }
+
+    BuildOptions Options(string output) => new()
+    {
+        Sources = [new BuildSource { Roots = [Steam] }, new BuildSource { Roots = [Gog] }],
+        Target = Build,
+        Output = output,
+        Level = 3,
+        Jobs = 2,
+    };
+
+    static void Write(string dir, string relative, byte[] bytes)
+    {
+        string path = Path.Combine(dir, relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path, bytes);
+    }
+
+    static Dictionary<string, string> Tree(string dir) =>
+        Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+            .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'), PatchApplier.Sha256Hex, StringComparer.OrdinalIgnoreCase);
+
+    static List<string> Directories(string dir) =>
+        Directory.EnumerateDirectories(dir, "*", SearchOption.AllDirectories)
+            .Select(d => Path.GetRelativePath(dir, d).Replace('\\', '/')).Order(StringComparer.Ordinal).ToList();
+
+    Dictionary<string, string> Shipped()
+    {
+        var tree = Tree(Build);
+        tree.Remove("KSP_BackUpThisFolder_ButDontShipItWithYourGame/x.pdb");
+        return tree;
+    }
+
+    PatchApplier Applier(string install) => new(PatchFile.Open(PatchPath), install);
+
+    [Theory]
+    [InlineData("steam")]
+    [InlineData("gog")]
+    public void EverySourceReproducesTheBuild(string source)
+    {
+        string output = Path.Combine(root, "out");
+        var check = Applier(Path.Combine(root, source)).Apply(new ApplyOptions { OutputDirectory = output });
+        Assert.Equal(source + "-03190", check.Variant);
+        Assert.Equal(Shipped().OrderBy(p => p.Key), Tree(output).OrderBy(p => p.Key));
+        Assert.True(Directory.Exists(Path.Combine(output, "Missions")));
+    }
+
+    [Fact]
+    public void SecondSourceOnlyAddsWhatItCannotReuse()
+    {
+        var m = PatchFile.Open(PatchPath).Manifest;
+        Assert.Equal(["steam-03190", "gog-03190"], m.Variants.Select(v => v.Id));
+        Assert.Contains(m.Sections, s => s.Name == "core@gog-03190");
+        // the executable and buildID are literals, which read no stock file, so GOG reuses them
+        var withAlternatives = m.Outputs.Where(o => o.Recipes.Count > 1).Select(o => o.Path).Order(StringComparer.Ordinal).ToList();
+        Assert.Equal(["KSP_x64_Data/Plugins/x86_64/steam_api64.dll", "KSP_x64_Data/level0", "KSP_x64_Data/sharedassets1.assets.resS"],
+            withAlternatives);
+        Assert.Equal(["KSP_x64_Data/gone.assets", "KSP_x64_Data/Plugins/x86_64/galaxy64.dll", "KSP_x64_Data/sharedassets2.assets.resS"],
+            m.Components.Single(c => c.Name == "core").Remove);
+    }
+
+    [Fact]
+    public void RelocatedStockBytesBecomeCopies()
+    {
+        var m = PatchFile.Open(PatchPath).Manifest;
+        var output = m.Outputs.Single(o => o.Path == "KSP_x64_Data/sharedassets1.assets.resS");
+        var copies = output.Recipes[0].Segments!.Where(s => s.Kind == SegmentKind.Copy).ToList();
+        Assert.Equal(550_000, copies.Sum(s => s.Length));
+        Assert.Equal(["KSP_x64_Data/sharedassets1.assets.resS", "KSP_x64_Data/sharedassets2.assets.resS"],
+            copies.Select(s => m.Sources[s.File!.Value].Path).Distinct().Order());
+    }
+
+    [Fact]
+    public void MixedInstallStillApplies()
+    {
+        File.Copy(Path.Combine(Gog, "KSP_x64_Data/level0"), Path.Combine(Steam, "KSP_x64_Data/level0"), overwrite: true);
+        string output = Path.Combine(root, "out");
+        var check = Applier(Steam).Apply(new ApplyOptions { OutputDirectory = output });
+        Assert.Null(check.Variant);
+        Assert.Equal(Shipped().OrderBy(p => p.Key), Tree(output).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void InPlaceThenRevertRestoresTheStockInstall()
+    {
+        var directories = Directories(Gog);
+        Applier(Gog).Apply(new ApplyOptions());
+        var tree = Tree(Gog);
+        foreach (var (path, hash) in Shipped()) Assert.Equal(hash, tree[path]);
+        Assert.False(tree.ContainsKey("KSP_x64_Data/gone.assets"));
+        Assert.False(tree.ContainsKey("KSP_x64_Data/Plugins/x86_64/galaxy64.dll"));
+        Assert.True(tree.ContainsKey("saves/default/persistent.sfs"));
+        Assert.True(Directory.Exists(Path.Combine(Gog, "Missions")));
+        Assert.False(Directory.Exists(Path.Combine(Gog, InstallJournal.StagingDirectory)));
+        Assert.True(InstallJournal.Exists(Gog));
+
+        // the game runs: a new save, a changed save and the texture cache
+        Write(Gog, "saves/career/persistent.sfs", [1, 2, 3]);
+        Write(Gog, "saves/default/persistent.sfs", [4, 5, 6]);
+        Write(Gog, "PluginData/TextureCache/abc.bin", [7]);
+
+        PatchReverter.Revert(Gog);
+        var expected = new Dictionary<string, string>(gogTree, StringComparer.OrdinalIgnoreCase)
+        {
+            ["saves/career/persistent.sfs"] = Tree(Gog)["saves/career/persistent.sfs"],
+            ["saves/default/persistent.sfs"] = Tree(Gog)["saves/default/persistent.sfs"],
+        };
+        Assert.Equal(expected.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+        Assert.Equal(directories.Append("saves/career").Order(StringComparer.Ordinal), Directories(Gog));
+        Assert.False(InstallJournal.Exists(Gog));
+    }
+
+    [Fact]
+    public void PatchedInstallIsRefusedUntilReverted()
+    {
+        Applier(Steam).Apply(new ApplyOptions());
+        var error = Assert.Throws<PatchException>(() => Applier(Steam).Apply(new ApplyOptions()));
+        Assert.Contains("revert", error.Message);
+        PatchReverter.Revert(Steam);
+        Assert.True(Applier(Steam).Check().CanApply);
+    }
+
+    [Fact]
+    public void RevertUndoesAnInterruptedApply()
+    {
+        Applier(Gog).Apply(new ApplyOptions());
+        // as if the apply stopped after backing up level0 but before moving the new file in
+        var journal = InstallJournal.Load(Gog)!;
+        journal.State = JournalState.Committing;
+        journal.Save(Gog);
+        File.Delete(Path.Combine(Gog, "KSP_x64_Data/level0"));
+        File.Delete(Path.Combine(Gog, "GameData/Retooled/new.dll"));
+        // and before backing up gone.assets
+        File.Move(Path.Combine(Gog, InstallJournal.OriginalDirectory, "KSP_x64_Data/gone.assets"), Path.Combine(Gog, "KSP_x64_Data/gone.assets"));
+
+        PatchReverter.Revert(Gog);
+        Assert.Equal(gogTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void DlcIsSkippedWhenNotInstalled()
+    {
+        Directory.Delete(Path.Combine(Gog, "GameData/SquadExpansion/Serenity"), recursive: true);
+        string output = Path.Combine(root, "out");
+        var check = Applier(Gog).Apply(new ApplyOptions { OutputDirectory = output });
+        Assert.Equal(["makinghistory", "serenity"], check.SkippedComponents);
+        var expected = Shipped();
+        expected.Remove("GameData/SquadExpansion/Serenity/dlc.bin");
+        Assert.Equal(expected.OrderBy(p => p.Key), Tree(output).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void ModifiedInstallIsRejectedBeforeWriting()
+    {
+        File.WriteAllBytes(Path.Combine(Gog, "KSP_x64_Data/level0"), [1, 2, 3]);
+        string output = Path.Combine(root, "out");
+        var error = Assert.Throws<PatchException>(() => Applier(Gog).Apply(new ApplyOptions { OutputDirectory = output }));
+        Assert.Contains("KSP_x64_Data/level0", error.Message);
+        Assert.False(Directory.Exists(output));
+    }
+
+    [Fact]
+    public void BuildWithoutStockLayoutIsRejected()
+    {
+        Directory.Delete(Path.Combine(Build, "saves"), recursive: true);
+        var error = Assert.Throws<PatchException>(() => PatchBuilder.Build(Options(Path.Combine(root, "other.rtpatch"))));
+        Assert.Contains("saves", error.Message);
+    }
+
+    [Fact]
+    public void CommandLineBuildsChecksAndApplies()
+    {
+        string patch = Path.Combine(root, "cli.rtpatch"), output = Path.Combine(root, "out");
+        Assert.Equal(0, Cli.Program.Main(["build", "--source", "steam=" + Steam, "--source", Gog, "--target", Build,
+            "--out", patch, "--level", "3"]));
+        Assert.True(File.Exists(Path.Combine(root, "cli.report.txt")));
+        Assert.Equal(["steam", "gog-03190"], PatchFile.Open(patch).Manifest.Variants.Select(v => v.Id));
+        Assert.Equal(0, Cli.Program.Main(["check", "--install", Gog, "--patch", patch]));
+        Assert.Equal(0, Cli.Program.Main(["apply", "--install", Gog, "--patch", patch, "--out", output]));
+        Assert.Equal(Shipped().OrderBy(p => p.Key), Tree(output).OrderBy(p => p.Key));
+        Assert.Equal(2, Cli.Program.Main(["apply", "--install", Gog, "--patch", patch]));
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    }
+}
