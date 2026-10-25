@@ -1,0 +1,196 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:app="using:KSP.Retooled.Launcher.App"
+  x:Class="KSP.Retooled.Launcher.App.MainWindow"
+  x:DataType="app:MainViewModel"
+  Title="{Binding Title}"
+  Width="900"
+  Height="640"
+  MinWidth="680"
+  MinHeight="480"
+  WindowStartupLocation="CenterScreen"
+>
+  <DockPanel Margin="16">
+    <!-- install folder -->
+    <StackPanel DockPanel.Dock="Top" Spacing="6">
+      <TextBlock Text="KSP install" FontWeight="SemiBold" />
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+        <TextBox
+          Grid.Column="0"
+          Text="{Binding InstallPath}"
+          PlaceholderText="Folder with GameData and the game (KSP 1.12.5)"
+        />
+        <Button Grid.Column="1" Content="Browse…" Command="{Binding BrowseCommand}" />
+        <Button Grid.Column="2" Content="Find installs" Command="{Binding DetectCommand}" />
+      </Grid>
+      <ComboBox
+        ItemsSource="{Binding DetectedInstalls}"
+        SelectedItem="{Binding InstallPath}"
+        HorizontalAlignment="Stretch"
+        PlaceholderText="Installs found on this computer"
+        IsVisible="{Binding HasDetectedInstalls}"
+      />
+      <TextBlock Text="{Binding InstallState}" TextWrapping="Wrap" />
+      <TextBlock
+        Text="{Binding UpdateNotice}"
+        Foreground="{DynamicResource SystemAccentColor}"
+        FontWeight="SemiBold"
+        IsVisible="{Binding UpdateNotice, Converter={x:Static ObjectConverters.IsNotNull}}"
+      />
+    </StackPanel>
+
+    <!-- actions and progress -->
+    <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,12,0,0">
+      <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsBusy}" ColumnSpacing="8">
+        <StackPanel Spacing="4">
+          <TextBlock Text="{Binding Activity}" />
+          <ProgressBar
+            Minimum="0"
+            Maximum="100"
+            Value="{Binding ProgressValue}"
+            IsIndeterminate="{Binding ProgressIndeterminate}"
+          />
+        </StackPanel>
+        <Button
+          Grid.Column="1"
+          Content="Cancel"
+          VerticalAlignment="Bottom"
+          Command="{Binding CancelCommand}"
+        />
+      </Grid>
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+        <Button Content="Uninstall" Command="{Binding UninstallCommand}" />
+        <Button
+          Content="{Binding ActionLabel}"
+          Command="{Binding InstallSelectedCommand}"
+          Classes="accent"
+        />
+        <Button
+          Content="Play"
+          Command="{Binding PlayCommand}"
+          Classes="accent"
+          MinWidth="90"
+          HorizontalContentAlignment="Center"
+        />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- log -->
+    <Expander DockPanel.Dock="Bottom" Header="Log" Margin="0,12,0,0" HorizontalAlignment="Stretch">
+      <TextBox
+        Text="{Binding Log}"
+        IsReadOnly="True"
+        Height="140"
+        FontFamily="{DynamicResource ContentControlThemeFontFamily}"
+        TextWrapping="Wrap"
+        CaretIndex="{Binding Log.Length, Mode=OneWay}"
+      />
+    </Expander>
+
+    <!-- releases -->
+    <Grid
+      RowDefinitions="Auto,Auto,*"
+      ColumnDefinitions="3*,2*"
+      ColumnSpacing="12"
+      Margin="0,16,0,0"
+    >
+      <Grid
+        Grid.Row="0"
+        Grid.ColumnSpan="2"
+        ColumnDefinitions="Auto,*,Auto,Auto"
+        ColumnSpacing="8"
+        Margin="0,0,0,6"
+      >
+        <TextBlock Text="Releases" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <CheckBox
+          Grid.Column="2"
+          Content="Show pre-releases"
+          IsChecked="{Binding IncludePrereleases}"
+        />
+        <Button Grid.Column="3" Content="Refresh" Command="{Binding RefreshCommand}" />
+      </Grid>
+      <TextBlock
+        Grid.Row="1"
+        Grid.ColumnSpan="2"
+        Text="{Binding ReleaseError}"
+        TextWrapping="Wrap"
+        Foreground="OrangeRed"
+        IsVisible="{Binding HasReleaseError}"
+        Margin="0,0,0,6"
+      />
+
+      <TextBlock
+        Grid.Row="2"
+        Grid.ColumnSpan="2"
+        Text="No releases to show."
+        Opacity="0.6"
+        Margin="0,8,0,0"
+        IsVisible="{Binding !HasReleases}"
+      />
+
+      <ListBox
+        Grid.Row="2"
+        Grid.Column="0"
+        ItemsSource="{Binding Releases}"
+        SelectedItem="{Binding SelectedRelease}"
+        IsVisible="{Binding HasReleases}"
+        Background="Transparent"
+        BorderThickness="1"
+        CornerRadius="4"
+        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+      >
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="app:ReleaseItem">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                <Border Classes="badge" IsVisible="{Binding IsInstalled}">
+                  <TextBlock Text="installed" />
+                </Border>
+                <Border Classes="badge" IsVisible="{Binding IsLatest}">
+                  <TextBlock Text="latest" />
+                </Border>
+                <Border Classes="badge pre" IsVisible="{Binding IsPrerelease}">
+                  <TextBlock Text="pre-release" />
+                </Border>
+                <Border Classes="badge none" IsVisible="{Binding NoBuild}">
+                  <TextBlock Text="no build for this OS" />
+                </Border>
+              </StackPanel>
+              <TextBlock
+                Grid.Column="1"
+                Text="{Binding Date}"
+                Opacity="0.6"
+                VerticalAlignment="Center"
+              />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <ScrollViewer Grid.Row="2" Grid.Column="1" IsVisible="{Binding HasReleases}">
+        <SelectableTextBlock Text="{Binding Notes}" TextWrapping="Wrap" />
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+
+  <Window.Styles>
+    <Style Selector="Border.badge">
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="5,1" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+    </Style>
+    <Style Selector="Border.badge > TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.badge.pre">
+      <Setter Property="Background" Value="DarkOrange" />
+    </Style>
+    <Style Selector="Border.badge.none">
+      <Setter Property="Background" Value="Gray" />
+    </Style>
+  </Window.Styles>
+</Window>
