@@ -218,16 +218,13 @@ public static partial class PatchBuilder
     static string? BuildId(IEnumerable<string> roots)
     {
         foreach (string root in roots)
-            foreach (string name in (string[])["buildID64.txt", "buildID.txt"])
+            foreach (string name in BuildIdFile.Names)
             {
                 string path = Path.Combine(root, name);
                 if (!File.Exists(path)) continue;
-                string? Value(string key) => File.ReadLines(path)
-                    .Select(l => l.Split('=', 2)).Where(p => p.Length == 2 && p[0].Trim().Equals(key, StringComparison.OrdinalIgnoreCase))
-                    .Select(p => p[1].Trim()).FirstOrDefault();
-                string? build = Value("build id");
+                string? build = BuildIdFile.Value(path, "build id");
                 if (build == null) continue;
-                string distribution = (Value("distribution name") ?? "ksp").ToLowerInvariant().Replace(' ', '-');
+                string distribution = (BuildIdFile.Value(path, "distribution name") ?? "ksp").ToLowerInvariant().Replace(' ', '-');
                 return $"{distribution}-{build}";
             }
         return null;

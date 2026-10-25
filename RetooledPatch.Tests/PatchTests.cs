@@ -95,7 +95,7 @@ public sealed class PatchRoundTripTests : IDisposable
         Write(Steam, "KSP_x64_Data/Plugins/x86_64/steam_api64.dll", steamDll);
         Write(Gog, "KSP_x64_Data/Plugins/x86_64/galaxy64.dll", Bytes(2000));
         Write(Steam, "buildID64.txt", "build id = 03190\ndistribution name = Steam\n"u8.ToArray());
-        Write(Gog, "buildID64.txt", "build id = 03190\ndistribution name = GOG\n"u8.ToArray());
+        Write(Gog, "buildID64.txt", "build id = 03190\ndistribution name = GOG\nlanguage = ja\n"u8.ToArray());
         Both("GameData/SquadExpansion/Serenity/dlc.bin", dlc);
         Both("saves/default/persistent.sfs", Bytes(100));
         byte[] scenario = Bytes(300);
@@ -243,6 +243,15 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal(expected.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
         Assert.Equal(directories.Append("saves/career").Order(StringComparer.Ordinal), Directories(Gog));
         Assert.False(InstallJournal.Exists(Gog));
+    }
+
+    [Fact]
+    public void InPlaceSetsTheStockLanguageInSettings()
+    {
+        Write(Gog, "settings.cfg", "SETTINGS_FILE_VERSION = 1.3.0\r\nLANGUAGE = en-us\r\nTUTORIALS_EDITOR_ENABLE = False\r\n"u8.ToArray());
+        Applier(Gog).Apply(new ApplyOptions());
+        Assert.Equal("SETTINGS_FILE_VERSION = 1.3.0\r\nLANGUAGE = ja\r\nTUTORIALS_EDITOR_ENABLE = False\r\n",
+            File.ReadAllText(Path.Combine(Gog, "settings.cfg")));
     }
 
     [Fact]

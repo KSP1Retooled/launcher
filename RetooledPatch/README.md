@@ -23,6 +23,7 @@ an in-place apply removes every stock file the build doesn't ship.
 
 An in-place apply moves every stock file it replaces or removes into `<ksp-dir>/.retooled/original` and records them
 in `.retooled/journal.json`; `revert` puts them back, deletes what the apply added and the texture cache, and leaves
-saves and settings alone. Retooled saves do not load in stock KSP.
+saves and settings alone. Retooled saves do not load in stock KSP. An in-place apply also sets LANGUAGE in an
+existing settings.cfg to the stock buildID's language, which the build's buildID64.txt replaces.
 
 The design is in forum thread #241.

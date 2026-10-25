@@ -120,6 +120,8 @@ public sealed class PatchApplier(PatchFile patch, string install)
         options.Log.WriteLine($"install matches {check.Variant ?? "a mix of the known sources"}");
 
         bool inPlace = options.OutputDirectory == null;
+        // read before the build's buildID64.txt replaces the stock one
+        string? language = inPlace ? BuildIdFile.Find(install, "language") : null;
         string root = inPlace ? Path.Combine(install, InstallJournal.StagingDirectory) : PrepareOutput(options.OutputDirectory!);
         if (inPlace && Directory.Exists(root)) Directory.Delete(root, recursive: true);
 
@@ -136,6 +138,8 @@ public sealed class PatchApplier(PatchFile patch, string install)
             };
             new InstallCommit(install, journal, check.Hashes, options.Log).Run(root, staged,
                 components.SelectMany(c => c.Remove), components.SelectMany(c => c.Directories));
+            if (language != null && GameSettingsFile.SetLanguage(install, language))
+                options.Log.WriteLine($"set LANGUAGE = {language} in {GameSettingsFile.FileName}");
         }
         else
         {
