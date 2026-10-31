@@ -48,12 +48,13 @@ public static partial class PatchBuilder
     /// <summary>
     /// Never part of a stock base or a shipped build: user data, logs, debug symbols, Unity's backup folders, the
     /// part icon / craft caches KSP writes at runtime (absent from a fresh install, different in every played one),
-    /// and a patched install's journal.
+    /// the folder metadata Finder and Explorer write, and a patched install's journal.
     /// </summary>
     static readonly string[] DefaultExcludes =
     [
         "saves/*", "Logs/*", "Screenshots/*", "thumbs/*", "@thumbs/*", "*/@thumbs/*", "*.loadmeta", "CKAN/*", "Ships-Old/*", "Notes/*",
         "PluginData/*", "settings.cfg", "*.log", "dataLog.*", "rt_dump.txt", "*.pdb",
+        ".DS_Store", "*/.DS_Store", "Thumbs.db", "*/Thumbs.db", "desktop.ini", "*/desktop.ini",
         "*_BackUpThisFolder_ButDontShipItWithYourGame/*", InstallJournal.Directory + "/*",
     ];
 

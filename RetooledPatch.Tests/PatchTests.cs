@@ -131,6 +131,13 @@ public sealed class PatchRoundTripTests : IDisposable
         Both("KSP_x64_Data/sharedassets3.assets.resS", [.. payloadA.AsSpan(200_000, 100_000), .. tail]);
         Write(Build, "KSP_x64_Data/sharedassets3.assets.resS", [.. payloadA.AsSpan(0, 300_000), .. tail]);
 
+        // Finder and Explorer write these wherever a folder was browsed: neither stock files nor shipped
+        Write(Steam, ".DS_Store", "Bud1 steam"u8.ToArray());
+        Write(Gog, "GameData/.DS_Store", "Bud1 gog"u8.ToArray());
+        Write(Build, ".DS_Store", "Bud1 build"u8.ToArray());
+        Write(Build, "GameData/Squad/Thumbs.db", "thumbs"u8.ToArray());
+        Write(Build, "GameData/desktop.ini", "[.ShellClassInfo]"u8.ToArray());
+
         gogTree = Tree(Gog);
         PatchBuilder.Build(Options(PatchPath));
     }
@@ -162,7 +169,8 @@ public sealed class PatchRoundTripTests : IDisposable
     Dictionary<string, string> Shipped()
     {
         var tree = Tree(Build);
-        tree.Remove("KSP_BackUpThisFolder_ButDontShipItWithYourGame/x.pdb");
+        foreach (string excluded in new[] { "KSP_BackUpThisFolder_ButDontShipItWithYourGame/x.pdb", ".DS_Store", "GameData/Squad/Thumbs.db", "GameData/desktop.ini" })
+            tree.Remove(excluded);
         return tree;
     }
 
@@ -225,6 +233,7 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.False(tree.ContainsKey("KSP_x64_Data/gone.assets"));
         Assert.False(tree.ContainsKey("KSP_x64_Data/Plugins/x86_64/galaxy64.dll"));
         Assert.True(tree.ContainsKey("saves/default/persistent.sfs"));
+        Assert.True(tree.ContainsKey("GameData/.DS_Store"));
         Assert.True(Directory.Exists(Path.Combine(Gog, "Missions")));
         Assert.False(Directory.Exists(Path.Combine(Gog, InstallJournal.StagingDirectory)));
         Assert.True(InstallJournal.Exists(Gog));
