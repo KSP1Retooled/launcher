@@ -17,7 +17,9 @@ for the files the earlier ones cannot provide, in sections of their own that oth
 
 `<retooled-build>` is a release build, which has the stock layout:
 `Unity.exe -batchmode -quit -projectPath . -buildTarget Win64 -executeMethod KSP.Retooled.Content.Authoring.Builder.Build -retooledOut <empty-dir> -retooledStock <stock-root>...`
-(`-buildTarget Linux64` or `OSXUniversal` for the other platforms' builds).
+(`-buildTarget Linux64` or `OSXUniversal` for the other platforms' builds). A release has its platform's build profile
+in `Assets/Settings/Build Profiles`, so its architecture (x86_64, arm64 or both on macOS) is the one set there in the
+Build Profiles window; builds that are not releases are for the machine that builds them.
 A source can overlay several directories (`--source "<game-depot>;<dlc-depot>;..."`, `:` on Linux and macOS), e.g.
 the Steam depots 220204, 283740 and 982970. `build` refuses a build that lacks a top-level entry of a source, because
 an in-place apply removes every stock file the build doesn't ship.
