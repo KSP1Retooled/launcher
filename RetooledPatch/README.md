@@ -16,7 +16,8 @@ are present with the recorded hashes, so it needs no store detection. The second
 for the files the earlier ones cannot provide, in sections of their own that other installs never decompress.
 
 `<retooled-build>` is a release build, which has the stock layout:
-`Unity.exe -batchmode -quit -projectPath . -executeMethod KSP.Retooled.Content.Authoring.Builder.Build -retooledOut <empty-dir> -retooledStock <stock-root>...`.
+`Unity.exe -batchmode -quit -projectPath . -buildTarget Win64 -executeMethod KSP.Retooled.Content.Authoring.Builder.Build -retooledOut <empty-dir> -retooledStock <stock-root>...`
+(`-buildTarget Linux64` or `OSXUniversal` for the other platforms' builds).
 A source can overlay several directories (`--source "<game-depot>;<dlc-depot>;..."`, `:` on Linux and macOS), e.g.
 the Steam depots 220204, 283740 and 982970. `build` refuses a build that lacks a top-level entry of a source, because
 an in-place apply removes every stock file the build doesn't ship.
