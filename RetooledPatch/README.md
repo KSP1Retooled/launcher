@@ -16,8 +16,12 @@ are present with the recorded hashes, so it needs no store detection. The second
 for the files the earlier ones cannot provide, in sections of their own that other installs never decompress.
 
 `<retooled-build>` is a release build, which has the stock layout:
-`Unity.exe -batchmode -quit -projectPath . -buildTarget Win64 -executeMethod KSP.Retooled.Content.Authoring.Builder.Build -retooledOut <empty-dir> -retooledStock <stock-root>...`
-(`-buildTarget Linux64` or `OSXUniversal` for the other platforms' builds). A release has its platform's build profile
+`Unity.exe -batchmode -quit -projectPath . -buildTarget Win64 -executeMethod KSP.Retooled.Content.Authoring.Builder.Build -retooledOut <empty-dir> -retooledRelease`
+(`-buildTarget Linux64` or `OSXUniversal` for the other platforms' builds). Its stock files are what KSP Retooled →
+Setup copied into the project (GameData, and the rest of the install's root in `StockRoot`), never read from an
+install, so set the project up from a pristine install of that platform, with its DLC, first. For another platform's
+release from the same checkout, run `RetooledCli devenv setup --install <that platform's install>` first (it redoes only
+the file import) and again with your usual install afterwards. A release has its platform's build profile
 in `Assets/Settings/Build Profiles`, so its architecture (x86_64, arm64 or both on macOS) is the one set there in the
 Build Profiles window; builds that are not releases are for the machine that builds them.
 A source can overlay several directories (`--source "<game-depot>;<dlc-depot>;..."`, `:` on Linux and macOS), e.g.

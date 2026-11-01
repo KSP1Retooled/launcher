@@ -287,7 +287,7 @@ public static partial class PatchBuilder
             .Where(n => !shipped.Contains(n)).Order(StringComparer.OrdinalIgnoreCase).ToList();
         if (missing.Count > 0)
             throw new PatchException($"{targetPath} has none of {source.Id}'s {string.Join(", ", missing)}: patch a release build "
-                + "(Builder.Build -retooledStock), which has stock's layout");
+                + "(Builder.Build -retooledRelease), which has stock's layout");
     }
 
     /// <summary>ELF and Mach-O binaries and scripts, which need the executable mode on Linux and macOS.</summary>
