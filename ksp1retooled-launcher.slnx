@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="RetooledLauncher/RetooledLauncher.csproj" />
+  <Project Path="RetooledLauncher.Core/RetooledLauncher.Core.csproj" />
+  <Project Path="RetooledLauncher.Tests/RetooledLauncher.Tests.csproj" />
+  <Project Path="RetooledPatch/RetooledPatch.csproj" />
+  <Project Path="RetooledPatch.Cli/RetooledPatch.Cli.csproj" />
+  <Project Path="RetooledPatch.Tests/RetooledPatch.Tests.csproj" />
+</Solution>

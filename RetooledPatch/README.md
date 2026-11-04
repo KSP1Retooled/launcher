@@ -1,13 +1,13 @@
 # RetooledPatch
 
-Library that builds, applies and reverts KSP Retooled patch files. `Tools/RetooledPatch.Cli` (`retooled-patch`) wraps
+Library that builds, applies and reverts KSP Retooled patch files. `RetooledPatch.Cli` (`retooled-patch`) wraps
 it for the command line; the launcher will reference it directly.
 
 ```
-dotnet run --project Tools/RetooledPatch.Cli -- build --source <stock-install> [--source <other-store-install> ...] --target <retooled-build> --out retooled-windows.rtpatch
-dotnet run --project Tools/RetooledPatch.Cli -- check  --install <ksp-dir> --patch retooled-windows.rtpatch
-dotnet run --project Tools/RetooledPatch.Cli -- apply  --install <ksp-dir> --patch retooled-windows.rtpatch --in-place
-dotnet run --project Tools/RetooledPatch.Cli -- revert --install <ksp-dir>
+dotnet run --project RetooledPatch.Cli -- build --source <stock-install> [--source <other-store-install> ...] --target <retooled-build> --out retooled-windows.rtpatch
+dotnet run --project RetooledPatch.Cli -- check  --install <ksp-dir> --patch retooled-windows.rtpatch
+dotnet run --project RetooledPatch.Cli -- apply  --install <ksp-dir> --patch retooled-windows.rtpatch --in-place
+dotnet run --project RetooledPatch.Cli -- revert --install <ksp-dir>
 ```
 
 One patch file per platform turns any of its sources (each store's KSP 1.12.5) into the same build. Each output file

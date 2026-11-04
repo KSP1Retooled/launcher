@@ -5,9 +5,9 @@ downgrades it between releases, uninstalls it, and starts the game. `RetooledLau
 `RetooledLauncher.Core` holds everything else and is what the tests cover.
 
 ```
-dotnet run --project Tools/RetooledLauncher
-dotnet test Tools/RetooledLauncher.Tests
-dotnet publish Tools/RetooledLauncher -c Release -r win-x64 --self-contained   # or linux-x64, osx-arm64, osx-x64
+dotnet run --project RetooledLauncher
+dotnet test RetooledLauncher.Tests
+dotnet publish RetooledLauncher -c Release -r win-x64 --self-contained   # or linux-x64, osx-arm64, osx-x64
 ```
 
 ## Releases
