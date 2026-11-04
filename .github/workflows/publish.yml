@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: read
+      contents: write
       id-token: write
     env:
       # Not VERSION: MSBuild reads environment variables as properties, and "v1.2.0" is not a valid package version.
@@ -45,3 +45,11 @@ jobs:
         run: |
           dotnet nuget push 'packages/*.nupkg' --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=
+          case "$TAG" in *-*) prerelease=--prerelease ;; esac
+          gh release create "$TAG" packages/*.nupkg --verify-tag --title "$TAG" --generate-notes $prerelease
