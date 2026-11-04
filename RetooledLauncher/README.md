@@ -8,6 +8,7 @@ downgrades it between releases, uninstalls it, and starts the game. `RetooledLau
 dotnet run --project RetooledLauncher
 dotnet test RetooledLauncher.Tests
 dotnet publish RetooledLauncher -c Release -r win-x64 --self-contained   # or linux-x64, osx-arm64, osx-x64
+dotnet tool restore && dotnet vpk pack ...   # see .github/workflows/installers.yml
 ```
 
 ## Releases
@@ -46,5 +47,5 @@ any other folder can be chosen with **Browse**.
 
 ## Not done yet
 
-- Native installers and code signing per platform; self-update of the launcher.
+- Code signing, so Windows and macOS stop warning about the installers; self-update of the launcher.
 - Choosing the release repository for good (it is the `repository` setting for now).
