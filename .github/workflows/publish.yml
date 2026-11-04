@@ -15,7 +15,8 @@ jobs:
       contents: read
       id-token: write
     env:
-      VERSION: ${{ github.ref_name }}
+      # Not VERSION: MSBuild reads environment variables as properties, and "v1.2.0" is not a valid package version.
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v5
 
@@ -27,7 +28,7 @@ jobs:
 
       - name: Pack
         run: |
-          version=${VERSION#v}
+          version=${TAG#v}
           dotnet pack RetooledPatch --configuration Release --output packages -p:Version=$version
           dotnet pack RetooledPatch.Cli --configuration Release --output packages -p:Version=$version
 
