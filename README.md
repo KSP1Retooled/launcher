@@ -14,4 +14,4 @@ dotnet build ksp1retooled-launcher.slnx
 dotnet test ksp1retooled-launcher.slnx
 ```
 
-Needs the .NET 10 SDK. Run the RetooledPatch tests at idle priority: they saturate every core.
+Needs the .NET 10 SDK.
