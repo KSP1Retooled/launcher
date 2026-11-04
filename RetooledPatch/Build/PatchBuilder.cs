@@ -278,13 +278,17 @@ public static partial class PatchBuilder
 
     /// <summary>
     /// An in-place apply removes every stock file the build does not ship, so the build must be a release with stock's
-    /// layout: a build missing a whole stock top-level entry (GameData, Ships, the player) would delete it.
+    /// layout: a build missing a whole stock top-level entry (GameData, Ships, the player) would delete it. A CoreCLR
+    /// release alone has no MonoBleedingEdge, and there the apply should delete stock's: a CoreCLR player does not use it,
+    /// and Special K, finding it, crashes the game (Builder.StockMonoRuntime).
     /// </summary>
     static void CheckLayout(SourceInstall source, List<FileEntry> targetFiles, string targetPath)
     {
         var shipped = targetFiles.Select(TopLevel).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        bool coreClr = shipped.Contains("CoreCLR");
         var missing = source.Files.Where(IsCore).Select(TopLevel).Distinct(StringComparer.OrdinalIgnoreCase)
-            .Where(n => !shipped.Contains(n)).Order(StringComparer.OrdinalIgnoreCase).ToList();
+            .Where(n => !shipped.Contains(n) && !(coreClr && n.Equals("MonoBleedingEdge", StringComparison.OrdinalIgnoreCase)))
+            .Order(StringComparer.OrdinalIgnoreCase).ToList();
         if (missing.Count > 0)
             throw new PatchException($"{targetPath} has none of {source.Id}'s {string.Join(", ", missing)}: patch a release build "
                 + "(Builder.Build -retooledRelease), which has stock's layout");

@@ -320,6 +320,30 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Contains("saves", error.Message);
     }
 
+    // Only a CoreCLR release leaves out stock's Mono runtime, and an in-place apply then takes it out of the install.
+    [Fact]
+    public void CoreClrBuildRemovesTheStockMonoRuntime()
+    {
+        const string runtime = "MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll";
+        Write(Steam, runtime, [1, 2, 3]);
+        Write(Gog, runtime, [1, 2, 3]);
+        Write(Gog, "MonoBleedingEdge/etc/mono/config", [4]);
+        var stockTree = Tree(Gog);
+        string patch = Path.Combine(root, "coreclr.rtpatch");
+
+        var error = Assert.Throws<PatchException>(() => PatchBuilder.Build(Options(patch)));
+        Assert.Contains("MonoBleedingEdge", error.Message);
+
+        Write(Build, "CoreCLR/native/coreclr.dll", [5, 6]);
+        PatchBuilder.Build(Options(patch));
+        new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions());
+        Assert.False(Directory.Exists(Path.Combine(Gog, "MonoBleedingEdge")));
+        Assert.True(File.Exists(Path.Combine(Gog, "CoreCLR/native/coreclr.dll")));
+
+        PatchReverter.Revert(Gog);
+        Assert.Equal(stockTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
     [Fact]
     public void CommandLineBuildsChecksAndApplies()
     {

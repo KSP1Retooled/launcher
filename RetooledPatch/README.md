@@ -26,7 +26,8 @@ in `Assets/Settings/Build Profiles`, so its architecture (x86_64, arm64 or both 
 Build Profiles window; builds that are not releases are for the machine that builds them.
 A source can overlay several directories (`--source "<game-depot>;<dlc-depot>;..."`, `:` on Linux and macOS), e.g.
 the Steam depots 220204, 283740 and 982970. `build` refuses a build that lacks a top-level entry of a source, because
-an in-place apply removes every stock file the build doesn't ship.
+an in-place apply removes every stock file the build doesn't ship. The exception is a CoreCLR release, which has no
+`MonoBleedingEdge`: an apply removes stock's, since Special K crashes the game if it finds that runtime there.
 
 An in-place apply moves every stock file it replaces or removes into `<ksp-dir>/.retooled/original` and records them
 in `.retooled/journal.json`; `revert` puts them back, deletes what the apply added and the texture cache, and leaves
