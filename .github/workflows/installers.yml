@@ -1,0 +1,127 @@
+name: Installers
+
+# Builds the launcher's installers on each platform, then installs and starts them, because a package that builds can
+# still fail to run. With a tag, they are attached to that tag's release.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/installers.yml
+      - dotnet-tools.json
+      - RetooledLauncher/**
+      - RetooledLauncher.Core/**
+      - RetooledPatch/**
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the installers to, such as v1.2.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.channel }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64, channel: windows-x64, exe: RetooledLauncher.exe, icon: icon.ico }
+          - { os: ubuntu-latest, rid: linux-x64, channel: linux-x64, exe: RetooledLauncher, icon: icon.png }
+          - { os: macos-latest, rid: osx-arm64, channel: macos-arm64, exe: RetooledLauncher, icon: icon.icns }
+          - { os: macos-15-intel, rid: osx-x64, channel: macos-x64, exe: RetooledLauncher, icon: icon.icns }
+    env:
+      # Not VERSION: MSBuild reads environment variables as properties.
+      TAG: ${{ inputs.tag || 'v0.0.1-dev' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build the installer
+        shell: bash
+        run: |
+          version=${TAG#v}
+          dotnet tool restore
+          dotnet publish RetooledLauncher --configuration Release --runtime ${{ matrix.rid }} --self-contained \
+            --output publish -p:Version=$version
+          dotnet vpk pack --packId KSPRetooled.Launcher --packVersion "$version" \
+            --packTitle "KSP Retooled Launcher" --packAuthors "KSP Retooled contributors" \
+            --packDir publish --mainExe ${{ matrix.exe }} --icon RetooledLauncher/Icons/${{ matrix.icon }} \
+            --channel ${{ matrix.channel }} --outputDir installers
+          ls -l installers
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = (Get-Item installers/*-Setup.exe).FullName
+          Start-Process $setup -ArgumentList '--silent' -Wait
+          $app = Start-Process "$env:LOCALAPPDATA/KSPRetooled.Launcher/current/RetooledLauncher.exe" -PassThru
+          Start-Sleep 15
+          if ($app.HasExited) { throw "the launcher exited with $($app.ExitCode)" }
+          Stop-Process $app
+
+      - name: Smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes xvfb libice6 libsm6 libfontconfig1
+          chmod +x installers/*.AppImage
+          status=0
+          APPIMAGE_EXTRACT_AND_RUN=1 timeout 15 xvfb-run --auto-servernum installers/*.AppImage || status=$?
+          [ "$status" -eq 124 ] || { echo "the launcher exited with $status"; exit 1; }
+
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          sudo installer -pkg installers/*.pkg -target /
+          app=$(find /Applications "$HOME/Applications" -maxdepth 1 -name '*.app' -newer dotnet-tools.json | head -n 1)
+          echo "installed $app"
+          codesign --display --verbose=2 "$app" 2>&1 | head -n 12 || true
+          "$app/Contents/MacOS/${{ matrix.exe }}" &
+          pid=$!
+          sleep 15
+          kill -0 "$pid" || { wait "$pid"; echo "the launcher exited with $?"; exit 1; }
+          kill "$pid"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: installer-${{ matrix.channel }}
+          if-no-files-found: error
+          path: |
+            installers/*-Setup.exe
+            installers/*.AppImage
+            installers/*.pkg
+
+  attach:
+    name: Attach to the release
+    needs: build
+    if: inputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: installer-*
+          merge-multiple: true
+          path: installers
+
+      - env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" installers/* --clobber

@@ -53,3 +53,11 @@ jobs:
           prerelease=
           case "$TAG" in *-*) prerelease=--prerelease ;; esac
           gh release create "$TAG" packages/*.nupkg --verify-tag --title "$TAG" --generate-notes $prerelease
+
+  installers:
+    needs: publish
+    permissions:
+      contents: write
+    uses: ./.github/workflows/installers.yml
+    with:
+      tag: ${{ github.ref_name }}
