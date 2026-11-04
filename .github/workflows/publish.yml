@@ -1,10 +1,10 @@
 name: Publish
 
-# A tag such as patch-v1.2.0 publishes that version of KSP1Retooled.Patch and KSP1Retooled.Patch.Cli to nuget.org.
+# A tag such as v1.2.0 publishes that version of KSP1Retooled.Patch and KSP1Retooled.Patch.Cli to nuget.org.
 # The Trusted Publishing policy on nuget.org names this file, so renaming it means updating the policy.
 on:
   push:
-    tags: ['patch-v*']
+    tags: ['v*']
 
 jobs:
   publish:
@@ -27,7 +27,7 @@ jobs:
 
       - name: Pack
         run: |
-          version=${VERSION#patch-v}
+          version=${VERSION#v}
           dotnet pack RetooledPatch --configuration Release --output packages -p:Version=$version
           dotnet pack RetooledPatch.Cli --configuration Release --output packages -p:Version=$version
 
