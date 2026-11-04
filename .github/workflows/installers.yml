@@ -59,7 +59,7 @@ jobs:
           dotnet vpk pack --packId KSPRetooled.Launcher --packVersion "$version" \
             --packTitle "KSP Retooled Launcher" --packAuthors "KSP Retooled contributors" \
             --packDir publish --mainExe ${{ matrix.exe }} --icon RetooledLauncher/Icons/${{ matrix.icon }} \
-            --channel ${{ matrix.channel }} --outputDir installers
+            --runtime ${{ matrix.rid }} --channel ${{ matrix.channel }} --outputDir installers
           ls -l installers
 
       - name: Smoke test (Windows)
