@@ -8,6 +8,10 @@
     <RootNamespace>KSP.Retooled.Patch.Cli</RootNamespace>
     <AssemblyName>retooled-patch</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>retooled-patch</ToolCommandName>
+    <PackageId>KSP1Retooled.Patch.Cli</PackageId>
+    <Description>The retooled-patch command, which builds, checks, applies and reverts KSP Retooled patch files.</Description>
   </PropertyGroup>
 
   <ItemGroup>

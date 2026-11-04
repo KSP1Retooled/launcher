@@ -1,0 +1,18 @@
+<Project>
+
+  <PropertyGroup>
+    <Authors>KSP Retooled contributors</Authors>
+    <Copyright>Copyright (c) 2026 KSP Retooled contributors</Copyright>
+    <PackageProjectUrl>https://github.com/KSP1Retooled/retooled</PackageProjectUrl>
+    <!-- The patch code includes a port of bsdiff, which stays under its own licence. -->
+    <PackageLicenseExpression>MIT AND BSD-2-Clause</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PackageId)' != '' And $(PackageId.StartsWith('KSP1Retooled.'))">
+    <None Include="$(MSBuildThisFileDirectory)RetooledPatch/README.md" Pack="true" PackagePath="/" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="/" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)THIRD_PARTY_NOTICES.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
+</Project>

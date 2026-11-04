@@ -7,6 +7,8 @@
     <RootNamespace>KSP.Retooled.Patch</RootNamespace>
     <AssemblyName>RetooledPatch</AssemblyName>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageId>KSP1Retooled.Patch</PackageId>
+    <Description>Builds, applies and reverts KSP Retooled patch files.</Description>
   </PropertyGroup>
 
   <ItemGroup>
