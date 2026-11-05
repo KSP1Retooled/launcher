@@ -66,6 +66,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          Get-Item installers/releases.windows-x64.json, installers/*-windows-x64-full.nupkg
           $setup = (Get-Item installers/*-Setup.exe).FullName
           Start-Process $setup -ArgumentList '--silent' -Wait
           $app = Start-Process "$env:LOCALAPPDATA/KSPRetooled.Launcher/current/RetooledLauncher.exe" -PassThru
@@ -104,6 +105,8 @@ jobs:
             installers/*-Setup.exe
             installers/*.AppImage
             installers/*.pkg
+            installers/releases.windows-x64.json
+            installers/*-windows-x64-full.nupkg
 
   attach:
     name: Attach to the release

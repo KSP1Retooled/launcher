@@ -43,6 +43,7 @@ public sealed partial class MainViewModel : ObservableObject
 {
     readonly LauncherSettings settings;
     readonly IDialogs dialogs;
+    readonly LauncherUpdater updater;
     readonly HttpClient http = new() { Timeout = TimeSpan.FromMinutes(30) };
     readonly string? token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
     readonly string platform = LauncherInfo.Platform;
@@ -54,6 +55,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         this.settings = settings;
         this.dialogs = dialogs;
+        updater = new LauncherUpdater(token);
         InstallPath = settings.InstallPath is string saved ? KspInstall.Inspect(saved).Path : "";
         IncludePrereleases = settings.IncludePrereleases;
         foreach (string channel in settings.AllChannels)
@@ -102,12 +104,21 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial string Log { get; private set; } = "";
 
-    /// <summary>A newer launcher than this one, on platforms where it does not update itself.</summary>
+    /// <summary>A newer launcher than this one, for the user to fetch because this one cannot update itself.</summary>
     [ObservableProperty]
     public partial Release? LauncherUpdate { get; private set; }
 
+    /// <summary>The version of a newer launcher that has been downloaded and is waiting for a restart.</summary>
+    [ObservableProperty]
+    public partial string? DownloadedLauncher { get; private set; }
+
+    public bool HasLauncherUpdate => LauncherUpdate != null;
+    public bool HasDownloadedLauncher => DownloadedLauncher != null;
+
     public string? LauncherUpdateNotice =>
-        LauncherUpdate is Release r ? $"Launcher {r.Tag} is available." : null;
+        DownloadedLauncher is string version ? $"Launcher {version} is ready to install."
+        : LauncherUpdate is Release r ? $"Launcher {r.Tag} is available."
+        : null;
 
     public string InstallState =>
         Install?.Status switch
@@ -186,8 +197,11 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Failing is not worth interrupting anyone for: the log gets it, and the next start checks again.</summary>
     async Task CheckForLauncherUpdateAsync()
     {
-        if (LauncherInfo.UpdatesItself)
+        if (updater.CanUpdate)
+        {
+            await DownloadLauncherUpdateAsync();
             return;
+        }
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try
         {
@@ -207,6 +221,19 @@ public sealed partial class MainViewModel : ObservableObject
             )
         {
             Append($"could not check for a new launcher: {e.Message}");
+        }
+    }
+
+    async Task DownloadLauncherUpdateAsync()
+    {
+        try
+        {
+            DownloadedLauncher = await updater.DownloadAsync();
+        }
+        // anything at all: Velopack does not say what it throws, and the launcher works fine without the update
+        catch (Exception e)
+        {
+            Append($"could not update the launcher: {e.Message}");
         }
     }
 
@@ -239,8 +266,17 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnReleaseErrorChanged(string value) => OnPropertyChanged(nameof(HasReleaseError));
 
-    partial void OnLauncherUpdateChanged(Release? value) =>
+    partial void OnLauncherUpdateChanged(Release? value)
+    {
+        OnPropertyChanged(nameof(HasLauncherUpdate));
         OnPropertyChanged(nameof(LauncherUpdateNotice));
+    }
+
+    partial void OnDownloadedLauncherChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasDownloadedLauncher));
+        OnPropertyChanged(nameof(LauncherUpdateNotice));
+    }
 
     partial void OnSelectedReleaseChanged(ReleaseItem? value) => Changed();
 
@@ -437,8 +473,31 @@ public sealed partial class MainViewModel : ObservableObject
             );
     }
 
+    /// <summary>Not while busy: restarting would stop an install half way.</summary>
+    [RelayCommand(CanExecute = nameof(Idle))]
+    async Task RestartLauncherAsync()
+    {
+        try
+        {
+            updater.Restart();
+        }
+        catch (Exception e)
+        {
+            Append($"could not update the launcher: {e.Message}");
+            await dialogs.AlertAsync(
+                "New launcher",
+                "The new launcher could not be installed. It will be tried again the next time the launcher starts."
+            );
+        }
+    }
+
+    /// <summary>A downloaded update still goes in the next time the launcher starts.</summary>
     [RelayCommand]
-    void DismissLauncherUpdate() => LauncherUpdate = null;
+    void DismissLauncherUpdate()
+    {
+        LauncherUpdate = null;
+        DownloadedLauncher = null;
+    }
 
     async Task RunAsync(
         string what,
@@ -548,6 +607,7 @@ public sealed partial class MainViewModel : ObservableObject
         InstallFileCommand.NotifyCanExecuteChanged();
         UninstallCommand.NotifyCanExecuteChanged();
         PlayCommand.NotifyCanExecuteChanged();
+        RestartLauncherCommand.NotifyCanExecuteChanged();
     }
 
     void SaveChannels()

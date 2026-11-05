@@ -28,7 +28,7 @@ public static class LauncherInfo
     /// <summary>Where the launcher itself is released.</summary>
     public const string Repository = "KSP1Retooled/launcher";
 
-    /// <summary>Whether the launcher gets new versions without the user's help; elsewhere it tells them about one.</summary>
+    /// <summary>Whether an installed launcher updates itself; elsewhere it tells the user about a new version.</summary>
     public static bool UpdatesItself => OperatingSystem.IsWindows();
 
     /// <summary>The channel of a patch installed from a local file; never a repository, which holds a '/'.</summary>

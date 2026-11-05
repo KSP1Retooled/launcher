@@ -65,7 +65,7 @@
           Classes="toast"
           HorizontalAlignment="Left"
           VerticalAlignment="Bottom"
-          IsVisible="{Binding LauncherUpdate, Converter={x:Static ObjectConverters.IsNotNull}}"
+          IsVisible="{Binding LauncherUpdateNotice, Converter={x:Static ObjectConverters.IsNotNull}}"
         >
           <WrapPanel ItemSpacing="8" LineSpacing="4">
             <TextBlock
@@ -74,7 +74,16 @@
               VerticalAlignment="Center"
             />
             <StackPanel Orientation="Horizontal" Spacing="4">
-              <Button Content="Download" Command="{Binding OpenLauncherUpdateCommand}" />
+              <Button
+                Content="Download"
+                Command="{Binding OpenLauncherUpdateCommand}"
+                IsVisible="{Binding HasLauncherUpdate}"
+              />
+              <Button
+                Content="Restart"
+                Command="{Binding RestartLauncherCommand}"
+                IsVisible="{Binding HasDownloadedLauncher}"
+              />
               <Button
                 Content="✕"
                 ToolTip.Tip="Dismiss"
