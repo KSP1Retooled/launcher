@@ -48,7 +48,7 @@ public sealed class PatchCache(HttpClient http, GitHubReleaseSource source, stri
         var asset =
             release.PatchFor(platform)
             ?? throw new LauncherException(
-                $"{release.Tag} has no {platform} build ({Release.PatchName(platform)})"
+                $"{release.Tag} has no {platform} build ({release.PatchNameFor(platform)})"
             );
         string path = Path.Combine(
             EntryFor(release.Channel, release.Tag),

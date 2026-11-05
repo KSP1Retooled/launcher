@@ -51,6 +51,49 @@ public sealed class GitHubReleaseSourceTests
     const string Page1 = "https://api.github.com/repos/o/r/releases?per_page=100";
     const string Page2 = "https://api.github.com/repos/o/r/releases?per_page=100&page=2";
 
+    [Theory]
+    [InlineData("o/r", "retooled-windows.rtpatch")]
+    [InlineData("o/r#debug", "retooled-windows-debug.rtpatch")]
+    public async Task AChannelPicksItsOwnPatchFromItsRepository(string channel, string expected)
+    {
+        var http = new FakeHttp();
+        http.Json(
+            Page1,
+            """
+            [ { "tag_name": "v1.0.0", "prerelease": false, "draft": false, "published_at": "2026-01-01T00:00:00Z",
+                "assets": [
+                  { "name": "retooled-windows.rtpatch", "size": 1, "url": "a", "browser_download_url": "a" },
+                  { "name": "retooled-windows-debug.rtpatch", "size": 2, "url": "b", "browser_download_url": "b" }
+                ] } ]
+            """
+        );
+
+        var release = Assert.Single(
+            await new GitHubReleaseSource(new HttpClient(http), channel).GetReleasesAsync()
+        );
+
+        Assert.Equal(channel, release.Channel);
+        Assert.Equal(expected, release.PatchFor("windows")?.Name);
+    }
+
+    [Fact]
+    public void AReleaseWithoutDebugPatchesCannotBeInstalledFromTheDebugChannel()
+    {
+        var asset = new ReleaseAsset(Release.PatchName("windows"), 1, "a", "a", null);
+        var release = new Release("v1.0.0", "", false, default, "", "", [asset]);
+
+        Assert.Same(asset, (release with { Channel = "o/r" }).PatchFor("windows"));
+        Assert.Null((release with { Channel = "o/r#debug" }).PatchFor("windows"));
+    }
+
+    [Theory]
+    [InlineData(LauncherInfo.DefaultRepository, true)]
+    [InlineData(LauncherInfo.DebugChannel, true)]
+    [InlineData("o/r#debug", false)]
+    [InlineData("o/r", false)]
+    public void OnlyTheBuiltInChannelsAreKeptOutOfTheSavedList(string channel, bool builtIn) =>
+        Assert.Equal(builtIn, LauncherInfo.IsBuiltInChannel(channel));
+
     [Fact]
     public async Task ReadsEveryPageAndDropsDrafts()
     {
@@ -288,7 +331,7 @@ public sealed class LauncherSettingsTests : IDisposable
     [Fact]
     public void OffersTheDefaultChannelFirstAndOnlyOnce() =>
         Assert.Equal(
-            [LauncherInfo.DefaultRepository, "a/b"],
+            [LauncherInfo.DefaultRepository, LauncherInfo.DebugChannel, "a/b"],
             new LauncherSettings
             {
                 Channels = ["a/b", "A/B", LauncherInfo.DefaultRepository],
@@ -300,7 +343,7 @@ public sealed class LauncherSettingsTests : IDisposable
     {
         File.WriteAllText(file, """{ "repository": "o/r" }""");
         Assert.Equal(
-            [LauncherInfo.DefaultRepository, "o/r"],
+            [LauncherInfo.DefaultRepository, LauncherInfo.DebugChannel, "o/r"],
             LauncherSettings.Load(file).AllChannels
         );
     }

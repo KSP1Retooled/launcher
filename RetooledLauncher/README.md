@@ -19,6 +19,10 @@ is always offered, and **Add…** adds others (`owner/name`). Each release carri
 [RetooledPatch](../RetooledPatch/README.md)). A release without the current platform's patch is listed but cannot be
 installed.
 
+`KSP1Retooled/retooled#debug` is also always offered. It lists the same releases but installs their development
+players, from `retooled-<platform>-debug.rtpatch`. It counts as a channel of its own, so moving between it and
+`KSP1Retooled/retooled` is a switch.
+
 - Tags are only unique within a channel. A release installed from another channel is shown by name, and moving to this
   channel's releases is a switch, not an upgrade or downgrade, even if the tags look comparable.
 - Whether a release is a pre-release is GitHub's pre-release flag. Pre-releases are hidden unless **Show pre-releases**
