@@ -14,6 +14,8 @@ One patch file per platform turns any of its sources (each store's KSP 1.12.5) i
 has one recipe per distinct way the sources hold its stock inputs; an apply uses the first recipe whose stock files
 are present with the recorded hashes, so it needs no store detection. The second and later sources only add recipes
 for the files the earlier ones cannot provide, in sections of their own that other installs never decompress.
+A file every source has as the build ships it is not checked: an apply leaves the install's copy alone if it was edited
+or missing, unless another output reads it (a side-by-side apply links the edited copy across, as it does a stock one).
 
 `<retooled-build>` is a release build, which has the stock layout:
 `Unity.exe -batchmode -quit -projectPath . -buildTarget Win64 -executeMethod KSP.Retooled.Content.Authoring.Builder.Build -retooledOut <empty-dir> -retooledRelease`
