@@ -171,7 +171,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
         else
         {
             foreach (string directory in components.SelectMany(c => c.Directories)) Directory.CreateDirectory(Path.Combine(root, directory));
-            foreach (string directory in manifest.CopiedDirectories) CopyDirectory(directory, root);
+            foreach (string path in manifest.CopiedPaths) CopyFromInstall(path, root);
         }
         options.Log.WriteLine(inPlace ? $"patched {install} in place" : $"wrote {root}");
         return check;
@@ -189,13 +189,14 @@ public sealed class PatchApplier(PatchFile patch, string install)
         return full;
     }
 
-    /// <summary>Links the install's copy of a directory, whatever it holds, into <paramref name="root"/>, if it has one.</summary>
-    void CopyDirectory(string directory, string root)
+    /// <summary>Links the install's file or directory, whatever it holds, into <paramref name="root"/>, if it has one.</summary>
+    void CopyFromInstall(string path, string root)
     {
-        string from = Path.Combine(install, directory);
+        string from = Path.Combine(install, path);
+        if (File.Exists(from)) LinkOrCopy(from, Destination(root, path));
         if (!Directory.Exists(from)) return;
 
-        Directory.CreateDirectory(Path.Combine(root, directory));
+        Directory.CreateDirectory(Path.Combine(root, path));
         foreach (string sub in Directory.EnumerateDirectories(from, "*", SearchOption.AllDirectories))
             Directory.CreateDirectory(Path.Combine(root, Path.GetRelativePath(install, sub)));
         foreach (string file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))

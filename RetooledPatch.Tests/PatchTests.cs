@@ -656,7 +656,7 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal(audio, File.ReadAllBytes(Path.Combine(output, "GameData/Retooled/sound.wav")));
     }
 
-    string BuildWithCopiedDirectories()
+    string BuildWithCopiedPaths()
     {
         Write(Steam, "GameData/Squad/part.dds", [1]);
         Write(Gog, "GameData/Squad/part.dds", [2]);
@@ -665,6 +665,9 @@ public sealed class PatchRoundTripTests : IDisposable
         Directory.CreateDirectory(Path.Combine(Gog, "GameData/Squad/Empty"));
         Write(Steam, "Plugins/store.dll", [4]);
         Write(Gog, "Plugins/store.dll", [4]);
+        Write(Steam, "EULA.txt", [5]);
+        Write(Gog, "EULA.txt", [6]);
+        Write(Build, "EULA.txt", [7]);
         string patch = Path.Combine(root, "copied.rtpatch");
         PatchBuilder.Build(new BuildOptions
         {
@@ -673,26 +676,26 @@ public sealed class PatchRoundTripTests : IDisposable
             Output = patch,
             Level = 3,
             Jobs = 2,
-            CopiedDirectories = ["GameData/Squad/", "Plugins"],
+            CopiedPaths = ["GameData/Squad/", "Plugins", "EULA.txt"],
         });
         return patch;
     }
 
     [Fact]
-    public void ACopiedDirectoryIsNotInThePatch()
+    public void ACopiedPathIsNotInThePatch()
     {
-        var m = PatchFile.Open(BuildWithCopiedDirectories()).Manifest;
+        var m = PatchFile.Open(BuildWithCopiedPaths()).Manifest;
 
         Assert.Equal(PatchManifest.CurrentVersion, m.Version);
-        Assert.Equal(["GameData/Squad", "Plugins"], m.CopiedDirectories);
+        Assert.Equal(["GameData/Squad", "Plugins", "EULA.txt"], m.CopiedPaths);
         Assert.DoesNotContain(m.Sources.Select(s => s.Path).Concat(m.Outputs.Select(o => o.Path)).Concat(m.Components.SelectMany(c => c.Remove)),
-            p => p.StartsWith("GameData/Squad/", StringComparison.Ordinal) || p.StartsWith("Plugins/", StringComparison.Ordinal));
+            p => p.StartsWith("GameData/Squad/", StringComparison.Ordinal) || p.StartsWith("Plugins/", StringComparison.Ordinal) || p == "EULA.txt");
     }
 
     [Fact]
-    public void ASideBySideApplyCopiesADirectoryWhole()
+    public void ASideBySideApplyCopiesAFileAndADirectoryWhole()
     {
-        string patch = BuildWithCopiedDirectories();
+        string patch = BuildWithCopiedPaths();
         string output = Path.Combine(root, "out");
 
         var check = new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions { OutputDirectory = output });
@@ -702,33 +705,51 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal([3], File.ReadAllBytes(Path.Combine(output, "GameData/Squad/Mod/mod.cfg")));
         Assert.True(Directory.Exists(Path.Combine(output, "GameData/Squad/Empty")));
         Assert.Equal([4], File.ReadAllBytes(Path.Combine(output, "Plugins/store.dll")));
+        Assert.Equal([6], File.ReadAllBytes(Path.Combine(output, "EULA.txt")));
     }
 
     [Fact]
-    public void AnInstallWithoutACopiedDirectoryStillApplies()
+    public void AnInstallWithoutACopiedPathStillApplies()
     {
-        string patch = BuildWithCopiedDirectories();
+        string patch = BuildWithCopiedPaths();
         Directory.Delete(Path.Combine(Gog, "Plugins"), recursive: true);
+        File.Delete(Path.Combine(Gog, "EULA.txt"));
         string output = Path.Combine(root, "out");
 
         new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions { OutputDirectory = output });
 
         Assert.False(Directory.Exists(Path.Combine(output, "Plugins")));
+        Assert.False(File.Exists(Path.Combine(output, "EULA.txt")));
     }
 
     [Fact]
-    public void AnInPlaceApplyLeavesACopiedDirectoryAlone()
+    public void AnInPlaceApplyLeavesACopiedPathAlone()
     {
-        string patch = BuildWithCopiedDirectories();
+        string patch = BuildWithCopiedPaths();
         var stock = Tree(Gog);
 
         new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions());
 
         Assert.Equal([2], File.ReadAllBytes(Path.Combine(Gog, "GameData/Squad/part.dds")));
-        Assert.DoesNotContain(InstallJournal.Load(Gog)!.Files, f => f.Path.StartsWith("GameData/Squad/", StringComparison.Ordinal));
+        Assert.Equal([6], File.ReadAllBytes(Path.Combine(Gog, "EULA.txt")));
+        Assert.DoesNotContain(InstallJournal.Load(Gog)!.Files, f => f.Path.StartsWith("GameData/Squad/", StringComparison.Ordinal) || f.Path == "EULA.txt");
 
         PatchReverter.Revert(Gog);
         Assert.Equal(stock.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void ACopiedPathCannotBeAPattern()
+    {
+        var error = Assert.Throws<PatchException>(() => PatchBuilder.Build(new BuildOptions
+        {
+            Sources = [new BuildSource { Roots = [Steam] }],
+            Target = Build,
+            Output = Path.Combine(root, "pattern.rtpatch"),
+            CopiedPaths = ["unins*"],
+        }));
+
+        Assert.Contains("unins*", error.Message);
     }
 
     [Theory]

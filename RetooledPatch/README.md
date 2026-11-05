@@ -20,10 +20,10 @@ Nothing reads `GameData/Squad` or `GameData/SquadExpansion`, because mods overwr
 a file there that any source has as the build ships it is left as the install has it, so the patch never checks these
 folders. A file there that the build changes is written over the install's copy, whatever that holds.
 
-`build --copy-directory <dir>,...` goes further and takes a directory out of the patch altogether: it is in no tree, so
-nothing checks, replaces or removes what it holds, and an install keeps it as it is. The patch file records it, and a
-side-by-side apply, which would otherwise leave it behind, copies it from the install whole. An `--exclude` is for what
-the retooled install should not have, and a `--copy-directory` for what it needs but the patch should not touch.
+`build --copy <path>,...` goes further and takes a file or directory out of the patch altogether: it is in no tree, so
+nothing checks, replaces or removes it, and an install keeps it as it is. The patch file records it, and a side-by-side
+apply, which would otherwise leave it behind, copies it from the install whole. An `--exclude` is a pattern for what the
+retooled install should not have, and a `--copy` an exact path for what it needs but the patch should not touch.
 
 `<retooled-build>` is a release build, which has the stock layout:
 `Unity.exe -batchmode -quit -projectPath . -buildTarget Win64 -executeMethod KSP.Retooled.Content.Authoring.Builder.Build -retooledOut <empty-dir> -retooledRelease`
