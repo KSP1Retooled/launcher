@@ -13,13 +13,25 @@ public interface IPatchProvider
         CancellationToken cancellation
     );
 
-    /// <summary>Drops cached patches of every release but <paramref name="keep"/>.</summary>
+    /// <summary>
+    /// A path to a copy of the patch file <paramref name="file"/> that outlives the original, so it is still there to
+    /// roll back to when the user has moved or rebuilt it.
+    /// </summary>
+    Task<string> ImportAsync(
+        string file,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellation
+    );
+
+    /// <summary>Drops every cached patch but the files in <paramref name="keep"/>, paths this provider returned.</summary>
     void Prune(IEnumerable<string> keep);
 }
 
 /// <summary>
-/// Downloads patch files into <c>&lt;cache&gt;/&lt;tag&gt;/</c> and keeps them, so the installed release's patch is at
-/// hand to roll back to if an upgrade fails. A file is reused only when its size (and GitHub's digest, if any) match.
+/// Downloads patch files into <c>&lt;cache&gt;/&lt;channel&gt;@&lt;tag&gt;/</c> and keeps them, so the installed release's
+/// patch is at hand to roll back to if an upgrade fails. A file is reused only when its size (and GitHub's digest, if
+/// any) match. Local patch files are copied into <c>&lt;cache&gt;/local@&lt;sha256&gt;/</c>: by content, because a rebuilt
+/// file of the same name must not overwrite the copy of the installed one.
 /// </summary>
 public sealed class PatchCache(HttpClient http, GitHubReleaseSource source, string directory)
     : IPatchProvider
@@ -38,7 +50,10 @@ public sealed class PatchCache(HttpClient http, GitHubReleaseSource source, stri
             ?? throw new LauncherException(
                 $"{release.Tag} has no {platform} build ({Release.PatchName(platform)})"
             );
-        string path = PathFor(release.Tag, asset.Name);
+        string path = Path.Combine(
+            EntryFor(release.Channel, release.Tag),
+            Path.GetFileName(asset.Name)
+        );
         if (
             File.Exists(path)
             && await IsIntactAsync(path, asset, cancellation).ConfigureAwait(false)
@@ -98,11 +113,43 @@ public sealed class PatchCache(HttpClient http, GitHubReleaseSource source, stri
         return path;
     }
 
+    public async Task<string> ImportAsync(
+        string file,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellation
+    )
+    {
+        string name = Path.GetFileName(file);
+        progress?.Report(new LauncherProgress($"Reading {name}"));
+        string hash = await Sha256Async(file, cancellation).ConfigureAwait(false);
+        string path = Path.Combine(EntryFor(LauncherInfo.LocalChannel, hash), name);
+        if (File.Exists(path))
+            return path;
+
+        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        string partial = path + ".part";
+        await using (var input = OpenRead(file))
+        await using (
+            var output = new FileStream(
+                partial,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                1 << 20,
+                useAsync: true
+            )
+        )
+            await input.CopyToAsync(output, cancellation).ConfigureAwait(false);
+        File.Move(partial, path, overwrite: true);
+        return path;
+    }
+
     public void Prune(IEnumerable<string> keep)
     {
         if (!System.IO.Directory.Exists(Directory))
             return;
-        var kept = keep.Select(SafeName).ToHashSet(StringComparer.Ordinal);
+        var kept = keep.Select(p => Path.GetFileName(Path.GetDirectoryName(p)))
+            .ToHashSet(StringComparer.Ordinal);
         foreach (string dir in System.IO.Directory.EnumerateDirectories(Directory))
             if (!kept.Contains(Path.GetFileName(dir)))
                 try
@@ -113,10 +160,10 @@ public sealed class PatchCache(HttpClient http, GitHubReleaseSource source, stri
                 catch (UnauthorizedAccessException) { }
     }
 
-    string PathFor(string tag, string asset) =>
-        Path.Combine(Directory, SafeName(tag), Path.GetFileName(asset));
+    string EntryFor(string channel, string tag) =>
+        Path.Combine(Directory, SafeName($"{channel}@{tag}"));
 
-    /// <summary>A tag as a single directory name (tags may hold '/').</summary>
+    /// <summary>A channel and tag as a single directory name (both may hold '/').</summary>
     static string SafeName(string tag) =>
         string.Concat(
             tag.Select(c =>
@@ -132,17 +179,17 @@ public sealed class PatchCache(HttpClient http, GitHubReleaseSource source, stri
     {
         if (new FileInfo(path).Length != asset.Size)
             return false;
-        if (asset.Sha256 == null)
-            return true;
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            1 << 20,
-            useAsync: true
-        );
-        byte[] hash = await SHA256.HashDataAsync(stream, cancellation).ConfigureAwait(false);
-        return Convert.ToHexStringLower(hash) == asset.Sha256;
+        return asset.Sha256 == null
+            || await Sha256Async(path, cancellation).ConfigureAwait(false) == asset.Sha256;
     }
+
+    static async Task<string> Sha256Async(string path, CancellationToken cancellation)
+    {
+        await using var stream = OpenRead(path);
+        byte[] hash = await SHA256.HashDataAsync(stream, cancellation).ConfigureAwait(false);
+        return Convert.ToHexStringLower(hash);
+    }
+
+    static FileStream OpenRead(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, useAsync: true);
 }

@@ -21,6 +21,12 @@ sealed class FakePatches : IPatchProvider
             ? Task.FromResult(path)
             : throw new LauncherException($"no patch for {release.Tag}");
 
+    public Task<string> ImportAsync(
+        string file,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellation
+    ) => Task.FromResult(file);
+
     public void Prune(IEnumerable<string> keep)
     {
         Kept.Clear();
@@ -174,7 +180,7 @@ public sealed class LauncherServiceTests : IDisposable
         Assert.Equal("v1.0.0", info.InstalledTag);
         Assert.Equal("03190", info.BuildId);
         AssertTree(Expected("v1.0.0"), Installed());
-        Assert.Equal(["v1.0.0"], patches.Kept);
+        Assert.Equal([patches.Files["v1.0.0"]], patches.Kept);
     }
 
     [Fact]
@@ -239,6 +245,121 @@ public sealed class LauncherServiceTests : IDisposable
         );
 
         AssertTree(before, Tree(Install));
+    }
+
+    [Fact]
+    public async Task InstallsALocalPatchFile()
+    {
+        var info = await Service().InstallFileAsync(Install, patches.Files["v1.0.0"], catalog);
+
+        Assert.Equal(InstallStatus.Retooled, info.Status);
+        Assert.Equal("v1.0.0.rtpatch", info.InstalledTag);
+        Assert.Equal(LauncherInfo.LocalChannel, info.Release?.Channel);
+        AssertTree(Expected("v1.0.0"), Installed());
+
+        Assert.Equal(InstallStatus.Stock, (await Service().UninstallAsync(Install)).Status);
+        AssertTree(stockTree, Tree(Install));
+    }
+
+    [Fact]
+    public async Task ALocalFileThatIsNotAPatchIsRejectedBeforeAnythingChanges()
+    {
+        await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
+        var before = Tree(Install);
+        string file = Path.Combine(root, "garbage.rtpatch");
+        File.WriteAllBytes(file, new byte[100]);
+
+        await Assert.ThrowsAsync<LauncherException>(() =>
+            Service().InstallFileAsync(Install, file, catalog)
+        );
+
+        AssertTree(before, Tree(Install));
+    }
+
+    [Fact]
+    public async Task AFailedInstallOfALocalFilePutsTheReleaseBack()
+    {
+        await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
+
+        var error = await Assert.ThrowsAsync<LauncherException>(() =>
+            Service().InstallFileAsync(Install, patches.Files["v2.0.0"], catalog)
+        );
+
+        Assert.Contains("v1.0.0 was put back", error.Message);
+        Assert.Equal("v1.0.0", KspInstall.Inspect(Install).InstalledTag);
+        AssertTree(Expected("v1.0.0"), Installed());
+    }
+
+    [Fact]
+    public async Task AFailedUpgradePutsALocalFileBack()
+    {
+        await Service().InstallFileAsync(Install, patches.Files["v1.0.0"], catalog);
+
+        var error = await Assert.ThrowsAsync<LauncherException>(() =>
+            Service().InstallAsync(Install, Get("v2.0.0"), catalog)
+        );
+
+        Assert.Contains("v1.0.0.rtpatch was put back", error.Message);
+        Assert.Equal(LauncherInfo.LocalChannel, KspInstall.Inspect(Install).Release?.Channel);
+        AssertTree(Expected("v1.0.0"), Installed());
+    }
+
+    [Fact]
+    public async Task AFailedUpgradePutsBackAReleaseOfAnotherChannel()
+    {
+        await Service()
+            .InstallAsync(Install, Get("v1.0.0") with { Channel = "other/repo" }, catalog);
+
+        var error = await Assert.ThrowsAsync<LauncherException>(() =>
+            Service().InstallAsync(Install, Get("v2.0.0"), ReleaseCatalog.Empty)
+        );
+
+        Assert.Contains("v1.0.0 was put back", error.Message);
+        Assert.Equal("other/repo", KspInstall.Inspect(Install).Release?.Channel);
+        AssertTree(Expected("v1.0.0"), Installed());
+    }
+
+    [Fact]
+    public async Task RollbackIsNotFooledByTheSameTagInAnotherChannel()
+    {
+        await Service()
+            .InstallAsync(Install, Get("v1.0.0") with { Channel = "other/repo" }, catalog);
+        File.Delete(patches.Files["v1.0.0"]); // the cached patch is gone, so only the catalog could help
+
+        var error = await Assert.ThrowsAsync<LauncherException>(() =>
+            Service().InstallAsync(Install, Get("v2.0.0"), catalog)
+        );
+
+        Assert.Contains("stock install was restored", error.Message);
+        Assert.Equal(InstallStatus.Stock, KspInstall.Inspect(Install).Status);
+    }
+
+    [Fact]
+    public async Task RollbackFallsBackToTheCatalogForAMarkerWithoutAPatch()
+    {
+        await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
+        var marker = KspInstall.ReadMarker(Install)!;
+        marker.Channel = null;
+        marker.Patch = null; // as an older launcher wrote it
+        KspInstall.WriteMarker(Install, marker);
+
+        var error = await Assert.ThrowsAsync<LauncherException>(() =>
+            Service().InstallAsync(Install, Get("v2.0.0"), catalog)
+        );
+
+        Assert.Contains("v1.0.0 was put back", error.Message);
+        AssertTree(Expected("v1.0.0"), Installed());
+    }
+
+    [Fact]
+    public async Task AReleaseOfAnotherChannelHasNoTagComparableWithThisOne()
+    {
+        var info = await Service()
+            .InstallAsync(Install, Get("v1.0.0") with { Channel = "a/b" }, catalog);
+
+        Assert.Equal("v1.0.0", info.InstalledTagIn("A/B"));
+        Assert.Equal("", info.InstalledTagIn("c/d"));
+        Assert.Null(KspInstall.Inspect(Stock).InstalledTagIn("c/d"));
     }
 
     [Fact]
