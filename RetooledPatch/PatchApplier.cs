@@ -15,6 +15,8 @@ public sealed class ApplyOptions
     public TextWriter Log { get; init; } = TextWriter.Null;
     public IProgress<PatchProgress>? Progress { get; init; }
     public CancellationToken Cancellation { get; init; }
+    /// <summary>Called with the destination of each move into or out of the install; lets the tests stop a commit half way.</summary>
+    internal Action<string>? BeforeMove { get; init; }
 }
 
 /// <summary>What <see cref="PatchApplier.Check"/> found: whether the install can be patched and which source it matches.</summary>
@@ -39,6 +41,8 @@ public sealed class InstallCheck
 /// writes the retooled install to a new directory. In-place builds every output in <c>.retooled/staging</c> first, then records
 /// the plan in the <see cref="InstallJournal"/>, moves each stock file it replaces or removes into
 /// <c>.retooled/original</c> and the new file into place, so <see cref="PatchReverter"/> can restore the stock install.
+/// An in-place apply that throws leaves the install as it found it, unless undoing it failed too: the journal then
+/// stays, for a revert to finish.
 /// </summary>
 public sealed class PatchApplier(PatchFile patch, string install)
 {
@@ -137,9 +141,20 @@ public sealed class PatchApplier(PatchFile patch, string install)
         // read before the build's buildID file replaces the stock one
         string? language = inPlace ? BuildIdFile.Find(install, "language") : null;
         string root = inPlace ? Path.Combine(install, InstallJournal.StagingDirectory) : PrepareOutput(options.OutputDirectory!);
-        if (inPlace && Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        // there's no journal, or Check would have refused, so whatever an earlier apply left here is scratch
+        string scratch = Path.Combine(install, InstallJournal.Directory);
+        if (inPlace && Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true);
 
-        var staged = WriteOutputs(check, root, inPlace, options);
+        List<OutputFile> staged;
+        try
+        {
+            staged = WriteOutputs(check, root, inPlace, options);
+        }
+        catch when (inPlace)
+        {
+            InstallJournal.DeleteScratch(install);
+            throw;
+        }
         var components = manifest.Components.Where(c => !check.SkippedComponents.Contains(c.Name)).ToList();
         if (inPlace)
         {
@@ -150,10 +165,8 @@ public sealed class PatchApplier(PatchFile patch, string install)
                 Patch = Path.GetFileName(patch.FilePath),
                 Applied = DateTime.UtcNow,
             };
-            new InstallCommit(install, journal, check.Hashes, options.Log).Run(root, staged,
-                components.SelectMany(c => c.Remove), components.SelectMany(c => c.Directories));
-            if (language != null && GameSettingsFile.SetLanguage(install, language))
-                options.Log.WriteLine($"set LANGUAGE = {language} in {GameSettingsFile.FileName}");
+            new InstallCommit(install, journal, check.Hashes, options.Log, options.BeforeMove).Run(root, staged,
+                components.SelectMany(c => c.Remove), components.SelectMany(c => c.Directories), language);
         }
         else
         {
@@ -329,7 +342,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
     }
 }
 
-public sealed class PatchException(string message) : Exception(message);
+public sealed class PatchException(string message, Exception? inner = null) : Exception(message, inner);
 
 /// <summary>Write-only stream that hashes everything written through it.</summary>
 sealed class HashingStream(Stream inner) : Stream

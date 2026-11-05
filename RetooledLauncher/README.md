@@ -46,7 +46,8 @@ Installing applies the patch in place: the stock files it replaces are kept in `
 journal, and `.retooled/launcher.json` records the release. Patches are built against stock, so moving to another
 release reverts to stock and applies the other release's patch. If that apply fails, what was installed is put back
 from its cached patch, whichever channel or file it came from. Uninstalling restores the stock files and keeps saves, settings and mods. An install
-or uninstall that stopped half way shows as interrupted, and **Uninstall** finishes restoring the stock game.
+that fails is undone on the spot. One that couldn't be undone, or an install or uninstall that stopped half way because
+the launcher died, shows as interrupted, and **Uninstall** finishes restoring the stock game.
 
 ## Files
 

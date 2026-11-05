@@ -35,7 +35,14 @@ An in-place apply moves every stock file it replaces or removes into `<ksp-dir>/
 in `.retooled/journal.json`; `revert` puts them back, deletes what the apply added and the texture cache, and leaves
 saves and settings alone. A path may be a file in stock and a directory in the build (`MainMenu.nib` on macOS) or the
 reverse, so an apply removes stock files before it adds any, and a revert does the opposite. Retooled saves do not load
-in stock KSP. An in-place apply also sets LANGUAGE in an
+in stock KSP.
+
+The moves run in a transaction (with [TxFileManager](https://github.com/chinhdo/txFileManager), the library CKAN uses),
+so an in-place apply that fails partway puts every file back and removes `.retooled`, leaving the install unpatched with
+nothing to revert. The journal covers what a transaction can't: if the process dies, or undoing the apply fails too, it
+stays, and `revert` finishes restoring stock.
+
+An in-place apply also sets LANGUAGE in an
 existing settings.cfg to the stock buildID's language, which the build's buildID64.txt (buildID.txt on macOS and Linux) replaces.
 
 The design is in forum thread #241.

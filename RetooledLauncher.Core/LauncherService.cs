@@ -120,8 +120,6 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
             log.WriteLine($"installing {target.Tag} failed: {failure.Message}");
             if (InstallJournal.Exists(install))
                 await RevertAsync(install, progress).ConfigureAwait(false);
-            else
-                DeleteScratch(install);
             if (previous != null)
             {
                 log.WriteLine($"putting {previous.Tag} back");
@@ -260,18 +258,6 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
                 $"{tag}'s patch is for {patch.Manifest.Platform}, not {Platform}"
             );
         return patch;
-    }
-
-    /// <summary>An apply that failed before journalling leaves only its staging folder behind.</summary>
-    static void DeleteScratch(string install)
-    {
-        string scratch = Path.Combine(install, InstallJournal.Directory);
-        try
-        {
-            if (Directory.Exists(scratch))
-                Directory.Delete(scratch, recursive: true);
-        }
-        catch (IOException) { }
     }
 
     static void Require(InstallInfo info, params InstallStatus[] allowed)
