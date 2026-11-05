@@ -18,6 +18,9 @@ public interface IDialogs
     Task<string?> PromptAsync(string title, string message, string accept, string placeholder);
     Task<bool> ConfirmAsync(string title, string message, string accept);
     Task AlertAsync(string title, string message);
+
+    /// <summary>Opens <paramref name="url"/> in the browser: false if that did not work.</summary>
+    Task<bool> OpenUrlAsync(string url);
 }
 
 /// <summary>One row of the release list.</summary>
@@ -99,6 +102,13 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial string Log { get; private set; } = "";
 
+    /// <summary>A newer launcher than this one, on platforms where it does not update itself.</summary>
+    [ObservableProperty]
+    public partial Release? LauncherUpdate { get; private set; }
+
+    public string? LauncherUpdateNotice =>
+        LauncherUpdate is Release r ? $"Launcher {r.Tag} is available." : null;
+
     public string InstallState =>
         Install?.Status switch
         {
@@ -166,9 +176,38 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task StartAsync()
     {
+        var update = CheckForLauncherUpdateAsync();
         if (string.IsNullOrWhiteSpace(InstallPath))
             await DetectAsync();
         await RefreshAsync();
+        await update;
+    }
+
+    /// <summary>Failing is not worth interrupting anyone for: the log gets it, and the next start checks again.</summary>
+    async Task CheckForLauncherUpdateAsync()
+    {
+        if (LauncherInfo.UpdatesItself)
+            return;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try
+        {
+            var releases = await new GitHubReleaseSource(
+                http,
+                LauncherInfo.Repository,
+                token
+            ).GetReleasesAsync(timeout.Token);
+            LauncherUpdate = new ReleaseCatalog(releases).NewerThan(LauncherInfo.Version);
+        }
+        catch (Exception e)
+            when (e
+                    is LauncherException
+                        or HttpRequestException
+                        or OperationCanceledException
+                        or System.Text.Json.JsonException
+            )
+        {
+            Append($"could not check for a new launcher: {e.Message}");
+        }
     }
 
     partial void OnInstallPathChanged(string value)
@@ -199,6 +238,9 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     partial void OnReleaseErrorChanged(string value) => OnPropertyChanged(nameof(HasReleaseError));
+
+    partial void OnLauncherUpdateChanged(Release? value) =>
+        OnPropertyChanged(nameof(LauncherUpdateNotice));
 
     partial void OnSelectedReleaseChanged(ReleaseItem? value) => Changed();
 
@@ -382,6 +424,21 @@ public sealed partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     void Cancel() => cancel?.Cancel();
+
+    [RelayCommand]
+    async Task OpenLauncherUpdateAsync()
+    {
+        if (LauncherUpdate is not Release release)
+            return;
+        if (!await dialogs.OpenUrlAsync(release.PageUrl))
+            await dialogs.AlertAsync(
+                "New launcher",
+                $"No browser could be opened. Launcher {release.Tag} is at {release.PageUrl}"
+            );
+    }
+
+    [RelayCommand]
+    void DismissLauncherUpdate() => LauncherUpdate = null;
 
     async Task RunAsync(
         string what,

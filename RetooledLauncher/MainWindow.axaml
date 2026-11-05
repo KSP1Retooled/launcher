@@ -59,22 +59,47 @@
           Command="{Binding CancelCommand}"
         />
       </Grid>
-      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-        <Button Content="Install patch file…" Command="{Binding InstallFileCommand}" />
-        <Button Content="Uninstall" Command="{Binding UninstallCommand}" />
-        <Button
-          Content="{Binding ActionLabel}"
-          Command="{Binding InstallSelectedCommand}"
-          Classes="accent"
-        />
-        <Button
-          Content="Play"
-          Command="{Binding PlayCommand}"
-          Classes="accent"
-          MinWidth="90"
-          HorizontalContentAlignment="Center"
-        />
-      </StackPanel>
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <!-- in this row, not floating over it, so that it cannot cover a button in a narrow window -->
+        <Border
+          Classes="toast"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Bottom"
+          IsVisible="{Binding LauncherUpdate, Converter={x:Static ObjectConverters.IsNotNull}}"
+        >
+          <WrapPanel ItemSpacing="8" LineSpacing="4">
+            <TextBlock
+              Text="{Binding LauncherUpdateNotice}"
+              TextWrapping="Wrap"
+              VerticalAlignment="Center"
+            />
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <Button Content="Download" Command="{Binding OpenLauncherUpdateCommand}" />
+              <Button
+                Content="✕"
+                ToolTip.Tip="Dismiss"
+                Command="{Binding DismissLauncherUpdateCommand}"
+              />
+            </StackPanel>
+          </WrapPanel>
+        </Border>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button Content="Install patch file…" Command="{Binding InstallFileCommand}" />
+          <Button Content="Uninstall" Command="{Binding UninstallCommand}" />
+          <Button
+            Content="{Binding ActionLabel}"
+            Command="{Binding InstallSelectedCommand}"
+            Classes="accent"
+          />
+          <Button
+            Content="Play"
+            Command="{Binding PlayCommand}"
+            Classes="accent"
+            MinWidth="90"
+            HorizontalContentAlignment="Center"
+          />
+        </StackPanel>
+      </Grid>
     </StackPanel>
 
     <!-- log -->
@@ -210,6 +235,12 @@
     </Style>
     <Style Selector="Border.badge.none">
       <Setter Property="Background" Value="Gray" />
+    </Style>
+    <Style Selector="Border.toast">
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10,6,6,6" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
     </Style>
   </Window.Styles>
 </Window>

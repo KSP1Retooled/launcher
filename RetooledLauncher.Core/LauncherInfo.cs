@@ -25,6 +25,12 @@ public static class LauncherInfo
     public static string RepositoryOf(string channel) =>
         IsDebugChannel(channel) ? channel[..^DebugSuffix.Length] : channel;
 
+    /// <summary>Where the launcher itself is released.</summary>
+    public const string Repository = "KSP1Retooled/launcher";
+
+    /// <summary>Whether the launcher gets new versions without the user's help; elsewhere it tells them about one.</summary>
+    public static bool UpdatesItself => OperatingSystem.IsWindows();
+
     /// <summary>The channel of a patch installed from a local file; never a repository, which holds a '/'.</summary>
     public const string LocalChannel = "local";
 

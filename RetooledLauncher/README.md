@@ -49,6 +49,13 @@ from its cached patch, whichever channel or file it came from. Uninstalling rest
 that fails is undone on the spot. One that couldn't be undone, or an install or uninstall that stopped half way because
 the launcher died, shows as interrupted, and **Uninstall** finishes restoring the stock game.
 
+## New launcher versions
+
+On Linux and macOS, where the launcher does not update itself, it checks the releases of `KSP1Retooled/launcher` when
+it starts. If there is a newer version, a notice in the lower-left corner links to its release page. Someone running a
+pre-release is told about newer pre-releases too; everyone else only hears about stable releases. A failed check only
+goes in the log.
+
 ## Files
 
 | What | Where |
