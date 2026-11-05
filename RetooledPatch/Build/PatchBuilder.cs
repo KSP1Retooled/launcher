@@ -23,7 +23,7 @@ public sealed class BuildOptions
     public required string Output { get; init; }
     /// <summary><c>windows</c>, <c>linux</c> or <c>macos</c>; detected from the target's player when null.</summary>
     public string? Platform { get; init; }
-    public int Jobs { get; init; } = Math.Max(1, Environment.ProcessorCount / 2);
+    public int Jobs { get; init; } = PatchBuilder.DefaultJobs;
     public int Level { get; init; } = 19;
     public int Window { get; init; } = 27;
     /// <summary>Install-relative patterns ('*' spans directories) left out of every tree, on top of the defaults.</summary>
@@ -71,6 +71,11 @@ public static partial class PatchBuilder
 
     /// <summary>Target window diffed against one reference window (at most 1.5× this), sharing one suffix sort.</summary>
     const int ChunkSize = 64 << 20;
+    /// <summary>What a worker can hold at its largest: a reference window, its suffix array and the sort's symbols.</summary>
+    const long JobMemory = 1L << 30;
+    /// <summary>One job per logical core, unless that would need more memory than this machine or container has.</summary>
+    internal static int DefaultJobs => (int)Math.Clamp(
+        GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / JobMemory, 1, Environment.ProcessorCount);
     /// <summary>Gaps shorter than this, or windows with fewer gap bytes than <see cref="MinDiffWindow"/>, stay literal.</summary>
     const int MinDiffGap = 4 << 10;
     const int MinDiffWindow = 256 << 10;
@@ -314,6 +319,10 @@ public static partial class PatchBuilder
         var work = Layout(plans, stock, jobs, log);
         log.WriteLine($"  matched copies in {clock.Elapsed.TotalSeconds:F0}s");
         Diff(work, spool, jobs, log);
+
+        // Writing the patch starts zstd's workers, whose native memory the GC can't see, so nothing else will prompt it
+        // to give back the gigabytes the diff workers held.
+        GC.Collect();
         log.WriteLine($"  diffed in {clock.Elapsed.TotalSeconds:F0}s");
         return plans;
     }
@@ -407,42 +416,52 @@ public static partial class PatchBuilder
     {
         var ordered = work.OrderByDescending(j => j.RefLength + j.GapBytes).ToList();
         int done = 0;
-        RunWorkers(ordered, jobs, job =>
+        int largest = ordered.Count == 0 ? 0 : ordered.Max(j => j.RefLength);
+
+        // A window's arrays reach a gigabyte, and allocating them per job leaves the GC to stop every worker to collect
+        // and compact them. So they are reused, from a bag rather than per thread, because a pool can use more threads
+        // than it runs at once, and at most one workspace per job can then be in use.
+        var workspaces = new ConcurrentBag<DiffWorkspace>();
+        var options = new ParallelOptions { MaxDegreeOfParallelism = jobs };
+
+        // Unbuffered, so that workers take the largest windows first rather than ranges of the list.
+        Parallel.ForEach(Partitioner.Create(ordered, EnumerablePartitionerOptions.NoBuffering), options, job =>
         {
             var clock = Stopwatch.StartNew();
             var output = job.Output;
-            byte[]? refBytes = null;
-            int[]? suffixes = null;
-            if (output.Reference != null && job.GapBytes >= MinDiffWindow)
+            bool diffable = output.Reference != null && job.GapBytes >= MinDiffWindow;
+            if (!workspaces.TryTake(out var workspace))
+                workspace = new DiffWorkspace(largest);
+            if (diffable)
             {
-                refBytes = ReadRange(output.Reference.Full, job.RefOffset, job.RefLength);
-                suffixes = BsDiff.SuffixSort(refBytes);
+                var reference = workspace.Reference.AsSpan(0, job.RefLength);
+                ReadRange(output.Reference!.Full, job.RefOffset, reference);
+                SuffixSorter.Sort(reference, workspace.Suffixes, workspace.Symbols);
+                BsDiff.PrefixIndex(reference, workspace.Prefixes);
             }
 
+            // A window's gaps share its read-only suffix array, and the windows with the most gap bytes take so much
+            // longer than the rest that they would otherwise keep the whole build waiting on one core.
             long estimate = 0;
-            foreach (var (slot, offset, length) in job.Gaps)
+            Parallel.ForEach(job.Gaps, options, gap =>
             {
-                byte[] newBytes = ReadRange(output.Target.Full, offset, length);
+                var (slot, offset, length) = gap;
+                byte[] newBytes = new byte[length];
+                ReadRange(output.Target.Full, offset, newBytes);
                 var segment = new PlannedSegment(Segment.Literal(length), offset, Estimate: Compressed(newBytes));
-                if (suffixes != null && length >= MinDiffGap)
+                if (diffable && length >= MinDiffGap)
                 {
                     // raw patches are about as long as the new data (the diff stream is mostly zeros), so compare compressed sizes
-                    byte[] patch = BsDiff.Diff(refBytes, suffixes, newBytes);
+                    var reference = workspace.Reference.AsSpan(0, job.RefLength);
+                    byte[] patch = BsDiff.Diff(reference, workspace.Suffixes, workspace.Prefixes, newBytes);
                     long patchEstimate = Compressed(patch);
                     if (patchEstimate < segment.Estimate)
-                        segment = SpoolDiff(output, offset, spool, refBytes!, job.RefOffset, newBytes, patch, patchEstimate);
+                        segment = SpoolDiff(output, offset, spool, reference, job.RefOffset, newBytes, patch, patchEstimate);
                 }
                 output.Segments[slot] = segment;
-                estimate += segment.Estimate;
-            }
-
-            // a job's reference window and suffix arrays (~1 GB) are large-object garbage the GC would otherwise let pile up
-            if (suffixes != null && job.RefLength >= 16 << 20)
-            {
-                refBytes = null;
-                suffixes = null;
-                GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
-            }
+                Interlocked.Add(ref estimate, segment.Estimate);
+            });
+            workspaces.Add(workspace);
 
             int n = Interlocked.Increment(ref done);
             if (job.GapBytes >= 1 << 20 || n == ordered.Count)
@@ -451,18 +470,27 @@ public static partial class PatchBuilder
         });
     }
 
-    static PlannedSegment SpoolDiff(PlannedOutput output, long offset, string spool, byte[] refBytes, long refOffset, byte[] newBytes,
-        byte[] patch, long estimate)
+    /// <summary>One worker's buffers for a reference window of up to the given length.</summary>
+    sealed class DiffWorkspace(int capacity)
+    {
+        public readonly byte[] Reference = GC.AllocateUninitializedArray<byte>(capacity);
+        public readonly int[] Suffixes = GC.AllocateUninitializedArray<int>(capacity + 1);
+        public readonly ushort[] Symbols = GC.AllocateUninitializedArray<ushort>(capacity + 1);
+        public readonly int[] Prefixes = GC.AllocateUninitializedArray<int>(BsDiff.PrefixIndexLength);
+    }
+
+    static PlannedSegment SpoolDiff(PlannedOutput output, long offset, string spool, ReadOnlySpan<byte> reference, long refOffset,
+        byte[] newBytes, byte[] patch, long estimate)
     {
         using (var check = new MemoryStream(newBytes.Length))
         {
-            BsPatch.Apply(refBytes, patch, check);
+            BsPatch.Apply(reference, patch, check);
             if (!check.GetBuffer().AsSpan(0, (int)check.Length).SequenceEqual(newBytes))
                 throw new InvalidOperationException($"bsdiff round trip failed for {output.Target.Relative} at {offset}");
         }
         string spoolFile = Path.Combine(spool, $"{Guid.NewGuid():N}.bsdiff");
         File.WriteAllBytes(spoolFile, patch);
-        var refs = new List<Extent> { new(-1, refOffset, refBytes.Length) };
+        var refs = new List<Extent> { new(-1, refOffset, reference.Length) };
         return new PlannedSegment(Segment.Diff(refs, newBytes.Length, patch.Length), offset, output.Reference, spoolFile, estimate);
     }
 
@@ -473,37 +501,15 @@ public static partial class PatchBuilder
         return compressor.Wrap(bytes).Length;
     }
 
-    static void RunWorkers<T>(IReadOnlyList<T> items, int jobs, Action<T> work)
+    static void ReadRange(string path, long offset, Span<byte> bytes)
     {
-        int next = -1;
-        Exception? failure = null;
-        var threads = Enumerable.Range(0, Math.Min(jobs, Math.Max(1, items.Count))).Select(_ => new Thread(() =>
-        {
-            try
-            {
-                for (int i; failure == null && (i = Interlocked.Increment(ref next)) < items.Count;) work(items[i]);
-            }
-            catch (Exception e)
-            {
-                Interlocked.CompareExchange(ref failure, e, null);
-            }
-        }, maxStackSize: 512 << 20)).ToList();
-        foreach (var thread in threads) thread.Start();
-        foreach (var thread in threads) thread.Join();
-        if (failure != null) throw new AggregateException(failure);
-    }
-
-    static byte[] ReadRange(string path, long offset, int length)
-    {
-        byte[] bytes = new byte[length];
         using var handle = File.OpenHandle(path);
-        for (int at = 0; at < length;)
+        for (int at = 0; at < bytes.Length;)
         {
-            int n = RandomAccess.Read(handle, bytes.AsSpan(at), offset + at);
+            int n = RandomAccess.Read(handle, bytes[at..], offset + at);
             if (n == 0) throw new EndOfStreamException(path);
             at += n;
         }
-        return bytes;
     }
 
     /// <summary>A component's files in any source that the build does not ship, so in-place matches side-by-side.</summary>

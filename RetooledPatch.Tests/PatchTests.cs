@@ -2,6 +2,131 @@ using Xunit;
 
 namespace KSP.Retooled.Patch.Tests;
 
+public sealed class SuffixSortTests
+{
+    static int[] BruteForce(byte[] text)
+    {
+        var suffixes = Enumerable.Range(0, text.Length + 1).ToArray();
+        Array.Sort(suffixes, (a, b) => text.AsSpan(a).SequenceCompareTo(text.AsSpan(b)));
+        return suffixes;
+    }
+
+    static byte[] Repeats(int seed, int length, int alphabet)
+    {
+        var rng = new Random(seed);
+        var bytes = new List<byte>(length);
+        while (bytes.Count < length)
+        {
+            if (bytes.Count > 8 && rng.Next(3) == 0)
+            {
+                int run = rng.Next(1, 40), from = rng.Next(bytes.Count);
+                for (int i = 0; i < run; i++) bytes.Add(bytes[from + i]);
+            }
+            else
+            {
+                bytes.Add((byte)rng.Next(alphabet));
+            }
+        }
+        return [.. bytes.Take(length)];
+    }
+
+    public static TheoryData<byte[]> Texts => new()
+    {
+        Array.Empty<byte>(),
+        new byte[] { 0 },
+        new byte[] { 255 },
+        new byte[] { 0, 0, 0, 0, 0, 0 },
+        new byte[] { 255, 255, 255, 255 },
+        new byte[] { 1, 2, 1, 2, 1, 2, 1, 2 },
+        new byte[] { 2, 1, 2, 1, 2, 1, 2, 1, 2 },
+        new byte[] { 255, 0, 255, 0, 1, 255 },
+        "mississippi"u8.ToArray(),
+        Enumerable.Range(0, 256).Select(i => (byte)i).ToArray(),
+        Enumerable.Range(0, 256).Select(i => (byte)(255 - i)).ToArray(),
+        Enumerable.Repeat<byte>(7, 5000).ToArray(),
+    };
+
+    [Theory]
+    [MemberData(nameof(Texts))]
+    public void SortsSmallAndDegenerateTexts(byte[] text) => Assert.Equal(BruteForce(text), BsDiff.SuffixSort(text));
+
+    [Theory]
+    [InlineData(1, 2)]
+    [InlineData(2, 3)]
+    [InlineData(3, 4)]
+    [InlineData(4, 16)]
+    [InlineData(5, 256)]
+    public void SortsRepetitiveTexts(int seed, int alphabet)
+    {
+        for (int length = 1; length < 400; length++)
+        {
+            byte[] text = Repeats(seed * 1000 + length, length, alphabet);
+            Assert.Equal(BruteForce(text), BsDiff.SuffixSort(text));
+        }
+
+        byte[] large = Repeats(seed, 200_000, alphabet);
+        int[] suffixes = BsDiff.SuffixSort(large);
+        Assert.Equal(large.Length, suffixes[0]);
+        for (int i = 1; i < suffixes.Length; i++)
+            Assert.True(large.AsSpan(suffixes[i - 1]).SequenceCompareTo(large.AsSpan(suffixes[i])) < 0);
+        Assert.Equal(Enumerable.Range(0, suffixes.Length), suffixes.Order());
+    }
+
+    [Fact]
+    public void WritesIntoALargerBuffer()
+    {
+        byte[] text = "banana"u8.ToArray();
+        var buffer = new int[32];
+        SuffixSorter.Sort(text, buffer);
+        Assert.Equal(BruteForce(text), buffer[..(text.Length + 1)]);
+    }
+
+    /// <summary>The first three bytes of a suffix, padded with zeros as the prefix index counts them.</summary>
+    static byte[] Padded(byte[] text, int suffix)
+    {
+        byte[] key = new byte[3];
+        text.AsSpan(suffix, Math.Min(3, text.Length - suffix)).CopyTo(key);
+        return key;
+    }
+
+    [Theory]
+    [InlineData(1, 2)]
+    [InlineData(2, 4)]
+    [InlineData(3, 256)]
+    public void TheIndexPointsAtEachPrefixInTheSuffixArray(int seed, int alphabet)
+    {
+        byte[] old = Repeats(seed, 5_000, alphabet);
+        int[] suffixes = BsDiff.SuffixSort(old), index = BsDiff.PrefixIndex(old);
+
+        for (int a = 0; a < Math.Min(alphabet, 8); a++)
+            for (int b = 0; b < Math.Min(alphabet, 8); b++)
+                for (int c = 0; c < Math.Min(alphabet, 8); c++)
+                {
+                    int prefix = a << 16 | b << 8 | c;
+                    byte[] target = [(byte)a, (byte)b, (byte)c];
+                    int lower = Math.Max(index[prefix] - 1, 0), upper = Math.Min(index[prefix + 1], old.Length);
+
+                    // Every suffix starting with the prefix lies strictly between the two bounds.
+                    if (lower > 0) Assert.True(old.AsSpan(suffixes[lower]).SequenceCompareTo(target) < 0);
+                    if (upper < old.Length) Assert.True(Padded(old, suffixes[upper]).AsSpan().SequenceCompareTo(target) > 0);
+                }
+    }
+
+    [Theory]
+    [InlineData(1, 2)]
+    [InlineData(2, 256)]
+    public void DiffingAgainstShortReferencesRoundTrips(int seed, int alphabet)
+    {
+        for (int length = 0; length < 40; length++)
+        {
+            byte[] old = Repeats(seed + length, length, alphabet), @new = Repeats(seed * 7 + length, 300, alphabet);
+            using var output = new MemoryStream();
+            BsPatch.Apply(old, BsDiff.Diff(old, @new), output);
+            Assert.Equal(@new, output.ToArray());
+        }
+    }
+}
+
 public sealed class BsDiffTests
 {
     // returns the compressed patch size: raw patches are about as long as the new data
@@ -186,6 +311,23 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal(source + "-03190", check.Variant);
         Assert.Equal(Shipped().OrderBy(p => p.Key), Tree(output).OrderBy(p => p.Key));
         Assert.True(Directory.Exists(Path.Combine(output, "Missions")));
+    }
+
+    [Fact]
+    public void ABuildIdenticalToItsSourceHasNothingToDiff()
+    {
+        string patch = Path.Combine(root, "unchanged.rtpatch");
+
+        PatchBuilder.Build(new BuildOptions
+        {
+            Sources = [new BuildSource { Roots = [Steam] }],
+            Target = Steam,
+            Output = patch,
+            Level = 3,
+            Jobs = 2,
+        });
+
+        Assert.All(PatchFile.Open(patch).Manifest.Outputs, o => Assert.NotNull(Assert.Single(o.Recipes).Same));
     }
 
     [Fact]
