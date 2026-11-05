@@ -22,6 +22,9 @@ public sealed record Release(
     IReadOnlyList<ReleaseAsset> Assets
 )
 {
+    /// <summary>The repository it was listed from: tags are only unique within one.</summary>
+    public string Channel { get; init; } = "";
+
     /// <summary>The release's name for a platform's patch: <c>retooled-&lt;platform&gt;.rtpatch</c>.</summary>
     public static string PatchName(string platform) => $"retooled-{platform}{PatchFile.Extension}";
 

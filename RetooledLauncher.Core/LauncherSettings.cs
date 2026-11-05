@@ -10,10 +10,23 @@ public sealed class LauncherSettings
     public bool IncludePrereleases { get; set; }
 
     /// <summary>
-    /// The GitHub repository (<c>owner/name</c>) whose releases are offered, or null for
+    /// The selected channel: the GitHub repository (<c>owner/name</c>) whose releases are offered, or null for
     /// <see cref="LauncherInfo.DefaultRepository"/>.
     /// </summary>
     public string? Repository { get; set; }
+
+    /// <summary>The channels the user added; <see cref="LauncherInfo.DefaultRepository"/> is always offered too.</summary>
+    public List<string> Channels { get; set; } = [];
+
+    /// <summary>Every channel to offer, the default first, including a <see cref="Repository"/> that is not in <see cref="Channels"/>.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> AllChannels =>
+        [
+            .. new[] { LauncherInfo.DefaultRepository }
+                .Concat(Channels)
+                .Concat(Repository is string selected ? [selected] : [])
+                .Distinct(StringComparer.OrdinalIgnoreCase),
+        ];
 
     public static string DefaultFile => Path.Combine(LauncherInfo.DataDirectory, "settings.json");
 

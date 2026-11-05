@@ -12,8 +12,9 @@ public readonly record struct LauncherProgress(string Stage, long Done = 0, long
 
 /// <summary>
 /// Installs, changes and removes KSP Retooled on a KSP install. Patches are built against stock, so moving between
-/// releases reverts to stock first and applies the other release's patch; if that apply fails, the release that was
-/// installed is put back from its cached patch, so a failed upgrade does not leave the user without a working game.
+/// releases reverts to stock first and applies the other release's patch; if that apply fails, what was installed is
+/// put back from its cached patch, so a failed upgrade does not leave the user without a working game. A release is one
+/// of a channel's, or a local patch file, and moving between them works the same way.
 /// </summary>
 public sealed class LauncherService(IPatchProvider patches, string platform, TextWriter? log = null)
 {
@@ -21,8 +22,8 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
 
     public string Platform { get; } = platform;
 
-    /// <summary>Installs <paramref name="target"/>, replacing whatever release is installed.</summary>
-    /// <param name="catalog">Finds the installed release, to roll back to.</param>
+    /// <summary>Installs <paramref name="target"/>, replacing whatever is installed.</summary>
+    /// <param name="catalog">Finds the installed release, to roll back to, if its cached patch is gone.</param>
     public async Task<InstallInfo> InstallAsync(
         string install,
         Release target,
@@ -32,39 +33,73 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
     )
     {
         var info = KspInstall.Inspect(install);
-        install = info.Path;
         Require(info, InstallStatus.Stock, InstallStatus.Retooled);
 
         string patchPath = await patches
             .GetPatchAsync(target, Platform, progress, cancellation)
             .ConfigureAwait(false);
-        var patch = Open(patchPath, target.Tag);
+        return await ReplaceAsync(
+                info,
+                Open(patchPath, target.Tag),
+                MarkerFor(target, patchPath),
+                catalog,
+                progress,
+                cancellation
+            )
+            .ConfigureAwait(false);
+    }
 
-        string? rollback = null;
-        Release? previous = null;
+    /// <summary>Installs the patch file <paramref name="file"/>, replacing whatever is installed.</summary>
+    /// <param name="catalog">Finds the installed release, to roll back to, if its cached patch is gone.</param>
+    public async Task<InstallInfo> InstallFileAsync(
+        string install,
+        string file,
+        ReleaseCatalog catalog,
+        IProgress<LauncherProgress>? progress = null,
+        CancellationToken cancellation = default
+    )
+    {
+        var info = KspInstall.Inspect(install);
+        Require(info, InstallStatus.Stock, InstallStatus.Retooled);
+
+        string name = Path.GetFileName(file);
+        Open(file, name); // not worth copying if it cannot be installed
+        string patchPath = await patches
+            .ImportAsync(file, progress, cancellation)
+            .ConfigureAwait(false);
+        return await ReplaceAsync(
+                info,
+                Open(patchPath, name),
+                new InstalledRelease
+                {
+                    Tag = name,
+                    Asset = name,
+                    Channel = LauncherInfo.LocalChannel,
+                    Patch = patchPath,
+                },
+                catalog,
+                progress,
+                cancellation
+            )
+            .ConfigureAwait(false);
+    }
+
+    async Task<InstallInfo> ReplaceAsync(
+        InstallInfo info,
+        PatchFile patch,
+        InstalledRelease target,
+        ReleaseCatalog catalog,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellation
+    )
+    {
+        string install = info.Path;
+        InstalledRelease? previous = null;
         if (info.Status == InstallStatus.Retooled)
         {
-            previous = catalog.Find(info.Release?.Tag);
-            if (previous?.PatchFor(Platform) != null)
-                try
-                {
-                    rollback = await patches
-                        .GetPatchAsync(previous, Platform, progress, cancellation)
-                        .ConfigureAwait(false);
-                }
-                catch (Exception e)
-                    when (e is LauncherException or HttpRequestException or IOException)
-                {
-                    log.WriteLine(
-                        $"warning: {previous.Tag}'s patch is unavailable ({e.Message}); a failed install cannot roll back"
-                    );
-                }
-            else
-                log.WriteLine(
-                    "warning: the installed version is not a known release; a failed install cannot roll back"
-                );
-
-            log.WriteLine($"removing {previous?.Tag ?? "the installed version"}");
+            previous = await RollbackTargetAsync(info.Release, catalog, progress, cancellation)
+                .ConfigureAwait(false);
+            log.WriteLine($"removing {info.Release?.Tag ?? "the installed version"}");
             await RevertAsync(install, progress).ConfigureAwait(false);
         }
 
@@ -87,13 +122,13 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
                 await RevertAsync(install, progress).ConfigureAwait(false);
             else
                 DeleteScratch(install);
-            if (rollback != null && previous != null)
+            if (previous != null)
             {
                 log.WriteLine($"putting {previous.Tag} back");
                 // the user's cancel applies to the new install, not to restoring the old one
                 await ApplyAsync(
                         install,
-                        Open(rollback, previous.Tag),
+                        Open(previous.Patch!, previous.Tag),
                         previous,
                         progress,
                         CancellationToken.None
@@ -112,9 +147,61 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
             );
         }
 
-        patches.Prune([target.Tag]);
+        patches.Prune([target.Patch!]);
         return KspInstall.Inspect(install);
     }
+
+    /// <summary>
+    /// What to restore if the install fails: the patch <paramref name="installed"/> was applied from, wherever it came
+    /// from, or failing that its release if <paramref name="catalog"/> lists it. A release of another channel that
+    /// happens to share the tag is a different build, so it does not count. Null when there is nothing to restore.
+    /// </summary>
+    async Task<InstalledRelease?> RollbackTargetAsync(
+        InstalledRelease? installed,
+        ReleaseCatalog catalog,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellation
+    )
+    {
+        if (installed?.Patch != null && File.Exists(installed.Patch))
+            return installed;
+
+        var release = catalog.Find(installed?.Tag);
+        if (
+            release?.PatchFor(Platform) == null
+            || !(string.IsNullOrEmpty(installed?.Channel) || installed.IsFrom(release.Channel))
+        )
+        {
+            log.WriteLine(
+                "warning: the installed version is not a known release; a failed install cannot roll back"
+            );
+            return null;
+        }
+        try
+        {
+            string path = await patches
+                .GetPatchAsync(release, Platform, progress, cancellation)
+                .ConfigureAwait(false);
+            return MarkerFor(release, path);
+        }
+        catch (Exception e) when (e is LauncherException or HttpRequestException or IOException)
+        {
+            log.WriteLine(
+                $"warning: {release.Tag}'s patch is unavailable ({e.Message}); a failed install cannot roll back"
+            );
+            return null;
+        }
+    }
+
+    static InstalledRelease MarkerFor(Release release, string patch) =>
+        new()
+        {
+            Tag = release.Tag,
+            Asset = Path.GetFileName(patch),
+            Prerelease = release.Prerelease,
+            Channel = release.Channel,
+            Patch = patch,
+        };
 
     /// <summary>Restores the stock install; also finishes an interrupted install or uninstall.</summary>
     public async Task<InstallInfo> UninstallAsync(
@@ -133,7 +220,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
     Task ApplyAsync(
         string install,
         PatchFile patch,
-        Release release,
+        InstalledRelease release,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellation
     ) =>
@@ -148,16 +235,8 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
                         Cancellation = cancellation,
                     }
                 );
-                KspInstall.WriteMarker(
-                    install,
-                    new InstalledRelease
-                    {
-                        Tag = release.Tag,
-                        Asset = Path.GetFileName(patch.FilePath),
-                        Prerelease = release.Prerelease,
-                        Installed = DateTime.UtcNow,
-                    }
-                );
+                release.Installed = DateTime.UtcNow;
+                KspInstall.WriteMarker(install, release);
             },
             CancellationToken.None
         );

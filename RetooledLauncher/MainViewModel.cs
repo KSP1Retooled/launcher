@@ -12,6 +12,10 @@ namespace KSP.Retooled.Launcher.App;
 public interface IDialogs
 {
     Task<string?> PickFolderAsync(string title);
+    Task<string?> PickPatchFileAsync(string title);
+
+    /// <summary>The text the user entered, or null if they cancelled.</summary>
+    Task<string?> PromptAsync(string title, string message, string accept, string placeholder);
     Task<bool> ConfirmAsync(string title, string message, string accept);
     Task AlertAsync(string title, string message);
 }
@@ -49,13 +53,18 @@ public sealed partial class MainViewModel : ObservableObject
         this.dialogs = dialogs;
         InstallPath = settings.InstallPath is string saved ? KspInstall.Inspect(saved).Path : "";
         IncludePrereleases = settings.IncludePrereleases;
-        Repository = settings.Repository ?? LauncherInfo.DefaultRepository;
+        foreach (string channel in settings.AllChannels)
+            Channels.Add(channel);
+        Channel = settings.Repository ?? LauncherInfo.DefaultRepository;
         Inspect();
     }
 
     public string Title => $"KSP Retooled Launcher {LauncherInfo.Version}";
     public ObservableCollection<ReleaseItem> Releases { get; } = [];
     public ObservableCollection<string> DetectedInstalls { get; } = [];
+
+    /// <summary>The default channel first, then the ones the user added.</summary>
+    public ObservableCollection<string> Channels { get; } = [];
 
     [ObservableProperty]
     public partial string InstallPath { get; set; }
@@ -64,7 +73,7 @@ public sealed partial class MainViewModel : ObservableObject
     public partial bool IncludePrereleases { get; set; }
 
     [ObservableProperty]
-    public partial string Repository { get; set; }
+    public partial string Channel { get; set; }
 
     [ObservableProperty]
     public partial InstallInfo? Install { get; private set; }
@@ -100,23 +109,35 @@ public sealed partial class MainViewModel : ObservableObject
                 "That folder is not a KSP install (it needs GameData/Squad and the game).",
             InstallStatus.Stock => $"Stock KSP{Build}. KSP Retooled is not installed.",
             InstallStatus.Retooled =>
-                $"KSP Retooled {Install?.Release?.Tag ?? "(unknown version)"} is installed{Build}.",
+                $"KSP Retooled {InstalledName} is installed{Build}.",
             _ =>
                 "An earlier install or uninstall did not finish. Uninstall to restore the stock game.",
         };
 
     string Build => Install?.BuildId is string id ? $" (build {id})" : "";
 
+    string InstalledName =>
+        Install?.Release switch
+        {
+            null => "(unknown version)",
+            var r when r.IsFrom(LauncherInfo.LocalChannel) => $"{r.Tag} (local patch file)",
+            var r when InstalledTag == "" => $"{r.Tag} (from {r.Channel})",
+            var r => r.Tag,
+        };
+
+    /// <summary>What is installed, as the selected channel's <see cref="catalog"/> wants it.</summary>
+    string? InstalledTag => Install?.InstalledTagIn(Channel);
+
     public string? UpdateNotice =>
         Install?.Status == InstallStatus.Retooled
-        && catalog.UpgradeFor(Install.InstalledTag, platform, IncludePrereleases) is Release r
+        && catalog.UpgradeFor(InstalledTag, platform, IncludePrereleases) is Release r
             ? $"{r.Tag} is available."
             : null;
 
     public string ActionLabel =>
         SelectedRelease == null
             ? "Install"
-            : catalog.ActionFor(SelectedRelease.Release, Install?.InstalledTag) switch
+            : catalog.ActionFor(SelectedRelease.Release, InstalledTag) switch
             {
                 InstallAction.Upgrade => $"Upgrade to {SelectedRelease.Release.Tag}",
                 InstallAction.Downgrade => $"Downgrade to {SelectedRelease.Release.Tag}",
@@ -135,6 +156,9 @@ public sealed partial class MainViewModel : ObservableObject
         !IsBusy
         && SelectedRelease is { HasBuild: true }
         && Install?.Status is InstallStatus.Stock or InstallStatus.Retooled;
+    bool CanInstallFile =>
+        !IsBusy && Install?.Status is InstallStatus.Stock or InstallStatus.Retooled;
+    bool CanRemoveChannel => !IsBusy && Channel != LauncherInfo.DefaultRepository;
     bool CanUninstall =>
         !IsBusy && Install?.Status is InstallStatus.Retooled or InstallStatus.Interrupted;
     bool CanPlay => !IsBusy && Install?.Status == InstallStatus.Retooled;
@@ -159,6 +183,19 @@ public sealed partial class MainViewModel : ObservableObject
         settings.IncludePrereleases = value;
         Save();
         ShowReleases();
+    }
+
+    partial void OnChannelChanged(string value)
+    {
+        string? saved = value == LauncherInfo.DefaultRepository ? null : value;
+        if (saved == settings.Repository)
+            return;
+        settings.Repository = saved;
+        SaveChannels();
+        catalog = ReleaseCatalog.Empty;
+        ShowReleases();
+        // not the command: it would refuse to start while the previous channel's listing is running
+        _ = RefreshAsync();
     }
 
     partial void OnReleaseErrorChanged(string value) => OnPropertyChanged(nameof(HasReleaseError));
@@ -199,20 +236,15 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(Idle))]
     async Task RefreshAsync()
     {
-        string repository = Repository.Trim();
-        string? saved = repository == LauncherInfo.DefaultRepository ? null : repository;
-        if (saved != settings.Repository)
-        {
-            settings.Repository = saved;
-            Save();
-        }
+        string channel = Channel;
         ReleaseError = "";
+        var found = ReleaseCatalog.Empty;
+        string error = "";
         try
         {
-            var releases = await Source().GetReleasesAsync();
-            catalog = new ReleaseCatalog(releases);
-            if (catalog.All.Count == 0)
-                ReleaseError = $"{repository} has no releases yet.";
+            found = new ReleaseCatalog(await Source().GetReleasesAsync());
+            if (found.All.Count == 0)
+                error = $"{channel} has no releases yet.";
         }
         catch (Exception e)
             when (e
@@ -222,10 +254,53 @@ public sealed partial class MainViewModel : ObservableObject
                         or System.Text.Json.JsonException
             )
         {
-            catalog = ReleaseCatalog.Empty;
-            ReleaseError = $"Could not list releases: {e.Message}";
+            error = $"Could not list releases: {e.Message}";
         }
+        if (channel != Channel)
+            return; // the user has moved on, and the listing of the channel they chose is on its way
+        catalog = found;
+        ReleaseError = error;
         ShowReleases();
+    }
+
+    [RelayCommand(CanExecute = nameof(Idle))]
+    async Task AddChannelAsync()
+    {
+        string? channel = await dialogs.PromptAsync(
+            "Add a release channel",
+            "The GitHub repository whose releases to offer.",
+            "Add",
+            "owner/name"
+        );
+        if (string.IsNullOrWhiteSpace(channel))
+            return;
+        channel = channel.Trim();
+        if (!GitHubReleaseSource.IsValidRepository(channel))
+        {
+            await dialogs.AlertAsync(
+                "Add a release channel",
+                $"'{channel}' is not a GitHub repository (owner/name)."
+            );
+            return;
+        }
+        string? known = Channels.FirstOrDefault(c =>
+            c.Equals(channel, StringComparison.OrdinalIgnoreCase)
+        );
+        if (known == null)
+        {
+            Channels.Add(channel);
+            SaveChannels();
+        }
+        Channel = known ?? channel;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRemoveChannel))]
+    void RemoveChannel()
+    {
+        string removed = Channel;
+        Channel = LauncherInfo.DefaultRepository;
+        Channels.Remove(removed);
+        SaveChannels();
     }
 
     [RelayCommand(CanExecute = nameof(CanInstall))]
@@ -234,7 +309,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (SelectedRelease == null)
             return;
         var release = SelectedRelease.Release;
-        var action = catalog.ActionFor(release, Install?.InstalledTag);
+        var action = catalog.ActionFor(release, InstalledTag);
         if (
             release.Prerelease
             && !await dialogs.ConfirmAsync(
@@ -258,6 +333,19 @@ public sealed partial class MainViewModel : ObservableObject
             ActionLabel,
             (service, progress, token) =>
                 service.InstallAsync(InstallPath, release, catalog, progress, token)
+        );
+    }
+
+    [RelayCommand(CanExecute = nameof(CanInstallFile))]
+    async Task InstallFileAsync()
+    {
+        string? file = await dialogs.PickPatchFileAsync("Choose a KSP Retooled patch file");
+        if (file == null)
+            return;
+        await RunAsync(
+            $"Installing {Path.GetFileName(file)}",
+            (service, progress, token) =>
+                service.InstallFileAsync(InstallPath, file, catalog, progress, token)
         );
     }
 
@@ -358,7 +446,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    GitHubReleaseSource Source() => new(http, Repository.Trim(), token);
+    GitHubReleaseSource Source() => new(http, Channel, token);
 
     void Inspect()
     {
@@ -368,7 +456,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     void ShowReleases()
     {
-        string? installed = Install?.InstalledTag;
+        string? installed = InstalledTag;
         string? previous = SelectedRelease?.Release.Tag;
         var latest = catalog.Latest(platform, IncludePrereleases);
         Releases.Clear();
@@ -397,9 +485,18 @@ public sealed partial class MainViewModel : ObservableObject
         BrowseCommand.NotifyCanExecuteChanged();
         DetectCommand.NotifyCanExecuteChanged();
         RefreshCommand.NotifyCanExecuteChanged();
+        AddChannelCommand.NotifyCanExecuteChanged();
+        RemoveChannelCommand.NotifyCanExecuteChanged();
         InstallSelectedCommand.NotifyCanExecuteChanged();
+        InstallFileCommand.NotifyCanExecuteChanged();
         UninstallCommand.NotifyCanExecuteChanged();
         PlayCommand.NotifyCanExecuteChanged();
+    }
+
+    void SaveChannels()
+    {
+        settings.Channels = [.. Channels.Skip(1)];
+        Save();
     }
 
     void Save()

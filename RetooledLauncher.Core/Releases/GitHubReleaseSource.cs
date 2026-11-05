@@ -42,7 +42,9 @@ public sealed class GitHubReleaseSource(HttpClient http, string repository, stri
                     .DeserializeAsync(body, GitHubJson.Default.ListGitHubRelease, cancellation)
                     .ConfigureAwait(false)
                 ?? [];
-            releases.AddRange(items.Where(r => !r.Draft).Select(Convert));
+            releases.AddRange(
+                items.Where(r => !r.Draft).Select(r => Convert(r) with { Channel = Repository })
+            );
             url = NextPage(response);
         }
         return releases;

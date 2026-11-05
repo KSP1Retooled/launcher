@@ -33,6 +33,15 @@ public sealed record InstallInfo(string Path, InstallStatus Status)
     /// <summary>The installed tag as <see cref="Releases.ReleaseCatalog.ActionFor"/> wants it: null when stock, "" when unknown.</summary>
     public string? InstalledTag =>
         Status is InstallStatus.Retooled or InstallStatus.Interrupted ? Release?.Tag ?? "" : null;
+
+    /// <summary>
+    /// <see cref="InstalledTag"/> for comparing with <paramref name="channel"/>'s releases: "" when the installed release
+    /// came from elsewhere, since an equal tag there may be a different build and a version number says nothing.
+    /// </summary>
+    public string? InstalledTagIn(string channel) =>
+        string.IsNullOrEmpty(Release?.Channel) || Release.IsFrom(channel) ? InstalledTag
+        : InstalledTag == null ? null
+        : "";
 }
 
 /// <summary>The launcher's record, in <c>.retooled/launcher.json</c>, of which release it applied. A revert deletes it with the journal.</summary>
@@ -42,6 +51,15 @@ public sealed class InstalledRelease
     public string Asset { get; set; } = "";
     public bool Prerelease { get; set; }
     public DateTime Installed { get; set; }
+
+    /// <summary>The repository it came from, or <see cref="LauncherInfo.LocalChannel"/>; null if installed by an older launcher.</summary>
+    public string? Channel { get; set; }
+
+    /// <summary>The cached patch it was applied from, to roll back to; null if installed by an older launcher.</summary>
+    public string? Patch { get; set; }
+
+    public bool IsFrom(string channel) =>
+        string.Equals(Channel, channel, StringComparison.OrdinalIgnoreCase);
 }
 
 [JsonSourceGenerationOptions(

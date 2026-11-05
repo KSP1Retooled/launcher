@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
+using KSP.Retooled.Patch;
 
 namespace KSP.Retooled.Launcher.App;
 
@@ -17,13 +18,49 @@ public sealed partial class MainWindow : Window, IDialogs
         return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
     }
 
+    public async Task<string?> PickPatchFileAsync(string title)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions
+            {
+                Title = title,
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("KSP Retooled patch")
+                    {
+                        Patterns = [$"*{PatchFile.Extension}"],
+                    },
+                ],
+            }
+        );
+        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
+    }
+
+    public async Task<string?> PromptAsync(
+        string title,
+        string message,
+        string accept,
+        string placeholder
+    )
+    {
+        var input = new TextBox { PlaceholderText = placeholder };
+        return await ShowAsync(title, message, accept, "Cancel", input) ? input.Text : null;
+    }
+
     public Task<bool> ConfirmAsync(string title, string message, string accept) =>
         ShowAsync(title, message, accept, "Cancel");
 
     public Task AlertAsync(string title, string message) => ShowAsync(title, message, "OK", null);
 
-    /// <summary>A small modal message box: true when <paramref name="accept"/> is pressed.</summary>
-    async Task<bool> ShowAsync(string title, string message, string accept, string? decline)
+    /// <summary>A small modal message box, with <paramref name="input"/> under the message: true when <paramref name="accept"/> is pressed.</summary>
+    async Task<bool> ShowAsync(
+        string title,
+        string message,
+        string accept,
+        string? decline,
+        Control? input = null
+    )
     {
         var dialog = new Window
         {
@@ -53,7 +90,7 @@ public sealed partial class MainWindow : Window, IDialogs
             buttons.Children.Add(cancel);
         }
         buttons.Children.Add(ok);
-        dialog.Content = new StackPanel
+        var content = new StackPanel
         {
             Margin = new Avalonia.Thickness(20),
             Spacing = 16,
@@ -67,6 +104,9 @@ public sealed partial class MainWindow : Window, IDialogs
                 buttons,
             },
         };
+        if (input != null)
+            content.Children.Insert(1, input);
+        dialog.Content = content;
         return await dialog.ShowDialog<bool>(this);
     }
 }

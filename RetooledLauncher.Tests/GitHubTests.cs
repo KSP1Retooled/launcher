@@ -79,6 +79,7 @@ public sealed class GitHubReleaseSourceTests
         ).GetReleasesAsync();
 
         Assert.Equal(["v1.1.0-beta.1", "v1.0.0"], releases.Select(r => r.Tag));
+        Assert.All(releases, r => Assert.Equal("o/r", r.Channel));
         var beta = releases[0];
         Assert.True(beta.Prerelease);
         Assert.False(releases[1].Prerelease);
@@ -213,9 +214,104 @@ public sealed class PatchCacheTests : IDisposable
             default
         );
 
-        cache.Prune(["release/v2"]);
+        cache.Prune([kept]);
         Assert.False(File.Exists(old));
         Assert.True(File.Exists(kept));
+    }
+
+    [Fact]
+    public async Task TheSameTagInTwoChannelsDoesNotShareACacheEntry()
+    {
+        var http = new FakeHttp();
+        http.Bytes("https://dl/v1", [1, 2, 3]);
+        var client = new HttpClient(http);
+        var cache = new PatchCache(client, new GitHubReleaseSource(client, "o/r"), root);
+        var release = WithPatch("v1", [1, 2, 3], digest: false);
+
+        string first = await cache.GetPatchAsync(
+            release with { Channel = "a/one" },
+            "linux",
+            null,
+            default
+        );
+        string second = await cache.GetPatchAsync(
+            release with { Channel = "a/two" },
+            "linux",
+            null,
+            default
+        );
+
+        Assert.NotEqual(first, second);
+        Assert.Equal(2, http.Requests.Count);
+    }
+
+    [Fact]
+    public async Task ImportKeepsACopyPerContent()
+    {
+        Directory.CreateDirectory(root);
+        string file = Path.Combine(root, "mine.rtpatch");
+        var client = new HttpClient(new FakeHttp());
+        var cache = new PatchCache(
+            client,
+            new GitHubReleaseSource(client, "o/r"),
+            Path.Combine(root, "cache")
+        );
+
+        File.WriteAllBytes(file, [1, 2, 3]);
+        string first = await cache.ImportAsync(file, null, default);
+        Assert.Equal(first, await cache.ImportAsync(file, null, default));
+
+        // a rebuild under the same name must leave the copy of the installed patch alone
+        File.WriteAllBytes(file, [4, 5, 6]);
+        string second = await cache.ImportAsync(file, null, default);
+        File.Delete(file);
+
+        Assert.NotEqual(first, second);
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(first));
+        Assert.Equal([4, 5, 6], File.ReadAllBytes(second));
+
+        cache.Prune([second]);
+        Assert.False(File.Exists(first));
+        Assert.True(File.Exists(second));
+    }
+}
+
+public sealed class LauncherSettingsTests : IDisposable
+{
+    readonly string file = Path.Combine(
+        Path.GetTempPath(),
+        "retooled-settings-" + Guid.NewGuid().ToString("N") + ".json"
+    );
+
+    public void Dispose() => File.Delete(file);
+
+    [Fact]
+    public void OffersTheDefaultChannelFirstAndOnlyOnce() =>
+        Assert.Equal(
+            [LauncherInfo.DefaultRepository, "a/b"],
+            new LauncherSettings
+            {
+                Channels = ["a/b", "A/B", LauncherInfo.DefaultRepository],
+            }.AllChannels
+        );
+
+    [Fact]
+    public void ARepositoryFromBeforeChannelsIsStillOffered()
+    {
+        File.WriteAllText(file, """{ "repository": "o/r" }""");
+        Assert.Equal(
+            [LauncherInfo.DefaultRepository, "o/r"],
+            LauncherSettings.Load(file).AllChannels
+        );
+    }
+
+    [Fact]
+    public void ChannelsSurviveASave()
+    {
+        new LauncherSettings { Channels = ["a/b"], Repository = "a/b" }.Save(file);
+        var loaded = LauncherSettings.Load(file);
+        Assert.Equal(["a/b"], loaded.Channels);
+        Assert.Equal("a/b", loaded.Repository);
     }
 }
 

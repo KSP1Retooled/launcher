@@ -8,6 +8,9 @@ public static class LauncherInfo
     /// <summary>Where releases come from until the release repository is settled; overridable in settings.</summary>
     public const string DefaultRepository = "KSP1Retooled/retooled";
 
+    /// <summary>The channel of a patch installed from a local file; never a repository, which holds a '/'.</summary>
+    public const string LocalChannel = "local";
+
     public static string Version { get; } =
         (Assembly.GetEntryAssembly() ?? typeof(LauncherInfo).Assembly)
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
