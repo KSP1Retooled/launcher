@@ -32,3 +32,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 RetooledPatch uses ZstdSharp (NuGet package `ZstdSharp.Port`, https://github.com/oleg-st/ZstdSharp), a C#
 port of zstd. Both are licensed under the MIT License (zstd: BSD/GPLv2 dual license; used under BSD).
+
+# TxFileManager
+
+RetooledPatch uses TxFileManager (NuGet package `TxFileManager`, https://github.com/chinhdo/txFileManager), which is
+licensed under the MIT License.

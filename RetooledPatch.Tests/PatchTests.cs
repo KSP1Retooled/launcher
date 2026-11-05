@@ -416,6 +416,96 @@ public sealed class PatchRoundTripTests : IDisposable
     }
 
     [Fact]
+    public void AnApplyThatFailsAtTheLastStepLeavesTheStockInstall()
+    {
+        Write(Gog, "settings.cfg", "LANGUAGE = en-us\n"u8.ToArray());
+        var directories = Directories(Gog);
+        var stock = Tree(Gog);
+
+        // every move, the settings and the removed directories are done by the time the journal can't be saved
+        Assert.ThrowsAny<SystemException>(() => Applier(Gog).Apply(new ApplyOptions
+        {
+            BeforeMove = _ => Directory.CreateDirectory(Path.Combine(Gog, InstallJournal.Directory, "journal.json.tmp")),
+        }));
+
+        Assert.Equal(stock.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+        Assert.Equal(directories, Directories(Gog));
+        Assert.True(Applier(Gog).Check().CanApply);
+    }
+
+    [Fact]
+    public void AnApplyBlockedPartWayByTheInstallLeavesTheStockInstall()
+    {
+        // a directory where the build has a new file, so the move in fails after the stock files have moved out
+        Write(Gog, "GameData/Retooled/new.dll/mine.txt", [1]);
+        var stock = Tree(Gog);
+
+        Assert.ThrowsAny<SystemException>(() => Applier(Gog).Apply(new ApplyOptions()));
+
+        Assert.Equal(stock.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void AnApplyThatFailsWhileStagingLeavesNoScratch()
+    {
+        var stock = Tree(Gog);
+        using var cancel = new CancellationTokenSource();
+        var progress = new SyncProgress(p =>
+        {
+            if (p.Stage == "write") cancel.Cancel();
+        });
+
+        Assert.Throws<OperationCanceledException>(() =>
+            Applier(Gog).Apply(new ApplyOptions { Progress = progress, Cancellation = cancel.Token }));
+
+        Assert.Equal(stock.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void AnApplyLeavesNoTransactionFiles()
+    {
+        Applier(Gog).Apply(new ApplyOptions());
+        Assert.False(Directory.Exists(Path.Combine(Gog, InstallJournal.TransactionDirectory)));
+        Assert.Equal(JournalState.Applied, InstallJournal.Load(Gog)!.State);
+    }
+
+    [Fact]
+    public void ARevertFinishesARollbackThatFailed()
+    {
+        var stock = Tree(Gog);
+        string staging = Path.Combine(Gog, InstallJournal.StagingDirectory);
+        string? movedIn = null;
+
+        var error = Assert.Throws<PatchException>(() => Applier(Gog).Apply(new ApplyOptions
+        {
+            BeforeMove = path =>
+            {
+                if (movedIn != null)
+                {
+                    // a file where the staged one came from stops the rollback there
+                    Write(staging, movedIn, [1]);
+                    throw new IOException("disk full");
+                }
+                string relative = Path.GetRelativePath(Gog, path);
+                if (!relative.StartsWith(InstallJournal.Directory, StringComparison.Ordinal)) movedIn = relative;
+            },
+        }));
+
+        Assert.Contains("disk full", error.Message);
+        Assert.Contains("Undoing the install failed", error.Message);
+        Assert.Equal(JournalState.Committing, InstallJournal.Load(Gog)!.State);
+        Assert.False(Applier(Gog).Check().CanApply);
+
+        PatchReverter.Revert(Gog);
+        Assert.Equal(stock.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    sealed class SyncProgress(Action<PatchProgress> report) : IProgress<PatchProgress>
+    {
+        public void Report(PatchProgress value) => report(value);
+    }
+
+    [Fact]
     public void RevertUndoesAnInterruptedApply()
     {
         Applier(Gog).Apply(new ApplyOptions());
@@ -563,6 +653,29 @@ public sealed class PatchRoundTripTests : IDisposable
         Write(Gog, bundle + "/.DS_Store", [7]);
         PatchReverter.Revert(Gog);
         Assert.Equal(stockTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void AFailedApplyPutsBackFilesAndDirectoriesThatSwappedPlaces()
+    {
+        Write(Steam, "KSP_x64_Data/MainMenu.nib", [1, 2, 3]);
+        Write(Gog, "KSP_x64_Data/MainMenu.nib", [1, 2, 3]);
+        Write(Build, "KSP_x64_Data/MainMenu.nib/keyedobjects.nib", [4, 5]);
+        Write(Steam, "KSP_x64_Data/Folder/file.bin", [1, 2, 3]);
+        Write(Gog, "KSP_x64_Data/Folder/file.bin", [1, 2, 3]);
+        Write(Build, "KSP_x64_Data/Folder", [4, 5]);
+        var directories = Directories(Gog);
+        var stock = Tree(Gog);
+        string patch = Path.Combine(root, "swapped.rtpatch");
+        PatchBuilder.Build(Options(patch));
+
+        Assert.ThrowsAny<SystemException>(() => new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions
+        {
+            BeforeMove = _ => Directory.CreateDirectory(Path.Combine(Gog, InstallJournal.Directory, "journal.json.tmp")),
+        }));
+
+        Assert.Equal(stock.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+        Assert.Equal(directories, Directories(Gog));
     }
 
     [Fact]

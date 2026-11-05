@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Transactions;
+using ChinhDo.Transactions;
 
 namespace KSP.Retooled.Patch;
 
@@ -9,14 +11,15 @@ public enum JournalAction { Replaced, Added, Removed }
 /// <summary>
 /// <c>.retooled/journal.json</c> in a patched install: every file an in-place apply replaced, added or removed, with
 /// the stock originals kept under <c>.retooled/original</c>. Written before the first file moves, so a revert also
-/// undoes an apply that stopped half way.
+/// undoes an apply whose process died half way, which the transaction in <see cref="InstallCommit"/> cannot survive.
 /// </summary>
 public sealed class InstallJournal
 {
     public const string Directory = ".retooled";
     public const string StagingDirectory = Directory + "/staging";
     public const string OriginalDirectory = Directory + "/original";
-    const string FileName = Directory + "/journal.json";
+    public const string TransactionDirectory = Directory + "/transaction";
+    internal const string FileName = Directory + "/journal.json";
 
     public int Version { get; set; } = 1;
     public JournalState State { get; set; }
@@ -49,6 +52,17 @@ public sealed class InstallJournal
         File.WriteAllBytes(path + ".tmp", JsonSerializer.SerializeToUtf8Bytes(this, ManifestJson.Default.InstallJournal));
         File.Move(path + ".tmp", path, overwrite: true);
     }
+
+    /// <summary>Clears what a failed apply left in <see cref="Directory"/>. Best effort: it must not mask the failure.</summary>
+    internal static void DeleteScratch(string install)
+    {
+        string scratch = Path.Combine(install, Directory);
+        try
+        {
+            if (System.IO.Directory.Exists(scratch)) System.IO.Directory.Delete(scratch, recursive: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    }
 }
 
 public sealed class JournalFile
@@ -61,12 +75,68 @@ public sealed class JournalFile
     public string? Retooled { get; set; }
 }
 
-/// <summary>The in-place half of <see cref="PatchApplier"/>: journals, backs up and moves staged outputs into the install.</summary>
-sealed class InstallCommit(string install, InstallJournal journal, Dictionary<string, string?> hashes, TextWriter log)
+/// <summary>
+/// The in-place half of <see cref="PatchApplier"/>: journals, backs up and moves staged outputs into the install, in a
+/// transaction, so an exception puts every file back and leaves no journal. If that rollback fails too, or the process
+/// dies, the journal stays and <see cref="PatchReverter"/> finishes the job.
+/// </summary>
+sealed class InstallCommit(string install, InstallJournal journal, Dictionary<string, string?> hashes, TextWriter log, Action<string>? beforeMove)
 {
-    public void Run(string staging, List<OutputFile> staged, IEnumerable<string> remove, IEnumerable<string> directories)
+    /// <summary>
+    /// The longest the runtime allows. A timeout rolls back on another thread while the moves carry on, so there can't be
+    /// one, and an install on a slow disk can outlast the default limit of ten minutes.
+    /// </summary>
+    static readonly TimeSpan NoTimeout = TimeSpan.FromMilliseconds(int.MaxValue);
+
+    static InstallCommit() => TransactionManager.MaximumTimeout = NoTimeout;
+
+    string Full(string path) => Path.Combine(install, path);
+
+    public void Run(string staging, List<OutputFile> staged, IEnumerable<string> remove, IEnumerable<string> directories, string? language)
     {
-        string Full(string path) => Path.Combine(install, path);
+        var requested = directories.ToList();
+        bool completed = false;
+        Exception? failure = null;
+        try
+        {
+            Plan(staged, remove, requested);
+            journal.State = JournalState.Committing;
+            journal.Save(install);
+
+            // in the install, not the system temp directory: an empty directory is deleted by moving it here
+            var files = new TxFileManager(Full(InstallJournal.TransactionDirectory));
+            using var scope = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { Timeout = NoTimeout });
+            try
+            {
+                Commit(files, staging, requested, language);
+                scope.Complete();
+                completed = true;
+            }
+            catch (Exception e)
+            {
+                failure = e;
+                throw;
+            }
+        }
+        // once completed the files are in place and the originals are only in the scratch directory, so it has to stay
+        catch (Exception e) when (!completed)
+        {
+            // a failed rollback replaces the exception that caused it, and stops at the first file it can't put back
+            if (e is TransactionException)
+                throw new PatchException($"{failure?.Message} Undoing the install failed too: {e.InnerException?.Message}", e);
+            InstallJournal.DeleteScratch(install);
+            throw;
+        }
+
+        Directory.Delete(staging, recursive: true);
+        Directory.Delete(Full(InstallJournal.TransactionDirectory), recursive: true);
+        int removed = journal.Files.Count(f => f.Action == JournalAction.Removed);
+        log.WriteLine($"moved {journal.Files.Count - removed} files into the install, removed {removed} stock files "
+            + $"(originals kept in {InstallJournal.OriginalDirectory})");
+    }
+
+    void Plan(List<OutputFile> staged, IEnumerable<string> remove, List<string> directories)
+    {
         string StockHash(string path) => hashes.GetValueOrDefault(path) ?? PatchApplier.Sha256Hex(Full(path));
 
         // removed files go first: a path can be a file in stock and a directory in the build (MainMenu.nib on macOS) or
@@ -91,32 +161,45 @@ sealed class InstallCommit(string install, InstallJournal journal, Dictionary<st
             for (string? d = directory.Replace('\\', '/'); !string.IsNullOrEmpty(d) && !Directory.Exists(Full(d)); d = Path.GetDirectoryName(d)?.Replace('\\', '/'))
                 created.Add(d);
         journal.CreatedDirectories = [.. created.OrderBy(d => d.Count(c => c == '/')).ThenBy(d => d, StringComparer.Ordinal)];
-        journal.State = JournalState.Committing;
-        journal.Save(install);
+    }
 
+    void Commit(IFileManager files, string staging, List<string> directories, string? language)
+    {
         foreach (var file in journal.Files)
         {
             string destination = Full(file.Path);
-            if (file.Action != JournalAction.Added) MoveFile(destination, Full(InstallJournal.OriginalDirectory + "/" + file.Path));
-            if (file.Action != JournalAction.Removed) MoveFile(Path.Combine(staging, file.Path), destination);
-            else PruneEmptyParents(destination);
+            if (file.Action != JournalAction.Added) Move(files, destination, Full(InstallJournal.OriginalDirectory + "/" + file.Path));
+            if (file.Action != JournalAction.Removed) Move(files, Path.Combine(staging, file.Path), destination);
+            else PruneEmptyParents(files, destination);
         }
-        foreach (string directory in directories) Directory.CreateDirectory(Full(directory));
+        foreach (string directory in directories) files.CreateDirectory(Full(directory));
 
+        if (language != null)
+        {
+            files.Snapshot(Full(GameSettingsFile.FileName));
+            if (GameSettingsFile.SetLanguage(install, language))
+                log.WriteLine($"set LANGUAGE = {language} in {GameSettingsFile.FileName}");
+        }
+
+        // last, so a rollback that stops short leaves the journal saying the apply didn't finish
+        files.Snapshot(Full(InstallJournal.FileName));
         journal.State = JournalState.Applied;
         journal.Save(install);
-        Directory.Delete(staging, recursive: true);
-        int removed = journal.Files.Count(f => f.Action == JournalAction.Removed);
-        log.WriteLine($"moved {journal.Files.Count - removed} files into the install, removed {removed} stock files "
-            + $"(originals kept in {InstallJournal.OriginalDirectory})");
     }
 
-    void PruneEmptyParents(string file)
+    void Move(IFileManager files, string from, string to)
+    {
+        beforeMove?.Invoke(to);
+        files.CreateDirectory(Path.GetDirectoryName(to)!);
+        files.Move(from, to);
+    }
+
+    void PruneEmptyParents(IFileManager files, string file)
     {
         for (string? dir = Path.GetDirectoryName(file); dir != null && dir.Length > install.Length
              && Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any(); dir = Path.GetDirectoryName(dir))
         {
-            Directory.Delete(dir);
+            files.DeleteDirectory(dir);
             journal.RemovedDirectories.Add(Path.GetRelativePath(install, dir).Replace('\\', '/'));
         }
     }
