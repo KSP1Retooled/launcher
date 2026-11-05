@@ -56,6 +56,7 @@ public sealed partial class MainViewModel : ObservableObject
         this.settings = settings;
         this.dialogs = dialogs;
         updater = new LauncherUpdater(token);
+        Append(Title);
         InstallPath = settings.InstallPath is string saved ? KspInstall.Inspect(saved).Path : "";
         IncludePrereleases = settings.IncludePrereleases;
         foreach (string channel in settings.AllChannels)

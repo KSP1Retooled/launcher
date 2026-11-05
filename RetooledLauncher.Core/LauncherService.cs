@@ -35,6 +35,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
         var info = KspInstall.Inspect(install);
         Require(info, InstallStatus.Stock, InstallStatus.Retooled);
 
+        log.WriteLine($"installing KSP Retooled {target.Tag}");
         string patchPath = await patches
             .GetPatchAsync(target, Platform, progress, cancellation)
             .ConfigureAwait(false);
@@ -63,6 +64,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
         Require(info, InstallStatus.Stock, InstallStatus.Retooled);
 
         string name = Path.GetFileName(file);
+        log.WriteLine($"installing KSP Retooled from {name}"); // a patch file does not record its version
         Open(file, name); // not worth copying if it cannot be installed
         string patchPath = await patches
             .ImportAsync(file, progress, cancellation)
@@ -105,7 +107,6 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
 
         try
         {
-            log.WriteLine($"installing {target.Tag}");
             await ApplyAsync(install, patch, target, progress, cancellation).ConfigureAwait(false);
         }
         catch (Exception failure)
