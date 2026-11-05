@@ -543,6 +543,76 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal(stockTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
     }
 
+    // The Retooled macOS player ships MainMenu.nib as a bundle, where stock has a file of that name.
+    [Fact]
+    public void InPlaceTurnsAStockFileIntoADirectoryAndBack()
+    {
+        const string bundle = "KSP_x64_Data/MainMenu.nib";
+        Write(Steam, bundle, [1, 2, 3]);
+        Write(Gog, bundle, [1, 2, 3]);
+        Write(Build, bundle + "/keyedobjects.nib", [4, 5]);
+        Write(Build, bundle + "/designable.nib", [6]);
+        var stockTree = Tree(Gog);
+        string patch = Path.Combine(root, "bundle.rtpatch");
+        PatchBuilder.Build(Options(patch));
+
+        new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions());
+        Assert.Equal([4, 5], File.ReadAllBytes(Path.Combine(Gog, bundle, "keyedobjects.nib")));
+        Assert.Equal([6], File.ReadAllBytes(Path.Combine(Gog, bundle, "designable.nib")));
+
+        Write(Gog, bundle + "/.DS_Store", [7]);
+        PatchReverter.Revert(Gog);
+        Assert.Equal(stockTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void InPlaceTurnsAStockDirectoryIntoAFileAndBack()
+    {
+        const string folder = "KSP_x64_Data/Folder";
+        Write(Steam, folder + "/file.bin", [1, 2, 3]);
+        Write(Gog, folder + "/file.bin", [1, 2, 3]);
+        Write(Build, folder, [4]);
+        var stockTree = Tree(Gog);
+        string patch = Path.Combine(root, "folder.rtpatch");
+        PatchBuilder.Build(Options(patch));
+
+        new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions());
+        Assert.Equal([4], File.ReadAllBytes(Path.Combine(Gog, folder)));
+
+        PatchReverter.Revert(Gog);
+        Assert.Equal(stockTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    // older applies listed the files they removed last
+    [Fact]
+    public void RevertReadsAJournalThatListsRemovedFilesLast()
+    {
+        Applier(Gog).Apply(new ApplyOptions());
+        var journal = InstallJournal.Load(Gog)!;
+        journal.Files = [.. journal.Files.OrderBy(f => f.Action == JournalAction.Removed)];
+        journal.Save(Gog);
+
+        PatchReverter.Revert(Gog);
+        Assert.Equal(gogTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void RevertLeavesADirectoryTheApplyDidNotMake()
+    {
+        Applier(Gog).Apply(new ApplyOptions());
+        Write(Gog, "KSP_x64_Data/gone.assets/mine.txt", [1]);
+
+        // an IOException on Unix, an UnauthorizedAccessException on Windows
+        Assert.ThrowsAny<SystemException>(() => PatchReverter.Revert(Gog));
+        Assert.True(File.Exists(Path.Combine(Gog, "KSP_x64_Data/gone.assets/mine.txt")));
+        Assert.True(InstallJournal.Exists(Gog));
+
+        File.Delete(Path.Combine(Gog, "KSP_x64_Data/gone.assets/mine.txt"));
+        Directory.Delete(Path.Combine(Gog, "KSP_x64_Data/gone.assets"));
+        PatchReverter.Revert(Gog);
+        Assert.Equal(gogTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
     [Fact]
     public void CommandLineBuildsChecksAndApplies()
     {

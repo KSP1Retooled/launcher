@@ -25,6 +25,7 @@ public sealed class InstallJournal
     public string? Variant { get; set; }
     public string Patch { get; set; } = "";
     public DateTime Applied { get; set; }
+    /// <summary>In the order the apply moves them; a revert goes through them backwards.</summary>
     public List<JournalFile> Files { get; set; } = [];
     /// <summary>Directories the apply created, parents first.</summary>
     public List<string> CreatedDirectories { get; set; } = [];
@@ -68,6 +69,10 @@ sealed class InstallCommit(string install, InstallJournal journal, Dictionary<st
         string Full(string path) => Path.Combine(install, path);
         string StockHash(string path) => hashes.GetValueOrDefault(path) ?? PatchApplier.Sha256Hex(Full(path));
 
+        // removed files go first: a path can be a file in stock and a directory in the build (MainMenu.nib on macOS) or
+        // the reverse, and the build's can only be made once stock's has left
+        foreach (string path in remove.Distinct(StringComparer.Ordinal).Where(p => File.Exists(Full(p))))
+            journal.Files.Add(new JournalFile { Path = path, Action = JournalAction.Removed, Original = StockHash(path) });
         foreach (var output in staged)
         {
             bool exists = File.Exists(Full(output.Path));
@@ -79,8 +84,6 @@ sealed class InstallCommit(string install, InstallJournal journal, Dictionary<st
                 Retooled = output.Sha256,
             });
         }
-        foreach (string path in remove.Distinct(StringComparer.Ordinal).Where(p => File.Exists(Full(p))))
-            journal.Files.Add(new JournalFile { Path = path, Action = JournalAction.Removed, Original = StockHash(path) });
 
         var created = new SortedSet<string>(StringComparer.Ordinal);
         var newPaths = journal.Files.Where(f => f.Action == JournalAction.Added).Select(f => Path.GetDirectoryName(f.Path)!);
@@ -162,6 +165,8 @@ public static class PatchReverter
             }
             else if (File.Exists(backup))
             {
+                // the directory the apply made in this file's place: what it added has gone, and anything else there (Finder's .DS_Store) goes too
+                if (journal.CreatedDirectories.Contains(file.Path) && Directory.Exists(path)) Directory.Delete(path, recursive: true);
                 InstallCommit.MoveFile(backup, path);
                 restored++;
             }
