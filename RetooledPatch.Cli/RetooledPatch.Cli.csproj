@@ -8,6 +8,9 @@
     <RootNamespace>KSP.Retooled.Patch.Cli</RootNamespace>
     <AssemblyName>retooled-patch</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- A build is a few calls to enormous methods, which would otherwise run the longest work in tier 0. -->
+    <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
+    <TieredPGO>false</TieredPGO>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>retooled-patch</ToolCommandName>
     <PackageId>KSP1Retooled.Patch.Cli</PackageId>

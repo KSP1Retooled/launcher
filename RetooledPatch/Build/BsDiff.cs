@@ -4,15 +4,23 @@ namespace KSP.Retooled.Patch;
 
 /// <summary>
 /// bsdiff (Colin Percival, BSD-2-Clause; see THIRD_PARTY_NOTICES.md) producing the raw stream layout
-/// <see cref="BsPatch"/> reads. Memory is about 9× the reference length (two int arrays for the suffix sort), so callers
-/// keep references to a bounded window. The suffix sort recurses, so run it on a thread with a large stack.
+/// <see cref="BsPatch"/> reads. Memory is about 7× the reference length while sorting and 5× after it, so callers keep
+/// references to a bounded window.
 /// </summary>
 public static class BsDiff
 {
-    public static byte[] Diff(ReadOnlySpan<byte> old, ReadOnlySpan<byte> @new) => Diff(old, SuffixSort(old), @new);
+    /// <summary>How many entries <see cref="PrefixIndex(ReadOnlySpan{byte}, int[])"/> fills: one per three-byte prefix, and an end.</summary>
+    internal const int PrefixIndexLength = (1 << 24) + 1;
+
+    public static byte[] Diff(ReadOnlySpan<byte> old, ReadOnlySpan<byte> @new) =>
+        Diff(old, SuffixSort(old), PrefixIndex(old), @new);
 
     /// <summary>Diffs against <paramref name="old"/> with its suffix array from <see cref="SuffixSort"/>, reusable across calls.</summary>
-    public static byte[] Diff(ReadOnlySpan<byte> old, int[] suffixes, ReadOnlySpan<byte> @new)
+    public static byte[] Diff(ReadOnlySpan<byte> old, int[] suffixes, ReadOnlySpan<byte> @new) =>
+        Diff(old, suffixes, PrefixIndex(old), @new);
+
+    /// <summary>The same, with <paramref name="prefixes"/> from <see cref="PrefixIndex"/>, also reusable across calls.</summary>
+    internal static byte[] Diff(ReadOnlySpan<byte> old, int[] suffixes, int[] prefixes, ReadOnlySpan<byte> @new)
     {
         var control = new List<(long Add, long Copy, long Seek)>();
         byte[] diff = new byte[@new.Length], extra = new byte[@new.Length];
@@ -26,7 +34,7 @@ public static class BsDiff
             int scsc;
             for (scsc = scan += len; scan < newSize; scan++)
             {
-                len = Search(suffixes, old, @new[scan..], out pos);
+                len = Search(suffixes, prefixes, old, @new[scan..], out pos);
                 for (; scsc < scan + len; scsc++)
                     if (scsc + lastOffset >= 0 && scsc + lastOffset < oldSize && old[scsc + lastOffset] == @new[scsc]) oldScore++;
                 if ((len == oldScore && len != 0) || len > oldScore + 8) break;
@@ -103,15 +111,39 @@ public static class BsDiff
         return patch;
     }
 
-    // binary search of the suffix array for the longest match of `target`; memcmp over the shorter length, as bsdiff does
-    static int Search(int[] suffixes, ReadOnlySpan<byte> old, ReadOnlySpan<byte> target, out int pos)
+    // binary search of the suffix array for the longest match of `target`; memcmp over the shorter length, as bsdiff does.
+    // This runs for nearly every byte of the new data, and each step can miss the cache twice, in the suffix array and in
+    // the reference. So the index skips the steps it can, and the rest are decided by a key compared here: most of them
+    // differ within eight bytes, which don't justify a call into a vectorized compare.
+    static int Search(int[] suffixes, int[] prefixes, ReadOnlySpan<byte> old, ReadOnlySpan<byte> target, out int pos)
     {
         int start = 0, end = old.Length;
+        if (target.Length >= 3)
+        {
+            int prefix = target[0] << 16 | target[1] << 8 | target[2];
+            start = Math.Max(prefixes[prefix] - 1, 0);
+            end = Math.Min(prefixes[prefix + 1], end);
+        }
+
+        bool hasKey = target.Length >= sizeof(ulong);
+        ulong targetKey = hasKey ? BinaryPrimitives.ReadUInt64BigEndian(target) : 0;
         while (end - start >= 2)
         {
             int middle = start + (end - start) / 2;
-            int length = Math.Min(old.Length - suffixes[middle], target.Length);
-            if (old.Slice(suffixes[middle], length).SequenceCompareTo(target[..length]) < 0) start = middle;
+            int suffix = suffixes[middle];
+            bool less;
+            ulong key = hasKey && old.Length - suffix >= sizeof(ulong) ? BinaryPrimitives.ReadUInt64BigEndian(old[suffix..]) : targetKey;
+            if (key != targetKey)
+            {
+                less = key < targetKey;
+            }
+            else
+            {
+                int length = Math.Min(old.Length - suffix, target.Length);
+                less = old.Slice(suffix, length).SequenceCompareTo(target[..length]) < 0;
+            }
+
+            if (less) start = middle;
             else end = middle;
         }
         int x = old[suffixes[start]..].CommonPrefixLength(target);
@@ -120,124 +152,38 @@ public static class BsDiff
         return Math.Max(x, y);
     }
 
-    /// <summary>Larsson–Sadakane qsufsort as used by bsdiff: the suffix array of <paramref name="old"/>, empty suffix first.</summary>
+    /// <summary>The suffix array of <paramref name="old"/>, empty suffix first.</summary>
     public static int[] SuffixSort(ReadOnlySpan<byte> old)
     {
-        int n = old.Length;
-        var I = new int[n + 1];
-        var V = new int[n + 1];
-        Span<int> buckets = stackalloc int[256];
-        buckets.Clear();
-        foreach (byte b in old) buckets[b]++;
-        for (int i = 1; i < 256; i++) buckets[i] += buckets[i - 1];
-        for (int i = 255; i > 0; i--) buckets[i] = buckets[i - 1];
-        buckets[0] = 0;
-        for (int i = 0; i < n; i++) I[++buckets[old[i]]] = i;
-        I[0] = n;
-        for (int i = 0; i < n; i++) V[i] = buckets[old[i]];
-        V[n] = 0;
-        for (int i = 1; i < 256; i++)
-            if (buckets[i] == buckets[i - 1] + 1) I[buckets[i]] = -1;
-        I[0] = -1;
-
-        for (int h = 1; I[0] != -(n + 1); h += h)
-        {
-            int len = 0, i = 0;
-            while (i < n + 1)
-            {
-                if (I[i] < 0)
-                {
-                    len -= I[i];
-                    i -= I[i];
-                }
-                else
-                {
-                    if (len != 0) I[i - len] = -len;
-                    len = V[I[i]] + 1 - i;
-                    Split(I, V, i, len, h);
-                    i += len;
-                    len = 0;
-                }
-            }
-            if (len != 0) I[i - len] = -len;
-        }
-
-        for (int i = 0; i < n + 1; i++) I[V[i]] = i;
-        return I;
+        var suffixes = new int[old.Length + 1];
+        SuffixSorter.Sort(old, suffixes);
+        return suffixes;
     }
 
-    static void Split(int[] I, int[] V, int start, int len, int h)
+    internal static int[] PrefixIndex(ReadOnlySpan<byte> old)
     {
-        while (true)
-        {
-            if (len < 16)
-            {
-                for (int k = start, j; k < start + len; k += j)
-                {
-                    j = 1;
-                    int x = V[I[k] + h];
-                    for (int i = 1; k + i < start + len; i++)
-                    {
-                        if (V[I[k + i] + h] < x)
-                        {
-                            x = V[I[k + i] + h];
-                            j = 0;
-                        }
-                        if (V[I[k + i] + h] == x)
-                        {
-                            (I[k + j], I[k + i]) = (I[k + i], I[k + j]);
-                            j++;
-                        }
-                    }
-                    for (int i = 0; i < j; i++) V[I[k + i]] = k + j - 1;
-                    if (j == 1) I[k] = -1;
-                }
-                return;
-            }
+        var index = new int[PrefixIndexLength];
+        PrefixIndex(old, index);
+        return index;
+    }
 
-            int pivot = V[I[start + len / 2] + h];
-            int jj = 0, kk = 0;
-            for (int i = start; i < start + len; i++)
-            {
-                if (V[I[i] + h] < pivot) jj++;
-                if (V[I[i] + h] == pivot) kk++;
-            }
-            jj += start;
-            kk += jj;
+    /// <summary>
+    /// Fills <paramref name="index"/>, of <see cref="PrefixIndexLength"/> entries, with where each three-byte prefix
+    /// starts in the suffix array of <paramref name="old"/>, for <see cref="Search"/>. A shorter suffix counts as padded
+    /// with zeros, which keeps it next to the suffixes it sorts among.
+    /// </summary>
+    internal static void PrefixIndex(ReadOnlySpan<byte> old, int[] index)
+    {
+        Array.Clear(index);
+        for (int i = 0; i + 2 < old.Length; i++)
+            index[old[i] << 16 | old[i + 1] << 8 | old[i + 2]]++;
+        if (old.Length >= 2)
+            index[old[^2] << 16 | old[^1] << 8]++;
+        if (old.Length >= 1)
+            index[old[^1] << 16]++;
 
-            int a = start, e = 0, g = 0;
-            while (a < jj)
-            {
-                int v = V[I[a] + h];
-                if (v < pivot) a++;
-                else if (v == pivot)
-                {
-                    (I[a], I[jj + e]) = (I[jj + e], I[a]);
-                    e++;
-                }
-                else
-                {
-                    (I[a], I[kk + g]) = (I[kk + g], I[a]);
-                    g++;
-                }
-            }
-            while (jj + e < kk)
-            {
-                if (V[I[jj + e] + h] == pivot) e++;
-                else
-                {
-                    (I[jj + e], I[kk + g]) = (I[kk + g], I[jj + e]);
-                    g++;
-                }
-            }
-
-            if (jj > start) Split(I, V, start, jj - start, h);
-            for (int i = 0; i < kk - jj; i++) V[I[jj + i]] = kk - 1;
-            if (jj == kk - 1) I[jj] = -1;
-
-            if (start + len <= kk) return;
-            len = start + len - kk;
-            start = kk;
-        }
+        int sum = 1; // the empty suffix comes first
+        for (int i = 0; i < PrefixIndexLength; i++)
+            (index[i], sum) = (sum, sum + index[i]);
     }
 }
