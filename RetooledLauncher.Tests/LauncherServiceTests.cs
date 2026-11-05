@@ -195,6 +195,51 @@ public sealed class LauncherServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task LogsTheVersionBeingInstalled()
+    {
+        var log = new StringWriter();
+
+        await new LauncherService(patches, Platform, log).InstallAsync(
+            Install,
+            Get("v1.0.0"),
+            catalog
+        );
+
+        Assert.Contains("installing KSP Retooled v1.0.0", log.ToString());
+    }
+
+    [Fact]
+    public async Task LogsTheVersionEvenIfItsPatchCannotBeFetched()
+    {
+        var log = new StringWriter();
+        patches.Files.Remove("v1.0.0");
+
+        await Assert.ThrowsAsync<LauncherException>(() =>
+            new LauncherService(patches, Platform, log).InstallAsync(
+                Install,
+                Get("v1.0.0"),
+                catalog
+            )
+        );
+
+        Assert.Contains("installing KSP Retooled v1.0.0", log.ToString());
+    }
+
+    [Fact]
+    public async Task LogsThePatchFileBeingInstalled()
+    {
+        var log = new StringWriter();
+
+        await new LauncherService(patches, Platform, log).InstallFileAsync(
+            Install,
+            patches.Files["v1.0.0"],
+            catalog
+        );
+
+        Assert.Contains("installing KSP Retooled from v1.0.0.rtpatch", log.ToString());
+    }
+
+    [Fact]
     public async Task UpgradesFromOneReleaseToTheNext()
     {
         await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
