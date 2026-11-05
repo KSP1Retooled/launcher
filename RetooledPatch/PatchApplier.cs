@@ -34,8 +34,9 @@ public sealed class InstallCheck
 
 /// <summary>
 /// Applies a patch file to a stock install. Each output uses the first recipe whose stock files are all present with
-/// the recorded content, and every such file is hash-checked before anything is written. Side-by-side writes the
-/// retooled install to a new directory. In-place builds every output in <c>.retooled/staging</c> first, then records
+/// the recorded content, and every such file is hash-checked before anything is written. An output the patch leaves
+/// as stock reads nothing, so the install's copy stays as it is, whatever it holds, and may be missing. Side-by-side
+/// writes the retooled install to a new directory. In-place builds every output in <c>.retooled/staging</c> first, then records
 /// the plan in the <see cref="InstallJournal"/>, moves each stock file it replaces or removes into
 /// <c>.retooled/original</c> and the new file into place, so <see cref="PatchReverter"/> can restore the stock install.
 /// </summary>
@@ -59,7 +60,8 @@ public sealed class PatchApplier(PatchFile patch, string install)
             return new InstallCheck { AlreadyPatched = true, SkippedComponents = skipped, Problems = ["already patched; revert it first"] };
 
         var outputs = Enumerable.Range(0, manifest.Outputs.Count).Where(i => applicable[manifest.Outputs[i].Component]).ToList();
-        var hashes = HashInputs(outputs.SelectMany(i => manifest.Outputs[i].Recipes.SelectMany(r => r.Inputs())), options);
+        var changed = outputs.Where(i => !IsUnchanged(manifest.Outputs[i]));
+        var hashes = HashInputs(changed.SelectMany(i => manifest.Outputs[i].Recipes.SelectMany(r => r.Inputs())), options);
         bool Matches(int source) => hashes[manifest.Sources[source].Path] == manifest.Sources[source].Sha256;
 
         var chosen = new Recipe?[manifest.Outputs.Count];
@@ -67,6 +69,11 @@ public sealed class PatchApplier(PatchFile patch, string install)
         foreach (int i in outputs)
         {
             var recipes = manifest.Outputs[i].Recipes;
+            if (IsUnchanged(manifest.Outputs[i]))
+            {
+                if (File.Exists(Path.Combine(install, manifest.Outputs[i].Path))) chosen[i] = recipes[0];
+                continue;
+            }
             chosen[i] = recipes.FirstOrDefault(r => r.Inputs().All(Matches));
             if (chosen[i] != null) continue;
             var closest = recipes.MinBy(r => r.Inputs().Distinct().Count(s => !Matches(s)));
@@ -81,6 +88,13 @@ public sealed class PatchApplier(PatchFile patch, string install)
         string? variant = manifest.Variants.FirstOrDefault(v => used.IsSubsetOf(v.Files))?.Id;
         return new InstallCheck { Variant = variant, Problems = [.. problems], SkippedComponents = skipped, Chosen = chosen, Hashes = hashes };
     }
+
+    /// <summary>
+    /// Whether every source install has this output, as stock at its own path. Such an output has that one recipe (a
+    /// source without the file would have added another), so its source is in every variant and never tells them apart.
+    /// </summary>
+    bool IsUnchanged(OutputFile output) =>
+        output.Recipes is [{ Same: int same }] && manifest.Sources[same].Path == output.Path;
 
     /// <summary>Hashes the install's copy of every listed source path, skipping files whose size matches no source there.</summary>
     Dictionary<string, string?> HashInputs(IEnumerable<int> sources, ApplyOptions options)

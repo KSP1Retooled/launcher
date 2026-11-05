@@ -93,11 +93,22 @@ public sealed class LauncherServiceTests : IDisposable
             }
         );
 
-        // a release built against a different stock install, so it cannot apply to this one
+        // a release that patches a file of a different stock install, so it cannot apply to this one
         string other = Path.Combine(root, "other-stock");
         CopyTree(Stock, other);
-        Write(other, "KSP_x64_Data/level0", Bytes(200_000));
-        BuildFrom(other, "v2.0.0", dir => Write(dir, "GameData/Retooled/v3.dll", Bytes(100)));
+        byte[] otherData = Bytes(200_000);
+        Write(other, "KSP_x64_Data/level0", otherData);
+        BuildFrom(
+            other,
+            "v2.0.0",
+            dir =>
+            {
+                var edited = (byte[])otherData.Clone();
+                edited[30] ^= 0xFF;
+                Write(dir, "KSP_x64_Data/level0", edited);
+                Write(dir, "GameData/Retooled/v3.dll", Bytes(100));
+            }
+        );
 
         catalog = new ReleaseCatalog(
             new[] { "v1.0.0", "v1.1.0", "v2.0.0" }.Select(t =>

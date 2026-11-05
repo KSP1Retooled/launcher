@@ -312,6 +312,63 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.False(Directory.Exists(output));
     }
 
+    const string UnchangedFile = "saves/scenarios/Mun Orbit.sfs";
+
+    [Fact]
+    public void EditedUnchangedFileIsCarriedAcross()
+    {
+        File.WriteAllBytes(Path.Combine(Gog, UnchangedFile), [1, 2, 3]);
+        string output = Path.Combine(root, "out");
+        var check = Applier(Gog).Apply(new ApplyOptions { OutputDirectory = output });
+        Assert.Equal("gog-03190", check.Variant);
+        var expected = Shipped();
+        expected[UnchangedFile] = PatchApplier.Sha256Hex(Path.Combine(Gog, UnchangedFile));
+        Assert.Equal(expected.OrderBy(p => p.Key), Tree(output).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void MissingUnchangedFileStaysMissing()
+    {
+        File.Delete(Path.Combine(Gog, UnchangedFile));
+        string output = Path.Combine(root, "out");
+        Assert.Equal("gog-03190", Applier(Gog).Apply(new ApplyOptions { OutputDirectory = output }).Variant);
+        var expected = Shipped();
+        expected.Remove(UnchangedFile);
+        Assert.Equal(expected.OrderBy(p => p.Key), Tree(output).OrderBy(p => p.Key));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InPlaceLeavesUnchangedFilesAlone(bool missing)
+    {
+        string path = Path.Combine(Gog, UnchangedFile);
+        if (missing) File.Delete(path);
+        else File.WriteAllBytes(path, [1, 2, 3]);
+        var stock = Tree(Gog);
+
+        Applier(Gog).Apply(new ApplyOptions());
+        Assert.Equal(!missing, File.Exists(path));
+        if (!missing) Assert.Equal([1, 2, 3], File.ReadAllBytes(path));
+        Assert.DoesNotContain(InstallJournal.Load(Gog)!.Files, f => f.Path == UnchangedFile);
+
+        PatchReverter.Revert(Gog);
+        Assert.Equal(stock.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    // same.cfg is unchanged, but moved.cfg is a copy of it
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnchangedFileAnotherOutputReadsIsStillRequired(bool missing)
+    {
+        string path = Path.Combine(Gog, "GameData/Squad/same.cfg");
+        if (missing) File.Delete(path);
+        else File.WriteAllBytes(path, [1, 2, 3]);
+        var problems = Applier(Gog).Check().Problems;
+        Assert.Equal([(missing ? "missing  " : "modified ") + "GameData/Squad/same.cfg"], problems);
+    }
+
     [Fact]
     public void BuildWithoutStockLayoutIsRejected()
     {
