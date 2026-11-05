@@ -52,7 +52,8 @@ jobs:
         run: |
           prerelease=
           case "$TAG" in *-*) prerelease=--prerelease ;; esac
-          gh release create "$TAG" packages/*.nupkg --verify-tag --title "$TAG" --generate-notes $prerelease
+          gh release create "$TAG" packages/*.nupkg --verify-tag --title "$TAG" \
+            --notes-file .github/release-notes-header.md --generate-notes $prerelease
 
   installers:
     needs: publish
