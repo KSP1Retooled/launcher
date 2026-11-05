@@ -45,8 +45,9 @@ public sealed class PatchFile
         file.ReadExactly(compressed);
         using var decompressor = new Decompressor();
         var manifest = PatchManifest.FromJson(decompressor.Unwrap(compressed));
-        if (manifest.Version != PatchManifest.CurrentVersion)
-            throw new InvalidDataException($"{path}: manifest version {manifest.Version}, this tool reads {PatchManifest.CurrentVersion}");
+        if (manifest.Version is < PatchManifest.OldestVersion or > PatchManifest.CurrentVersion)
+            throw new InvalidDataException($"{path}: manifest version {manifest.Version}, this tool reads "
+                + $"{PatchManifest.OldestVersion} to {PatchManifest.CurrentVersion}");
         foreach (var section in manifest.Sections)
             if (section.Offset < HeaderSize || section.Offset + section.Length > offset)
                 throw new InvalidDataException($"{path}: section {section.Name} lies outside the file");

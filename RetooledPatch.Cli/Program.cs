@@ -7,11 +7,12 @@ public static class Program
 
           retooled-patch build --source [<name>=]<dir>[{Path.PathSeparator}<dir>...] [--source ...] --target <retooled-build> --out <file>.rtpatch
                                [--platform windows|linux|macos] [--jobs N] [--level 19] [--window 27]
-                               [--exclude <pattern>,...] [--exclude-target <pattern>,...]
+                               [--exclude <pattern>,...] [--exclude-target <pattern>,...] [--copy <path>,...]
               one patch file that turns any --source into the target, plus <file>.report.txt. A source's directories
               overlay each other (game depot, then DLC depots); its name defaults to its buildID file
               (e.g. steam-03190). Patterns match install-relative paths ('*' spans directories); --exclude applies
-              to every tree, --exclude-target only to the build.
+              to every tree, --exclude-target only to the build. A --copy, an exact file or directory, is left out
+              of every tree too, and an apply to --out copies it from the install whole.
           retooled-patch info --patch <file>
               the platform, sources, sections and outputs of a patch file
           retooled-patch check --install <ksp-dir> --patch <file>
@@ -73,6 +74,7 @@ public static class Program
             Window = o.Int("window") ?? defaults.Window,
             Excludes = Patterns(o.Optional("exclude")),
             TargetExcludes = Patterns(o.Optional("exclude-target")),
+            CopiedPaths = Patterns(o.Optional("copy")),
             Log = Console.Out,
         });
         string report = Path.ChangeExtension(output, ".report.txt");
@@ -92,6 +94,8 @@ public static class Program
             int alternatives = m.Outputs.Count(x => x.Recipes.FindIndex(r => r.Inputs().All(files.Contains)) > 0);
             Console.WriteLine($"  source {variant.Id}: {variant.Files.Count} stock files, {alternatives} outputs use a recipe of its own");
         }
+        foreach (string path in m.CopiedPaths)
+            Console.WriteLine($"  copied whole: {path}");
         foreach (var section in m.Sections)
             Console.WriteLine($"  section {section.Name,-32} {section.Size / 1048576.0,10:F1} MB -> {section.Length / 1048576.0,8:F1} MB");
         foreach (var component in m.Components)

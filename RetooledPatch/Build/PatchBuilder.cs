@@ -30,6 +30,8 @@ public sealed class BuildOptions
     public IReadOnlyList<string> Excludes { get; init; } = [];
     /// <summary>Patterns left out of the target only.</summary>
     public IReadOnlyList<string> TargetExcludes { get; init; } = [];
+    /// <summary>Install-relative files and directories left out of every tree, which a side-by-side apply copies from the install.</summary>
+    public IReadOnlyList<string> CopiedPaths { get; init; } = [];
     public TextWriter Log { get; init; } = TextWriter.Null;
 }
 
@@ -119,7 +121,10 @@ public static partial class PatchBuilder
         if (o.Sources.Count == 0) throw new PatchException("no sources");
         var log = o.Log;
         string targetPath = Path.GetFullPath(o.Target), outPath = Path.GetFullPath(o.Output);
-        var excludes = DefaultExcludes.Concat(o.Excludes).ToArray();
+        var copied = o.CopiedPaths.Select(p => p.Replace('\\', '/').TrimEnd('/')).ToList();
+        if (copied.FirstOrDefault(p => p.IndexOfAny(['*', '?']) >= 0) is string pattern)
+            throw new PatchException($"{pattern} is a pattern: an apply copies exact paths");
+        var excludes = DefaultExcludes.Concat(o.Excludes).Concat(copied).Concat(copied.Select(p => p + "/*")).ToArray();
         var targetExcludes = excludes.Concat(o.TargetExcludes).ToArray();
 
         var clock = Stopwatch.StartNew();
@@ -135,7 +140,7 @@ public static partial class PatchBuilder
             new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, f => _ = f.Hash);
         log.WriteLine($"hashed in {clock.Elapsed.TotalSeconds:F0}s");
 
-        var manifest = new PatchManifest { Platform = platform };
+        var manifest = new PatchManifest { Platform = platform, CopiedPaths = copied };
         var sourceIndex = new Dictionary<(string, string), int>();
         int SourceIndex(FileEntry stock)
         {
