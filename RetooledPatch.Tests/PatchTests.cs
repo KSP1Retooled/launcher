@@ -656,6 +656,96 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal(audio, File.ReadAllBytes(Path.Combine(output, "GameData/Retooled/sound.wav")));
     }
 
+    string BuildWithCopiedDirectories()
+    {
+        Write(Steam, "GameData/Squad/part.dds", [1]);
+        Write(Gog, "GameData/Squad/part.dds", [2]);
+        Write(Build, "GameData/Squad/part.dds", [1]);
+        Write(Gog, "GameData/Squad/Mod/mod.cfg", [3]);
+        Directory.CreateDirectory(Path.Combine(Gog, "GameData/Squad/Empty"));
+        Write(Steam, "Plugins/store.dll", [4]);
+        Write(Gog, "Plugins/store.dll", [4]);
+        string patch = Path.Combine(root, "copied.rtpatch");
+        PatchBuilder.Build(new BuildOptions
+        {
+            Sources = [new BuildSource { Roots = [Steam] }, new BuildSource { Roots = [Gog] }],
+            Target = Build,
+            Output = patch,
+            Level = 3,
+            Jobs = 2,
+            CopiedDirectories = ["GameData/Squad/", "Plugins"],
+        });
+        return patch;
+    }
+
+    [Fact]
+    public void ACopiedDirectoryIsNotInThePatch()
+    {
+        var m = PatchFile.Open(BuildWithCopiedDirectories()).Manifest;
+
+        Assert.Equal(PatchManifest.CurrentVersion, m.Version);
+        Assert.Equal(["GameData/Squad", "Plugins"], m.CopiedDirectories);
+        Assert.DoesNotContain(m.Sources.Select(s => s.Path).Concat(m.Outputs.Select(o => o.Path)).Concat(m.Components.SelectMany(c => c.Remove)),
+            p => p.StartsWith("GameData/Squad/", StringComparison.Ordinal) || p.StartsWith("Plugins/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ASideBySideApplyCopiesADirectoryWhole()
+    {
+        string patch = BuildWithCopiedDirectories();
+        string output = Path.Combine(root, "out");
+
+        var check = new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions { OutputDirectory = output });
+
+        Assert.Equal("gog-03190", check.Variant);
+        Assert.Equal([2], File.ReadAllBytes(Path.Combine(output, "GameData/Squad/part.dds")));
+        Assert.Equal([3], File.ReadAllBytes(Path.Combine(output, "GameData/Squad/Mod/mod.cfg")));
+        Assert.True(Directory.Exists(Path.Combine(output, "GameData/Squad/Empty")));
+        Assert.Equal([4], File.ReadAllBytes(Path.Combine(output, "Plugins/store.dll")));
+    }
+
+    [Fact]
+    public void AnInstallWithoutACopiedDirectoryStillApplies()
+    {
+        string patch = BuildWithCopiedDirectories();
+        Directory.Delete(Path.Combine(Gog, "Plugins"), recursive: true);
+        string output = Path.Combine(root, "out");
+
+        new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions { OutputDirectory = output });
+
+        Assert.False(Directory.Exists(Path.Combine(output, "Plugins")));
+    }
+
+    [Fact]
+    public void AnInPlaceApplyLeavesACopiedDirectoryAlone()
+    {
+        string patch = BuildWithCopiedDirectories();
+        var stock = Tree(Gog);
+
+        new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions());
+
+        Assert.Equal([2], File.ReadAllBytes(Path.Combine(Gog, "GameData/Squad/part.dds")));
+        Assert.DoesNotContain(InstallJournal.Load(Gog)!.Files, f => f.Path.StartsWith("GameData/Squad/", StringComparison.Ordinal));
+
+        PatchReverter.Revert(Gog);
+        Assert.Equal(stock.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Theory]
+    [InlineData(PatchManifest.OldestVersion, true)]
+    [InlineData(PatchManifest.CurrentVersion, true)]
+    [InlineData(PatchManifest.OldestVersion - 1, false)]
+    [InlineData(PatchManifest.CurrentVersion + 1, false)]
+    public void OnlyKnownManifestVersionsAreRead(int version, bool readable)
+    {
+        string patch = Path.Combine(root, "version.rtpatch");
+        using (var writer = new PatchFileWriter(patch, 3, 27, 1))
+            writer.Finish(new PatchManifest { Version = version, Platform = "windows" });
+
+        if (readable) Assert.Equal(version, PatchFile.Open(patch).Manifest.Version);
+        else Assert.Throws<InvalidDataException>(() => PatchFile.Open(patch));
+    }
+
     [Fact]
     public void BuildWithoutStockLayoutIsRejected()
     {

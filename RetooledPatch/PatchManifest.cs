@@ -13,11 +13,18 @@ namespace KSP.Retooled.Patch;
 /// </summary>
 public sealed class PatchManifest
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
+    /// <summary>The oldest manifest a reader still accepts; version 3 only added <see cref="CopiedDirectories"/>.</summary>
+    public const int OldestVersion = 2;
 
     public int Version { get; set; } = CurrentVersion;
     /// <summary><c>windows</c>, <c>linux</c> or <c>macos</c>: the player layout of the target build.</summary>
     public string Platform { get; set; } = "";
+    /// <summary>
+    /// Install-relative directories the patch knows nothing about: nothing in them is checked, read, replaced or removed,
+    /// and a side-by-side apply copies them across whole, because the install's copy is the only one.
+    /// </summary>
+    public List<string> CopiedDirectories { get; set; } = [];
     public List<SourceFile> Sources { get; set; } = [];
     public List<Variant> Variants { get; set; } = [];
     public List<Component> Components { get; set; } = [];

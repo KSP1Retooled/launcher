@@ -171,6 +171,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
         else
         {
             foreach (string directory in components.SelectMany(c => c.Directories)) Directory.CreateDirectory(Path.Combine(root, directory));
+            foreach (string directory in manifest.CopiedDirectories) CopyDirectory(directory, root);
         }
         options.Log.WriteLine(inPlace ? $"patched {install} in place" : $"wrote {root}");
         return check;
@@ -186,6 +187,19 @@ public sealed class PatchApplier(PatchFile patch, string install)
             throw new PatchException($"output {full} is not empty");
         Directory.CreateDirectory(full);
         return full;
+    }
+
+    /// <summary>Links the install's copy of a directory, whatever it holds, into <paramref name="root"/>, if it has one.</summary>
+    void CopyDirectory(string directory, string root)
+    {
+        string from = Path.Combine(install, directory);
+        if (!Directory.Exists(from)) return;
+
+        Directory.CreateDirectory(Path.Combine(root, directory));
+        foreach (string sub in Directory.EnumerateDirectories(from, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(Path.Combine(root, Path.GetRelativePath(install, sub)));
+        foreach (string file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
+            LinkOrCopy(file, Path.Combine(root, Path.GetRelativePath(install, file)));
     }
 
     /// <summary>Writes every chosen output under <paramref name="root"/>; returns the staged outputs (in-place skips unchanged same-path files).</summary>
