@@ -420,12 +420,16 @@ public static partial class PatchBuilder
 
         // A window's arrays reach a gigabyte, and allocating them per job leaves the GC to stop every worker to collect
         // and compact them. So they are reused, from a bag rather than per thread, because a pool can use more threads
-        // than it runs at once, and at most one workspace per job can then be in use.
+        // than it runs at once, and at most one workspace per window can then be in use.
         var workspaces = new ConcurrentBag<DiffWorkspace>();
-        var options = new ParallelOptions { MaxDegreeOfParallelism = jobs };
+
+        // Sorting is limited by memory bandwidth, so a job for every hardware thread sorts no faster than one per core
+        // and holds twice the memory. Half the jobs is the closest to that the runtime can tell.
+        var windowOptions = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, jobs / 2) };
+        var gapOptions = new ParallelOptions { MaxDegreeOfParallelism = jobs };
 
         // Unbuffered, so that workers take the largest windows first rather than ranges of the list.
-        Parallel.ForEach(Partitioner.Create(ordered, EnumerablePartitionerOptions.NoBuffering), options, job =>
+        Parallel.ForEach(Partitioner.Create(ordered, EnumerablePartitionerOptions.NoBuffering), windowOptions, job =>
         {
             var clock = Stopwatch.StartNew();
             var output = job.Output;
@@ -443,7 +447,7 @@ public static partial class PatchBuilder
             // A window's gaps share its read-only suffix array, and the windows with the most gap bytes take so much
             // longer than the rest that they would otherwise keep the whole build waiting on one core.
             long estimate = 0;
-            Parallel.ForEach(job.Gaps, options, gap =>
+            Parallel.ForEach(job.Gaps, gapOptions, gap =>
             {
                 var (slot, offset, length) = gap;
                 byte[] newBytes = new byte[length];
