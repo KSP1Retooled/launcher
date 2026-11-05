@@ -9,7 +9,8 @@ static class Program
     public static void Main(string[] args)
     {
         // Has to come first: the installer starts the app with hook arguments, and the process exits inside Run().
-        VelopackApp.Build().Run();
+        // Elsewhere, replacing the app can need an admin prompt, which should not appear unasked at every start.
+        VelopackApp.Build().SetAutoApplyOnStartup(OperatingSystem.IsWindows()).Run();
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }

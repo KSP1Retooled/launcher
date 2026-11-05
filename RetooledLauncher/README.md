@@ -54,10 +54,14 @@ the launcher died, shows as interrupted, and **Uninstall** finishes restoring th
 The launcher checks the releases of `KSP1Retooled/launcher` when it starts. Someone running a pre-release is offered
 newer pre-releases too; everyone else only gets stable releases. A failed check or download only goes in the log.
 
-- On Windows, an installed launcher downloads a new version in the background, and a notice in the lower-left corner
-  offers to restart into it. Without the restart, it goes in the next time the launcher starts. This uses the
-  `releases.windows-x64.json` and `-full.nupkg` files on each release, so a release without them is skipped.
-- On Linux and macOS, and for a copy that was not installed, the notice links to the new version's release page.
+- An installed launcher downloads a new version in the background, and a notice in the lower-left corner offers to
+  restart into it. This uses each platform's `releases.<channel>.json` and `-full.nupkg` files on each release, so a
+  release without them is skipped.
+- Without the restart, Windows installs it the next time the launcher starts. Linux and macOS offer it again instead,
+  because replacing an app in `/Applications` or another protected folder asks for an administrator's password. If that
+  is declined, the launcher comes back on the version it was.
+- A copy that was not installed, such as an AppImage's extracted files or `dotnet run`, cannot update itself, so the
+  notice links to the new version's release page instead.
 
 ## Files
 
@@ -72,5 +76,4 @@ any other folder can be chosen with **Browse**.
 ## Not done yet
 
 - Code signing, so Windows and macOS stop warning about the installers.
-- Self-update of the launcher on Linux and macOS.
 - Choosing the default release repository for good.
