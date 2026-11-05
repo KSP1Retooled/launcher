@@ -492,7 +492,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>A downloaded update still goes in the next time the launcher starts.</summary>
+    /// <summary>A downloaded update is kept: the next start installs it on Windows and offers it again elsewhere.</summary>
     [RelayCommand]
     void DismissLauncherUpdate()
     {

@@ -6,7 +6,8 @@ namespace KSP.Retooled.Launcher.App;
 
 /// <summary>
 /// Replaces the installed launcher with a newer release, from the update files that release carries. A downloaded
-/// update goes in on <see cref="Restart"/>, or else the next time the launcher starts (see <see cref="VelopackApp"/>).
+/// update goes in on <see cref="Restart"/>. On Windows it otherwise goes in the next time the launcher starts; elsewhere
+/// it is kept, and offered again.
 /// </summary>
 public sealed class LauncherUpdater(string? token)
 {
@@ -20,8 +21,8 @@ public sealed class LauncherUpdater(string? token)
         ReleaseVersion.TryParse(LauncherInfo.Version, out var version)
         && version.PrereleaseIds.Count > 0;
 
-    /// <summary>False where it is up to the user, and for a copy that was not installed, such as <c>dotnet run</c>.</summary>
-    public bool CanUpdate => LauncherInfo.UpdatesItself && manager.IsInstalled;
+    /// <summary>False for a copy that was not installed, such as <c>dotnet run</c>.</summary>
+    public bool CanUpdate => manager.IsInstalled;
 
     /// <summary>Downloads the newest release: its version, or null if this one is the newest.</summary>
     public async Task<string?> DownloadAsync()

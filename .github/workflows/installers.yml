@@ -61,12 +61,13 @@ jobs:
             --packDir publish --mainExe ${{ matrix.exe }} --icon RetooledLauncher/Icons/${{ matrix.icon }} \
             --runtime ${{ matrix.rid }} --channel ${{ matrix.channel }} --outputDir installers
           ls -l installers
+          # what an installed launcher updates itself from
+          ls installers/releases.${{ matrix.channel }}.json installers/*-${{ matrix.channel }}-full.nupkg
 
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Get-Item installers/releases.windows-x64.json, installers/*-windows-x64-full.nupkg
           $setup = (Get-Item installers/*-Setup.exe).FullName
           Start-Process $setup -ArgumentList '--silent' -Wait
           $app = Start-Process "$env:LOCALAPPDATA/KSPRetooled.Launcher/current/RetooledLauncher.exe" -PassThru
@@ -105,8 +106,8 @@ jobs:
             installers/*-Setup.exe
             installers/*.AppImage
             installers/*.pkg
-            installers/releases.windows-x64.json
-            installers/*-windows-x64-full.nupkg
+            installers/releases.*.json
+            installers/*-full.nupkg
 
   attach:
     name: Attach to the release
