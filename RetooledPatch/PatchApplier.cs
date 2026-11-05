@@ -88,14 +88,14 @@ public sealed class PatchApplier(PatchFile patch, string install)
             }
         }
 
-        var used = outputs.Where(i => !IsUnchanged(manifest.Outputs[i])).SelectMany(i => chosen[i]?.Inputs() ?? []).ToHashSet();
+        var used = outputs.SelectMany(i => chosen[i]?.Inputs() ?? []).ToHashSet();
         string? variant = manifest.Variants.FirstOrDefault(v => used.IsSubsetOf(v.Files))?.Id;
         return new InstallCheck { Variant = variant, Problems = [.. problems], SkippedComponents = skipped, Chosen = chosen, Hashes = hashes };
     }
 
     /// <summary>
-    /// Whether this output is whatever the install has at its own path: every source has it as stock, or it is in a
-    /// folder the patch does not read. Such an output has that one recipe, whose source need not be in every variant.
+    /// Whether every source install has this output, as stock at its own path. Such an output has that one recipe (a
+    /// source without the file would have added another), so its source is in every variant and never tells them apart.
     /// </summary>
     bool IsUnchanged(OutputFile output) =>
         output.Recipes is [{ Same: int same }] && manifest.Sources[same].Path == output.Path;
