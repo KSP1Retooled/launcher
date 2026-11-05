@@ -67,6 +67,22 @@ public sealed class ReleaseCatalog
         return ActionFor(latest, installedTag) == InstallAction.Upgrade ? latest : null;
     }
 
+    /// <summary>
+    /// The newest release newer than <paramref name="version"/>, which need not be listed, or null if there is none or
+    /// it is not a version. Only someone already on a pre-release is offered pre-releases.
+    /// </summary>
+    public Release? NewerThan(string version)
+    {
+        if (!ReleaseVersion.TryParse(version, out var current))
+            return null;
+        bool prereleases = current.PrereleaseIds.Count > 0;
+        return All.FirstOrDefault(r =>
+            (prereleases || !r.Prerelease)
+            && ReleaseVersion.TryParse(r.Tag, out var v)
+            && v.CompareTo(current) > 0
+        );
+    }
+
     /// <param name="installedTag">The installed release's tag; null for a stock install, "" for Retooled of unknown version.</param>
     public InstallAction ActionFor(Release target, string? installedTag)
     {

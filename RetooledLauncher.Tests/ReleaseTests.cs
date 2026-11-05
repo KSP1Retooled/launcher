@@ -82,6 +82,26 @@ public sealed class ReleaseCatalogTests
             ]
         );
 
+    [Theory]
+    [InlineData("0.9.0", "v1.0.0")] // the newest stable one, not the pre-release above it
+    [InlineData("1.0.0", null)]
+    [InlineData("1.0.1", null)] // a build newer than anything published
+    [InlineData("1.1.0-beta.1", "v1.1.0-beta.2")] // already on a pre-release, so offered the next
+    [InlineData("1.1.0-beta.2", null)]
+    [InlineData("0.9.0-beta.1", "v1.1.0-beta.2")] // need not be a listed release
+    [InlineData("not-a-version", null)]
+    public void NewerThanLooksPastPrereleasesUnlessOnOne(string version, string? expected)
+    {
+        var catalog = new ReleaseCatalog([
+            Make("v0.9.0"),
+            Make("v1.0.0"),
+            Make("v1.1.0-beta.1", prerelease: true),
+            Make("v1.1.0-beta.2", prerelease: true),
+            Make("nightly", day: 9),
+        ]);
+        Assert.Equal(expected, catalog.NewerThan(version)?.Tag);
+    }
+
     // 1.1.0-beta.1 came out after 1.0.0 but is a pre-release; 0.9.0 is older than both
     static ReleaseCatalog Catalog() =>
         new([
