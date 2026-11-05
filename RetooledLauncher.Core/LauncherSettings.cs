@@ -15,14 +15,17 @@ public sealed class LauncherSettings
     /// </summary>
     public string? Repository { get; set; }
 
-    /// <summary>The channels the user added; <see cref="LauncherInfo.DefaultRepository"/> is always offered too.</summary>
+    /// <summary>
+    /// The channels the user added; <see cref="LauncherInfo.DefaultRepository"/> and
+    /// <see cref="LauncherInfo.DebugChannel"/> are always offered too.
+    /// </summary>
     public List<string> Channels { get; set; } = [];
 
-    /// <summary>Every channel to offer, the default first, including a <see cref="Repository"/> that is not in <see cref="Channels"/>.</summary>
+    /// <summary>Every channel to offer, the built-in ones first, including a <see cref="Repository"/> that is not in <see cref="Channels"/>.</summary>
     [JsonIgnore]
     public IReadOnlyList<string> AllChannels =>
         [
-            .. new[] { LauncherInfo.DefaultRepository }
+            .. new[] { LauncherInfo.DefaultRepository, LauncherInfo.DebugChannel }
                 .Concat(Channels)
                 .Concat(Repository is string selected ? [selected] : [])
                 .Distinct(StringComparer.OrdinalIgnoreCase),

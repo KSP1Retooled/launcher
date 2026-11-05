@@ -25,12 +25,20 @@ public sealed record Release(
     /// <summary>The repository it was listed from: tags are only unique within one.</summary>
     public string Channel { get; init; } = "";
 
-    /// <summary>The release's name for a platform's patch: <c>retooled-&lt;platform&gt;.rtpatch</c>.</summary>
-    public static string PatchName(string platform) => $"retooled-{platform}{PatchFile.Extension}";
+    /// <summary>
+    /// The release's name for a platform's patch: <c>retooled-&lt;platform&gt;.rtpatch</c>, or
+    /// <c>retooled-&lt;platform&gt;-debug.rtpatch</c> for the development player's.
+    /// </summary>
+    public static string PatchName(string platform, bool debug = false) =>
+        $"retooled-{platform}{(debug ? "-debug" : "")}{PatchFile.Extension}";
+
+    /// <summary>The name of the patch for <paramref name="platform"/> that this release's channel offers.</summary>
+    public string PatchNameFor(string platform) =>
+        PatchName(platform, LauncherInfo.IsDebugChannel(Channel));
 
     public ReleaseAsset? PatchFor(string platform) =>
         Assets.FirstOrDefault(a =>
-            a.Name.Equals(PatchName(platform), StringComparison.OrdinalIgnoreCase)
+            a.Name.Equals(PatchNameFor(platform), StringComparison.OrdinalIgnoreCase)
         );
 
     public string DisplayName =>

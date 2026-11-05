@@ -63,7 +63,7 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<ReleaseItem> Releases { get; } = [];
     public ObservableCollection<string> DetectedInstalls { get; } = [];
 
-    /// <summary>The default channel first, then the ones the user added.</summary>
+    /// <summary>The built-in channels first, then the ones the user added.</summary>
     public ObservableCollection<string> Channels { get; } = [];
 
     [ObservableProperty]
@@ -158,7 +158,7 @@ public sealed partial class MainViewModel : ObservableObject
         && Install?.Status is InstallStatus.Stock or InstallStatus.Retooled;
     bool CanInstallFile =>
         !IsBusy && Install?.Status is InstallStatus.Stock or InstallStatus.Retooled;
-    bool CanRemoveChannel => !IsBusy && Channel != LauncherInfo.DefaultRepository;
+    bool CanRemoveChannel => !IsBusy && !LauncherInfo.IsBuiltInChannel(Channel);
     bool CanUninstall =>
         !IsBusy && Install?.Status is InstallStatus.Retooled or InstallStatus.Interrupted;
     bool CanPlay => !IsBusy && Install?.Status == InstallStatus.Retooled;
@@ -495,7 +495,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     void SaveChannels()
     {
-        settings.Channels = [.. Channels.Skip(1)];
+        settings.Channels = [.. Channels.Where(c => !LauncherInfo.IsBuiltInChannel(c))];
         Save();
     }
 

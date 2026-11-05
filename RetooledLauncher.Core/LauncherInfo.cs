@@ -8,6 +8,23 @@ public static class LauncherInfo
     /// <summary>Where releases come from until the release repository is settled; overridable in settings.</summary>
     public const string DefaultRepository = "KSP1Retooled/retooled";
 
+    /// <summary>Marks a channel that offers its repository's debug patches instead of the regular ones.</summary>
+    public const string DebugSuffix = "#debug";
+
+    /// <summary>The default repository's releases with their debug patches; always offered.</summary>
+    public const string DebugChannel = DefaultRepository + DebugSuffix;
+
+    public static bool IsBuiltInChannel(string channel) =>
+        channel.Equals(DefaultRepository, StringComparison.OrdinalIgnoreCase)
+        || channel.Equals(DebugChannel, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsDebugChannel(string channel) =>
+        channel.EndsWith(DebugSuffix, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The GitHub repository behind a channel.</summary>
+    public static string RepositoryOf(string channel) =>
+        IsDebugChannel(channel) ? channel[..^DebugSuffix.Length] : channel;
+
     /// <summary>The channel of a patch installed from a local file; never a repository, which holds a '/'.</summary>
     public const string LocalChannel = "local";
 

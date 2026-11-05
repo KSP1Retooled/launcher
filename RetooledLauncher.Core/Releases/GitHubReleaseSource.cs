@@ -13,12 +13,13 @@ public interface IReleaseSource
 /// Lists a GitHub repository's published releases (drafts are dropped) through the REST API, following pagination.
 /// A token (e.g. <c>GITHUB_TOKEN</c>) is only needed for a private repository or to lift the anonymous rate limit.
 /// </summary>
-public sealed class GitHubReleaseSource(HttpClient http, string repository, string? token = null)
+/// <param name="channel">A repository, with <see cref="LauncherInfo.DebugSuffix"/> for its debug patches.</param>
+public sealed class GitHubReleaseSource(HttpClient http, string channel, string? token = null)
     : IReleaseSource
 {
     const int MaxPages = 10;
 
-    public string Repository { get; } = repository;
+    public string Repository { get; } = LauncherInfo.RepositoryOf(channel);
 
     public async Task<IReadOnlyList<Release>> GetReleasesAsync(
         CancellationToken cancellation = default
@@ -43,7 +44,7 @@ public sealed class GitHubReleaseSource(HttpClient http, string repository, stri
                     .ConfigureAwait(false)
                 ?? [];
             releases.AddRange(
-                items.Where(r => !r.Draft).Select(r => Convert(r) with { Channel = Repository })
+                items.Where(r => !r.Draft).Select(r => Convert(r) with { Channel = channel })
             );
             url = NextPage(response);
         }
