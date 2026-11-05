@@ -209,7 +209,7 @@ public sealed class PatchRoundTripTests : IDisposable
         }
 
         byte[] shared = Bytes(50_000), data = Bytes(300_000), dlc = Bytes(20_000), steamDll = Bytes(3000);
-        Both("GameData/Squad/same.cfg", shared);
+        Both("KSP_x64_Data/same.cfg", shared);
         Write(Steam, "KSP_x64_Data/level0", data);
         var gogData = (byte[])data.Clone();
         gogData[100_000] ^= 0xFF;
@@ -230,7 +230,7 @@ public sealed class PatchRoundTripTests : IDisposable
         Directory.CreateDirectory(Path.Combine(Gog, "Missions"));
         Directory.CreateDirectory(Path.Combine(Build, "Missions"));
 
-        Write(Build, "GameData/Squad/same.cfg", shared);
+        Write(Build, "KSP_x64_Data/same.cfg", shared);
         var edited = (byte[])data.Clone();
         edited[1234] ^= 0xFF;
         Write(Build, "KSP_x64_Data/level0", edited);
@@ -594,11 +594,66 @@ public sealed class PatchRoundTripTests : IDisposable
     [InlineData(true)]
     public void UnchangedFileAnotherOutputReadsIsStillRequired(bool missing)
     {
-        string path = Path.Combine(Gog, "GameData/Squad/same.cfg");
+        string path = Path.Combine(Gog, "KSP_x64_Data/same.cfg");
         if (missing) File.Delete(path);
         else File.WriteAllBytes(path, [1, 2, 3]);
         var problems = Applier(Gog).Check().Problems;
-        Assert.Equal([(missing ? "missing  " : "modified ") + "GameData/Squad/same.cfg"], problems);
+        Assert.Equal([(missing ? "missing  " : "modified ") + "KSP_x64_Data/same.cfg"], problems);
+    }
+
+    // The stores' fairing textures differ, and the build ships Steam's; only Steam has the controller plugin.
+    [Fact]
+    public void AnInstallsCopyOfAFileUnderSquadIsNeitherCheckedNorReplaced()
+    {
+        const string texture = "GameData/Squad/Parts/fairing.dds", plugin = "GameData/Squad/Plugins/Controller.dll";
+        var rng = new Random(1);
+        byte[] steamTexture = new byte[300_000], gogTexture = new byte[300_000], modTexture = new byte[300_000];
+        rng.NextBytes(steamTexture);
+        rng.NextBytes(gogTexture);
+        rng.NextBytes(modTexture);
+        Write(Steam, texture, steamTexture);
+        Write(Gog, texture, gogTexture);
+        Write(Build, texture, steamTexture);
+        Write(Steam, plugin, [1, 2, 3]);
+        Write(Build, plugin, [1, 2, 3]);
+        string patch = Path.Combine(root, "squad.rtpatch");
+        PatchBuilder.Build(Options(patch));
+
+        Assert.Single(PatchFile.Open(patch).Manifest.Outputs.Single(o => o.Path == texture).Recipes);
+        Write(Gog, texture, modTexture);
+        var check = new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions());
+
+        Assert.Equal("gog-03190", check.Variant);
+        Assert.Equal(modTexture, File.ReadAllBytes(Path.Combine(Gog, texture)));
+        Assert.False(File.Exists(Path.Combine(Gog, plugin)));
+        Assert.DoesNotContain(InstallJournal.Load(Gog)!.Files, f => f.Path == texture);
+    }
+
+    // Unity packs stock's sounds into the build's resources, where they would otherwise match as copy runs.
+    [Theory]
+    [InlineData("GameData/Squad/Sounds/explosion.wav")]
+    [InlineData("GameData/SquadExpansion/Serenity/Sounds/explosion.wav")]
+    public void NoOutputReadsAFileUnderSquad(string sound)
+    {
+        byte[] audio = new byte[400_000];
+        new Random(2).NextBytes(audio);
+        Write(Steam, sound, audio);
+        Write(Gog, sound, audio);
+        Write(Build, sound, audio);
+        Write(Build, "KSP_x64_Data/sound.resource", [.. audio, 1, 2, 3]);
+        Write(Build, "GameData/Retooled/sound.wav", audio);
+        string patch = Path.Combine(root, "sounds.rtpatch");
+        PatchBuilder.Build(Options(patch));
+
+        var manifest = PatchFile.Open(patch).Manifest;
+        Assert.DoesNotContain(manifest.Outputs.Where(o => o.Path != sound).SelectMany(o => o.Recipes.SelectMany(r => r.Inputs())),
+            s => manifest.Sources[s].Path.Equals(sound, StringComparison.OrdinalIgnoreCase));
+
+        File.Delete(Path.Combine(Gog, sound));
+        string output = Path.Combine(root, "out");
+        new PatchApplier(PatchFile.Open(patch), Gog).Apply(new ApplyOptions { OutputDirectory = output });
+        Assert.Equal([.. audio, 1, 2, 3], File.ReadAllBytes(Path.Combine(output, "KSP_x64_Data/sound.resource")));
+        Assert.Equal(audio, File.ReadAllBytes(Path.Combine(output, "GameData/Retooled/sound.wav")));
     }
 
     [Fact]

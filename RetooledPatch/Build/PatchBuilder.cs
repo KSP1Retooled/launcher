@@ -61,6 +61,12 @@ public static partial class PatchBuilder
     /// <summary>Stock content under an excluded folder: the scenario and training saves.</summary>
     static readonly string[] StockSaves = ["saves/scenarios/*", "saves/training/*"];
 
+    /// <summary>
+    /// The game's own parts and DLC, which mods overwrite and which differ between stores, so a patch must not depend on
+    /// what they hold: no recipe reads them, and a file here that some source has as the build ships it stays the install's.
+    /// </summary>
+    static readonly string[] UnreadFolders = ["GameData/Squad/", "GameData/SquadExpansion/"];
+
     /// <summary>DLC components first so their prefixes win; core takes everything else.</summary>
     static readonly (string Name, string? Requires)[] Components =
     [
@@ -152,6 +158,15 @@ public static partial class PatchBuilder
         var ordered = targetFiles.OrderBy(t => t.Component).ThenBy(t => t.Relative, StringComparer.OrdinalIgnoreCase).ToList();
         var recipes = ordered.ToDictionary(t => t, _ => new List<PlannedRecipe>());
 
+        var stockByPath = sources.SelectMany(s => s.Files).ToLookup(f => f.Relative, StringComparer.OrdinalIgnoreCase);
+        var leftAlone = new HashSet<FileEntry>();
+        foreach (var target in ordered.Where(t => Unread(t.Relative)))
+        {
+            if (stockByPath[target.Relative].FirstOrDefault(f => f.Hash == target.Hash) is not FileEntry stock) continue;
+            recipes[target].Add(new PlannedRecipe(new Recipe { Same = SourceIndex(stock) }, new PlannedOutput(target), ""));
+            leftAlone.Add(target);
+        }
+
         string spool = outPath + ".spool";
         if (Directory.Exists(spool)) Directory.Delete(spool, recursive: true);
         Directory.CreateDirectory(spool);
@@ -160,7 +175,7 @@ public static partial class PatchBuilder
         {
             var source = sources[v];
             var has = manifest.Variants[v].Files.ToHashSet();
-            var pending = ordered.Where(t => !recipes[t].Any(r => r.Recipe.Inputs().All(has.Contains))).ToList();
+            var pending = ordered.Where(t => !leftAlone.Contains(t) && !recipes[t].Any(r => r.Recipe.Inputs().All(has.Contains))).ToList();
             log.WriteLine($"{source.Id}: {ordered.Count - pending.Count} outputs reuse earlier recipes, {pending.Count} to plan");
             if (pending.Count == 0) continue;
 
@@ -275,6 +290,9 @@ public static partial class PatchBuilder
         throw new UnreachableException();
     }
 
+    static bool Unread(string relative) =>
+        UnreadFolders.Any(f => relative.StartsWith(f, StringComparison.OrdinalIgnoreCase));
+
     static bool IsCore(FileEntry file) => Components[file.Component].Requires == null;
 
     static bool InScope(FileEntry stock, FileEntry target) => stock.Component == target.Component || IsCore(stock);
@@ -336,10 +354,10 @@ public static partial class PatchBuilder
         {
             var target = plan.Target;
             byPath.TryGetValue(target.Relative, out var samePath);
-            if (samePath != null && !InScope(samePath, target)) samePath = null;
+            if (samePath != null && (!InScope(samePath, target) || Unread(samePath.Relative))) samePath = null;
 
             // identical content anywhere in scope; the same path first so in-place applies skip it entirely
-            var candidates = bySize[target.Size].Where(b => InScope(b, target)).OrderBy(b => b == samePath ? 0 : 1);
+            var candidates = bySize[target.Size].Where(b => InScope(b, target) && !Unread(b.Relative)).OrderBy(b => b == samePath ? 0 : 1);
             plan.Same = candidates.FirstOrDefault(b => b.Hash == target.Hash);
             if (plan.Same == null && samePath is { Size: > 0 }) plan.Reference = samePath;
         });
@@ -353,7 +371,7 @@ public static partial class PatchBuilder
     {
         var changed = plans.Where(p => p.Same == null).ToList();
         if (changed.Count == 0) return [];
-        var stock = baseFiles.Where(Indexable)
+        var stock = baseFiles.Where(f => Indexable(f) && !Unread(f.Relative))
             .OrderBy(f => IsCore(f) ? 0 : 1).ThenBy(f => f.Relative, StringComparer.OrdinalIgnoreCase).ToList();
         using var matcher = new CopyMatcher(stock);
         log.WriteLine($"  indexed {matcher.Count} chunks of {stock.Count} stock files");

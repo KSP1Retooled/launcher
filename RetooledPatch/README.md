@@ -16,6 +16,9 @@ are present with the recorded hashes, so it needs no store detection. The second
 for the files the earlier ones cannot provide, in sections of their own that other installs never decompress.
 A file every source has as the build ships it is not checked: an apply leaves the install's copy alone if it was edited
 or missing, unless another output reads it (a side-by-side apply links the edited copy across, as it does a stock one).
+Nothing reads `GameData/Squad` or `GameData/SquadExpansion`, because mods overwrite them and the stores' copies differ:
+a file there that any source has as the build ships it is left as the install has it, so the patch never checks these
+folders. A file there that the build changes is written over the install's copy, whatever that holds.
 
 `<retooled-build>` is a release build, which has the stock layout:
 `Unity.exe -batchmode -quit -projectPath . -buildTarget Win64 -executeMethod KSP.Retooled.Content.Authoring.Builder.Build -retooledOut <empty-dir> -retooledRelease`

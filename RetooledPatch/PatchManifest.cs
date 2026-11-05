@@ -8,8 +8,8 @@ namespace KSP.Retooled.Patch;
 /// one entry per distinct path and content), which of them each known install has (<see cref="Variants"/>), and how
 /// to produce every file of the retooled install. Each output lists one or more <see cref="Recipe"/>s; an apply uses
 /// the first whose stock files are all present with the recorded content, so any install whose files match one source
-/// (or a mix of them) reaches the same target, except that an output every source has unchanged is left as the install
-/// has it. Paths are install-relative with '/' separators.
+/// (or a mix of them) reaches the same target, except that an output with one recipe, a stock file at its own path, is
+/// left as the install has it. Paths are install-relative with '/' separators.
 /// </summary>
 public sealed class PatchManifest
 {
