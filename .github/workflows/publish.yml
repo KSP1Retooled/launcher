@@ -52,8 +52,11 @@ jobs:
         run: |
           prerelease=
           case "$TAG" in *-*) prerelease=--prerelease ;; esac
+          notes=$RUNNER_TEMP/release-notes.md
+          sed "s|{{DOWNLOAD_URL}}|$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG|g" \
+            .github/release-notes-header.md > "$notes"
           gh release create "$TAG" packages/*.nupkg --verify-tag --title "$TAG" \
-            --notes-file .github/release-notes-header.md --generate-notes $prerelease
+            --notes-file "$notes" --generate-notes $prerelease
 
   installers:
     needs: publish

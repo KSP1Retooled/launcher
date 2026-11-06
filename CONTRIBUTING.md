@@ -60,6 +60,8 @@ git push origin v1.2.0
 The version comes from the tag, so there's nothing to bump. A tag with a hyphen, such as `v1.2.0-beta.1`, becomes a
 pre-release. The tag publishes the NuGet packages, creates the GitHub release, and attaches the installers. The release
 notes are [release-notes-header.md](.github/release-notes-header.md) followed by GitHub's generated list of changes.
+`{{DOWNLOAD_URL}}` in the header becomes the base URL of the release's files, so `{{DOWNLOAD_URL}}/name` links to the
+file `name`.
 
 NuGet versions can't be replaced, so a fix that needs a code change gets a new tag. If only the installers failed,
 re-run the failed jobs. See [publish.yml](.github/workflows/publish.yml) and
