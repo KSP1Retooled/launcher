@@ -2,13 +2,26 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
+using CommunityToolkit.Mvvm.Input;
+using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Patch;
+using Markdown.Avalonia;
 
 namespace KSP.Retooled.Launcher.App;
 
 public sealed partial class MainWindow : Window, IDialogs
 {
-    public MainWindow() => AvaloniaXamlLoader.Load(this);
+    public MainWindow()
+    {
+        AvaloniaXamlLoader.Load(this);
+        this.FindControl<MarkdownScrollViewer>("NotesView")!.Plugins = new MdAvPlugins
+        {
+            PathResolver = new NoImages(),
+            HyperlinkCommand = new AsyncRelayCommand<string>(url =>
+                Release.IsWebLink(url) ? OpenUrlAsync(url!) : Task.CompletedTask
+            ),
+        };
+    }
 
     public async Task<string?> PickFolderAsync(string title)
     {

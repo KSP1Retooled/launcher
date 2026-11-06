@@ -3,6 +3,77 @@ using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
 
+public sealed class ReleaseLinkTests
+{
+    [Theory]
+    [InlineData("https://github.com/KSP1Retooled/launcher/pull/9", true)]
+    [InlineData("http://example.com/", true)]
+    [InlineData("HTTPS://EXAMPLE.COM/", true)]
+    [InlineData("file:///C:/Windows/System32/calc.exe", false)]
+    [InlineData(@"C:\Windows\System32\calc.exe", false)]
+    [InlineData(@"\\host\share\run.exe", false)]
+    [InlineData("/usr/bin/xcalc", false)]
+    [InlineData("ms-settings:", false)]
+    [InlineData("javascript:alert(1)", false)]
+    [InlineData("relative/page", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void OpensOnlyWebLinks(string? url, bool expected) =>
+        Assert.Equal(expected, Release.IsWebLink(url));
+}
+
+public sealed class ReleaseNotesTests
+{
+    const string Url = "https://github.com/KSP1Retooled/launcher/pull/9";
+    const string Linked = $"[{Url}]({Url})";
+
+    [Theory]
+    [InlineData($"* Fix it by @someone in {Url}", $"* Fix it by @someone in {Linked}")]
+    [InlineData($"{Url}\r\nnext", $"{Linked}\r\nnext")]
+    [InlineData($"<{Url}>", Linked)]
+    [InlineData($"See {Url}.", $"See {Linked}.")]
+    [InlineData($"See {Url}, then", $"See {Linked}, then")]
+    [InlineData($"(see {Url})", $"(see {Linked})")]
+    [InlineData($"**{Url}**", $"**{Linked}**")]
+    [InlineData(
+        "**Full Changelog**: https://github.com/a/b/compare/v0.1.3...v0.1.4",
+        "**Full Changelog**: [https://github.com/a/b/compare/v0.1.3...v0.1.4](https://github.com/a/b/compare/v0.1.3...v0.1.4)"
+    )]
+    [InlineData("https://a.example/x_(y)", @"[https://a.example/x\_(y)](https://a.example/x_(y))")]
+    [InlineData("https://a.example/a*b~c", @"[https://a.example/a\*b\~c](https://a.example/a*b~c)")]
+    public void LinksUrls(string notes, string expected) =>
+        Assert.Equal(expected, ReleaseNotes.LinkUrls(notes));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("no links here")]
+    [InlineData(Linked)]
+    [InlineData($"[the pull request]({Url})")]
+    [InlineData($"![screenshot]({Url}.png)")]
+    [InlineData($"[![badge]({Url}.svg)]({Url})")]
+    [InlineData($"[ref]: {Url}")]
+    [InlineData($"`{Url}`")]
+    [InlineData($"``a ` {Url}``")]
+    [InlineData($"```\n{Url}\n```")]
+    [InlineData($"~~~sh\r\ncurl {Url}\r\n~~~\r\n")]
+    [InlineData($"```\n{Url}")]
+    [InlineData($"    {Url}")]
+    [InlineData("ftp://example.com/file")]
+    [InlineData("https://.")]
+    public void LeavesOtherTextAlone(string notes) =>
+        Assert.Equal(notes, ReleaseNotes.LinkUrls(notes));
+
+    [Fact]
+    public void LinksTextAroundCode()
+    {
+        var notes = $"```\n{Url}\n```\n\n{Url} and `{Url}` and {Url}";
+        Assert.Equal(
+            $"```\n{Url}\n```\n\n{Linked} and `{Url}` and {Linked}",
+            ReleaseNotes.LinkUrls(notes)
+        );
+    }
+}
+
 public sealed class ReleaseVersionTests
 {
     [Fact]

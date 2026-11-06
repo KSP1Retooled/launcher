@@ -2,6 +2,7 @@
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:app="using:KSP.Retooled.Launcher.App"
+  xmlns:md="https://github.com/whistyun/Markdown.Avalonia.Tight"
   x:Class="KSP.Retooled.Launcher.App.MainWindow"
   x:DataType="app:MainViewModel"
   Title="{Binding Title}"
@@ -222,9 +223,14 @@
         </ListBox.ItemTemplate>
       </ListBox>
 
-      <ScrollViewer Grid.Row="3" Grid.Column="1" IsVisible="{Binding HasReleases}">
-        <SelectableTextBlock Text="{Binding Notes}" TextWrapping="Wrap" />
-      </ScrollViewer>
+      <md:MarkdownScrollViewer
+        x:Name="NotesView"
+        Grid.Row="3"
+        Grid.Column="1"
+        IsVisible="{Binding HasReleases}"
+        Markdown="{Binding Notes}"
+        SelectionEnabled="True"
+      />
     </Grid>
   </DockPanel>
 

@@ -36,6 +36,14 @@ public sealed record Release(
     public string PatchNameFor(string platform) =>
         PatchName(platform, LauncherInfo.IsDebugChannel(Channel));
 
+    /// <summary>
+    /// Whether a link in <see cref="Notes"/> may be opened. Notes carry the titles of pull requests, so anyone who
+    /// opens one can put a link here, and handing a path or a custom scheme to the OS would run it.
+    /// </summary>
+    public static bool IsWebLink(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
+
     public ReleaseAsset? PatchFor(string platform) =>
         Assets.FirstOrDefault(a =>
             a.Name.Equals(PatchNameFor(platform), StringComparison.OrdinalIgnoreCase)
