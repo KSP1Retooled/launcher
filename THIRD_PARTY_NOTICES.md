@@ -37,3 +37,8 @@ port of zstd. Both are licensed under the MIT License (zstd: BSD/GPLv2 dual lice
 
 RetooledPatch uses TxFileManager (NuGet package `TxFileManager`, https://github.com/chinhdo/txFileManager), which is
 licensed under the MIT License.
+
+# Markdown.Avalonia
+
+RetooledLauncher uses Markdown.Avalonia (NuGet package `Markdown.Avalonia.Tight`,
+https://github.com/whistyun/Markdown.Avalonia), which is licensed under the MIT License.

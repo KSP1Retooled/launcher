@@ -172,7 +172,8 @@ public sealed partial class MainViewModel : ObservableObject
     public bool HasReleaseError => ReleaseError.Length > 0;
     public bool HasReleases => Releases.Count > 0;
 
-    public string Notes => SelectedRelease?.Release.Notes is { Length: > 0 } notes ? notes : "";
+    public string Notes =>
+        SelectedRelease?.Release.Notes is { Length: > 0 } notes ? ReleaseNotes.LinkUrls(notes) : "";
 
     bool CanInstall =>
         !IsBusy
