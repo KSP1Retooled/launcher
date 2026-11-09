@@ -1,7 +1,7 @@
 name: Installers
 
-# Builds the launcher's installers on each platform, then installs and starts them, because a package that builds can
-# still fail to run. With a tag, they are attached to that tag's release.
+# Builds the launcher's installers and portable zips on each platform, then installs and starts them, because a package
+# that builds can still fail to run. With a tag, they are attached to that tag's release.
 on:
   pull_request:
     paths:
@@ -63,6 +63,8 @@ jobs:
           ls -l installers
           # what an installed launcher updates itself from
           ls installers/releases.${{ matrix.channel }}.json installers/*-${{ matrix.channel }}-full.nupkg
+          # the self-contained zip, for those who would rather not run an installer; the AppImage already is one
+          if [ "$RUNNER_OS" != Linux ]; then ls installers/*-${{ matrix.channel }}-Portable.zip; fi
 
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
@@ -74,6 +76,20 @@ jobs:
           Start-Sleep 15
           if ($app.HasExited) { throw "the launcher exited with $($app.ExitCode)" }
           Stop-Process $app
+
+      # The zip's stub starts current/RetooledLauncher.exe and exits, so look for the launcher it started.
+      - name: Smoke test the portable zip (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP portable
+          Expand-Archive (Get-Item installers/*-Portable.zip).FullName $dir
+          $stub = Get-ChildItem $dir -Filter *.exe | Where-Object Name -ne Update.exe
+          Start-Process $stub.FullName
+          Start-Sleep 15
+          $app = Get-Process RetooledLauncher -ErrorAction SilentlyContinue | Where-Object Path -like "$dir\*"
+          if (-not $app) { throw "the launcher from the portable zip is not running" }
+          Stop-Process -InputObject $app
 
       - name: Smoke test (Linux)
         if: runner.os == 'Linux'
@@ -106,6 +122,7 @@ jobs:
             installers/*-Setup.exe
             installers/*.AppImage
             installers/*.pkg
+            installers/*-Portable.zip
             installers/releases.*.json
             installers/*-full.nupkg
 
