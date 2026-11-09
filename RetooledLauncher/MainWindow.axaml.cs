@@ -31,6 +31,19 @@ public sealed partial class MainWindow : Window, IDialogs
         return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
     }
 
+    public async Task<string?> PickPlayerAsync(string title, string player)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions
+            {
+                Title = title,
+                AllowMultiple = false,
+                FileTypeFilter = [new FilePickerFileType("KSP game") { Patterns = [player] }],
+            }
+        );
+        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
+    }
+
     public async Task<string?> PickPatchFileAsync(string title)
     {
         var files = await StorageProvider.OpenFilePickerAsync(
