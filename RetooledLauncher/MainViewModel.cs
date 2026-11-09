@@ -12,6 +12,9 @@ namespace KSP.Retooled.Launcher.App;
 public interface IDialogs
 {
     Task<string?> PickFolderAsync(string title);
+
+    /// <summary>The path of the file named <paramref name="player"/> that the user chose, or null if they cancelled.</summary>
+    Task<string?> PickPlayerAsync(string title, string player);
     Task<string?> PickPatchFileAsync(string title);
 
     /// <summary>The text the user entered, or null if they cancelled.</summary>
@@ -287,7 +290,19 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(Idle))]
     async Task BrowseAsync()
     {
-        string? folder = await dialogs.PickFolderAsync("Choose your KSP 1.12.5 folder");
+        string? folder;
+        // KSP.app is a folder, which Avalonia's file picker leaves out of what it returns
+        if (platform == "macos")
+            folder = await dialogs.PickFolderAsync("Choose your KSP 1.12.5 folder");
+        else
+        {
+            string name = KspInstall.Player(platform);
+            string? player = await dialogs.PickPlayerAsync(
+                $"Select {name} in your KSP 1.12.5 folder",
+                name
+            );
+            folder = Path.GetDirectoryName(player);
+        }
         if (folder != null)
             InstallPath = folder;
     }

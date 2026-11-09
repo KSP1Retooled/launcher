@@ -70,8 +70,8 @@ newer pre-releases too; everyone else only gets stable releases. A failed check 
 | Settings (`settings.json`: `repository` is the selected channel, `channels` the added ones) | `%LOCALAPPDATA%\KSPRetooled\Launcher`, `~/Library/Application Support/KSPRetooled/Launcher`, `~/.local/share/KSPRetooled/Launcher` |
 | Patches (`cache/<channel>@<tag>/`, `cache/local@<sha256>/`) | the same folder; only the installed patch is kept |
 
-Installs are found in the Steam libraries (`libraryfolders.vdf`) and the default GOG folders of each platform;
-any other folder can be chosen with **Browse**.
+Installs are found in the Steam libraries (`libraryfolders.vdf`) and the default GOG folders of each platform.
+**Browse** chooses any other install by selecting its `KSP_x64.exe` or `KSP.x86_64`, or its folder on macOS.
 
 ## Not done yet
 
