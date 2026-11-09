@@ -70,8 +70,21 @@ newer pre-releases too; everyone else only gets stable releases. A failed check 
 | Settings (`settings.json`: `repository` is the selected channel, `channels` the added ones) | `%LOCALAPPDATA%\KSPRetooled\Launcher`, `~/Library/Application Support/KSPRetooled/Launcher`, `~/.local/share/KSPRetooled/Launcher` |
 | Patches (`cache/<channel>@<tag>/`, `cache/local@<sha256>/`) | the same folder; only the installed patch is kept |
 
+Uninstalling the launcher on Windows deletes this folder (see below).
+
 Installs are found in the Steam libraries (`libraryfolders.vdf`) and the default GOG folders of each platform.
 **Browse** chooses any other install by selecting its `KSP_x64.exe` or `KSP.x86_64`, or its folder on macOS.
+
+## Uninstalling the launcher
+
+Removing the launcher leaves KSP as it is, so to go back to the stock game, use **Uninstall** in the launcher first.
+
+| Installed with | To remove it |
+|---|---|
+| Windows `Setup.exe` | **Settings → Apps → Installed apps**, *KSP Retooled Launcher*, **Uninstall**. A Velopack hook (`Program.cs`) also deletes the settings and patch cache. |
+| macOS `.pkg` | Move *KSP Retooled Launcher* from Applications to the Trash, then delete `~/Library/Application Support/KSPRetooled`. |
+| Linux AppImage | Delete the AppImage and `~/.local/share/KSPRetooled`. |
+| Portable zip | Delete the extracted folder and the settings folder above for that platform. |
 
 ## Not done yet
 
