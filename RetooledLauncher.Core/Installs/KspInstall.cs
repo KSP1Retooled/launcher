@@ -27,7 +27,10 @@ public sealed record InstallInfo(string Path, InstallStatus Status)
     /// <summary>The release the launcher installed; null when stock or installed by other means.</summary>
     public InstalledRelease? Release { get; init; }
 
-    /// <summary>The platform of the applied patch.</summary>
+    /// <summary>
+    /// For an install that has a patch applied, the platform that the patch was built for. For a stock install, the
+    /// platform of the game executable that the folder contains. Null for a folder that is not a KSP install.
+    /// </summary>
     public string? Platform { get; init; }
 
     /// <summary>The installed tag as <see cref="Releases.ReleaseCatalog.ActionFor"/> wants it: null when stock, "" when unknown.</summary>
@@ -83,7 +86,25 @@ public static class KspInstall
             _ => throw new LauncherException($"unsupported platform {platform}"),
         };
 
-    public static InstallInfo Inspect(string path)
+    /// <summary>Every platform that KSP was released for.</summary>
+    public static readonly IReadOnlyList<string> Platforms = ["windows", "linux", "macos"];
+
+    /// <summary>
+    /// <see cref="Platforms"/> with <paramref name="host"/> moved to the front. If a folder has game executables for
+    /// more than one platform, the launcher uses the first platform in this order.
+    /// </summary>
+    public static IReadOnlyList<string> PlatformsOn(string host) =>
+        [.. Platforms.OrderBy(p => p != host)];
+
+    /// <summary>
+    /// The platform of the patch that the launcher should apply to <paramref name="info"/>. This is the install's own
+    /// platform, which can differ from the platform that the launcher runs on. For example, people run the Windows
+    /// version of KSP on Linux with Proton. When the install's platform isn't known, this is <paramref name="host"/>.
+    /// </summary>
+    public static string PatchPlatform(InstallInfo? info, string host) => info?.Platform ?? host;
+
+    /// <param name="host">The platform that the launcher runs on. The default is <see cref="LauncherInfo.Platform"/>.</param>
+    public static InstallInfo Inspect(string path, string? host = null)
     {
         string full;
         try
@@ -119,12 +140,14 @@ public static class KspInstall
                 Platform = journal.Platform,
             };
 
+        string? platform = PlatformsOn(host ?? LauncherInfo.Platform)
+            .FirstOrDefault(p => PlayerExists(full, p));
         bool ksp =
-            Directory.Exists(System.IO.Path.Combine(full, "GameData", "Squad"))
-            && new[] { "windows", "linux", "macos" }.Any(p => PlayerExists(full, p));
+            Directory.Exists(System.IO.Path.Combine(full, "GameData", "Squad")) && platform != null;
         return new InstallInfo(full, ksp ? InstallStatus.Stock : InstallStatus.NotKsp)
         {
             BuildId = ksp ? ReadBuildId(full) : null,
+            Platform = ksp ? platform : null,
         };
     }
 

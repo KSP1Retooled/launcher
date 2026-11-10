@@ -31,14 +31,14 @@ public sealed partial class MainWindow : Window, IDialogs
         return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
     }
 
-    public async Task<string?> PickPlayerAsync(string title, string player)
+    public async Task<string?> PickPlayerAsync(string title, IReadOnlyList<string> players)
     {
         var files = await StorageProvider.OpenFilePickerAsync(
             new FilePickerOpenOptions
             {
                 Title = title,
                 AllowMultiple = false,
-                FileTypeFilter = [new FilePickerFileType("KSP game") { Patterns = [player] }],
+                FileTypeFilter = [new FilePickerFileType("KSP game") { Patterns = players }],
             }
         );
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;

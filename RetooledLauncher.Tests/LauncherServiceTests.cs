@@ -448,6 +448,62 @@ public sealed class LauncherServiceTests : IDisposable
     }
 
     [Fact]
+    public void OnLinuxAWindowsInstallGetsTheWindowsPatch()
+    {
+        var info = KspInstall.Inspect(Stock, "linux");
+
+        Assert.Equal("windows", info.Platform);
+        Assert.Equal("windows", KspInstall.PatchPlatform(info, "linux"));
+    }
+
+    [Fact]
+    public void WhenAFolderHasBothExecutablesTheHostPlatformIsUsed()
+    {
+        Write(Stock, "KSP.x86_64", [1]);
+
+        Assert.Equal("linux", KspInstall.PatchPlatform(KspInstall.Inspect(Stock, "linux"), "linux"));
+        Assert.Equal("windows", KspInstall.PatchPlatform(KspInstall.Inspect(Stock, "windows"), "windows"));
+    }
+
+    [Fact]
+    public void OnMacAWindowsInstallGetsTheWindowsPatch()
+    {
+        var info = KspInstall.Inspect(Stock, "macos");
+
+        Assert.Equal("windows", info.Platform);
+        Assert.Equal("windows", KspInstall.PatchPlatform(info, "macos"));
+    }
+
+    [Fact]
+    public void OnWindowsALinuxInstallGetsTheLinuxPatch()
+    {
+        File.Move(Path.Combine(Stock, "KSP_x64.exe"), Path.Combine(Stock, "KSP.x86_64"));
+        var info = KspInstall.Inspect(Stock, "windows");
+
+        Assert.Equal(InstallStatus.Stock, info.Status);
+        Assert.Equal("linux", KspInstall.PatchPlatform(info, "windows"));
+    }
+
+    [Fact]
+    public void OnLinuxAMacInstallGetsTheMacPatch()
+    {
+        File.Delete(Path.Combine(Stock, "KSP_x64.exe"));
+        Directory.CreateDirectory(Path.Combine(Stock, "KSP.app"));
+
+        Assert.Equal("macos", KspInstall.PatchPlatform(KspInstall.Inspect(Stock, "linux"), "linux"));
+    }
+
+    [Fact]
+    public async Task UpgradesUseThePlatformOfTheInstalledPatch()
+    {
+        await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
+
+        var info = KspInstall.Inspect(Install, "linux");
+        Assert.Equal(Platform, info.Platform);
+        Assert.Equal(Platform, KspInstall.PatchPlatform(info, "linux"));
+    }
+
+    [Fact]
     public void InspectSpellsThePathAsOnDisk()
     {
         if (!OperatingSystem.IsWindows())

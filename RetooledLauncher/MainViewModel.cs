@@ -13,8 +13,8 @@ public interface IDialogs
 {
     Task<string?> PickFolderAsync(string title);
 
-    /// <summary>The path of the file named <paramref name="player"/> that the user chose, or null if they cancelled.</summary>
-    Task<string?> PickPlayerAsync(string title, string player);
+    /// <summary>The path of the file that the user chose, which has one of the names in <paramref name="players"/>. Null if they cancelled.</summary>
+    Task<string?> PickPlayerAsync(string title, IReadOnlyList<string> players);
     Task<string?> PickPatchFileAsync(string title);
 
     /// <summary>The text the user entered, or null if they cancelled.</summary>
@@ -49,7 +49,6 @@ public sealed partial class MainViewModel : ObservableObject
     readonly LauncherUpdater updater;
     readonly HttpClient http = new() { Timeout = TimeSpan.FromMinutes(30) };
     readonly string? token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
-    readonly string platform = LauncherInfo.Platform;
     readonly StringBuilder log = new();
     ReleaseCatalog catalog = ReleaseCatalog.Empty;
     CancellationTokenSource? cancel;
@@ -139,7 +138,31 @@ public sealed partial class MainViewModel : ObservableObject
                 "An earlier install or uninstall did not finish. Uninstall to restore the stock game.",
         };
 
+    /// <summary>The platform of the patch that the launcher applies to the install, which is the install's own platform.</summary>
+    string PatchPlatform => KspInstall.PatchPlatform(Install, LauncherInfo.Platform);
+
+    /// <summary>
+    /// True if the launcher can start the game itself. False when the install is for another platform, such as the
+    /// Windows version of KSP on Linux, which the user starts with Proton.
+    /// </summary>
+    bool RunsHere => PatchPlatform == LauncherInfo.Platform;
+
     string Build => Install?.BuildId is string id ? $" (build {id})" : "";
+
+    /// <summary>The tooltip on the Play button. It explains why Play is turned off for an install from another platform.</summary>
+    public string? PlayTip =>
+        RunsHere
+            ? null
+            : $"This is the {PlatformName(PatchPlatform)} version of KSP, so the launcher can't start it.";
+
+    static string PlatformName(string platform) =>
+        platform switch
+        {
+            "windows" => "Windows",
+            "linux" => "Linux",
+            "macos" => "macOS",
+            _ => platform,
+        };
 
     string InstalledName =>
         Install?.Release switch
@@ -155,7 +178,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string? UpdateNotice =>
         Install?.Status == InstallStatus.Retooled
-        && catalog.UpgradeFor(InstalledTag, platform, IncludePrereleases) is Release r
+        && catalog.UpgradeFor(InstalledTag, PatchPlatform, IncludePrereleases) is Release r
             ? $"{r.Tag} is available."
             : null;
 
@@ -187,7 +210,7 @@ public sealed partial class MainViewModel : ObservableObject
     bool CanRemoveChannel => !IsBusy && !LauncherInfo.IsBuiltInChannel(Channel);
     bool CanUninstall =>
         !IsBusy && Install?.Status is InstallStatus.Retooled or InstallStatus.Interrupted;
-    bool CanPlay => !IsBusy && Install?.Status == InstallStatus.Retooled;
+    bool CanPlay => !IsBusy && Install?.Status == InstallStatus.Retooled && RunsHere;
     bool Idle => !IsBusy;
 
     public async Task StartAsync()
@@ -292,14 +315,19 @@ public sealed partial class MainViewModel : ObservableObject
     {
         string? folder;
         // KSP.app is a folder, which Avalonia's file picker leaves out of what it returns
-        if (platform == "macos")
+        if (LauncherInfo.Platform == "macos")
             folder = await dialogs.PickFolderAsync("Choose your KSP 1.12.5 folder");
         else
         {
-            string name = KspInstall.Player(platform);
+            // we leave out KSP.app because the file picker can't select a folder
+            var names = KspInstall
+                .PlatformsOn(LauncherInfo.Platform)
+                .Where(p => p != "macos")
+                .Select(KspInstall.Player)
+                .ToList();
             string? player = await dialogs.PickPlayerAsync(
-                $"Select {name} in your KSP 1.12.5 folder",
-                name
+                $"Select {string.Join(" or ", names)} in your KSP 1.12.5 folder",
+                names
             );
             folder = Path.GetDirectoryName(player);
         }
@@ -466,7 +494,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         try
         {
-            GameStarter.Start(Install!.Path, platform);
+            GameStarter.Start(Install!.Path, PatchPlatform);
         }
         catch (Exception e)
             when (e is LauncherException or System.ComponentModel.Win32Exception or IOException)
@@ -538,7 +566,7 @@ public sealed partial class MainViewModel : ObservableObject
         });
         var service = new LauncherService(
             new PatchCache(http, Source(), Path.Combine(LauncherInfo.DataDirectory, "cache")),
-            platform,
+            PatchPlatform,
             new LogWriter(this)
         );
         try
@@ -591,17 +619,17 @@ public sealed partial class MainViewModel : ObservableObject
     {
         string? installed = InstalledTag;
         string? previous = SelectedRelease?.Release.Tag;
-        var latest = catalog.Latest(platform, IncludePrereleases);
+        var latest = catalog.Latest(PatchPlatform, IncludePrereleases);
         Releases.Clear();
         foreach (var r in catalog.Visible(IncludePrereleases, installed))
             Releases.Add(
-                new ReleaseItem(r, r.Tag == installed, r == latest, r.PatchFor(platform) != null)
+                new ReleaseItem(r, r.Tag == installed, r == latest, r.PatchFor(PatchPlatform) != null)
             );
         // keep the user's pick; otherwise offer the upgrade, else the installed release, else the newest
         SelectedRelease =
             Releases.FirstOrDefault(r => r.Release.Tag == previous)
             ?? Releases.FirstOrDefault(r =>
-                r.Release == catalog.UpgradeFor(installed, platform, IncludePrereleases)
+                r.Release == catalog.UpgradeFor(installed, PatchPlatform, IncludePrereleases)
             )
             ?? Releases.FirstOrDefault(r => r.IsInstalled)
             ?? Releases.FirstOrDefault(r => r.HasBuild);
@@ -612,6 +640,7 @@ public sealed partial class MainViewModel : ObservableObject
     void Changed()
     {
         OnPropertyChanged(nameof(InstallState));
+        OnPropertyChanged(nameof(PlayTip));
         OnPropertyChanged(nameof(UpdateNotice));
         OnPropertyChanged(nameof(ActionLabel));
         OnPropertyChanged(nameof(Notes));
