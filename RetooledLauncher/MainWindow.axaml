@@ -104,6 +104,8 @@
           <Button
             Content="Play"
             Command="{Binding PlayCommand}"
+            ToolTip.Tip="{Binding PlayTip}"
+            ToolTip.ShowOnDisabled="True"
             Classes="accent"
             MinWidth="90"
             HorizontalContentAlignment="Center"

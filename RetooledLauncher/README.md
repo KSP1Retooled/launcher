@@ -35,7 +35,7 @@ players, from `retooled-<platform>-debug.rtpatch`. It counts as a channel of its
 
 ## Local patch files
 
-**Install patch file…** installs any `.rtpatch` for this platform, e.g. one built with `retooled-patch build`, without
+**Install patch file…** installs any `.rtpatch` that matches the platform of the KSP install, e.g. one built with `retooled-patch build`, without
 it being part of a release. It behaves like a release otherwise: it replaces what is installed, a failed install puts
 that back, and **Uninstall** removes it. The file is copied into the cache first, so it can be moved or rebuilt
 afterwards.
