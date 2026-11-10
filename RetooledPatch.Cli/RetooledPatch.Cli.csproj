@@ -21,4 +21,8 @@
     <ProjectReference Include="../RetooledPatch/RetooledPatch.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.14" />
+  </ItemGroup>
+
 </Project>

@@ -1,17 +1,33 @@
 # KSP Retooled launcher
 
-The desktop launcher for KSP Retooled and the library that builds and applies its patches.
+This repo is the desktop launcher and patcher for KSP retooled.
 
-| Project | |
-| --- | --- |
-| [RetooledLauncher](RetooledLauncher/README.md) | Avalonia app: install, upgrade and uninstall releases, start the game |
-| `RetooledLauncher.Core` | The launcher's logic |
-| [RetooledPatch](RetooledPatch/README.md) | Builds, applies and reverts `.rtpatch` files |
-| `RetooledPatch.Cli` | The `retooled-patch` command |
+Just looking to install the launcher? Download the installer from the links below:
+* [Windows](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-windows-x64-Setup.exe)
+* [Linux](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-linux-x64.AppImage)
+* [Macos (Arm64)](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-macos-arm64-Setup.pkg)
+* [Macos (x86-64)](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-macos-x64-Setup.pkg)
+* Other? [See the release page][releases].
 
+Looking to uninstall? Also documented on [the release page][releases].
+
+[releases]: https://github.com/KSP1Retooled/launcher/releases/latest
+
+## Repo Contents
+| Folder | Contents |
+| ------ | -------- |
+| [`RetooledLauncher`](RetooledLauncher/README.md)   | The UI for the launcher. |
+| `RetooledLauncher.Core`                            | The core logic for the launcher. |
+| [RetooledPatch](RetooledPatch/README.md)           | A library for building, applying, and reverting `.rtpatch` files |
+| [`RetooledPatch.Cli`](RetooledPatch.Cli/README.md) | The `retooled-patch` CLI |
+
+## Building
+You'll need the .NET 10 SDK, but otherwise building is just
 ```sh
-dotnet build ksp1retooled-launcher.slnx
-dotnet test ksp1retooled-launcher.slnx
+dotnet build
 ```
 
-Needs the .NET 10 SDK.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for everything else.
+
+## License
+This repo is licensed under the MIT license.
