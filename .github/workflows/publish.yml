@@ -65,3 +65,14 @@ jobs:
     uses: ./.github/workflows/installers.yml
     with:
       tag: ${{ github.ref_name }}
+
+  # Copies the finished release, installers included, to GitCode.
+  mirror:
+    needs: installers
+    permissions:
+      contents: read
+    uses: ./.github/workflows/gitcode-mirror.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets:
+      GITEEPAT: ${{ secrets.GITEEPAT }}
