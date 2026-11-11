@@ -48,14 +48,15 @@ public sealed record BuildResult(PatchManifest Manifest, string Report);
 public static partial class PatchBuilder
 {
     /// <summary>
-    /// Never part of a stock base or a shipped build: user data, logs, debug symbols, Unity's backup folders, the
-    /// part icon / craft caches KSP writes at runtime (absent from a fresh install, different in every played one),
-    /// the folder metadata Finder and Explorer write, and a patched install's journal.
+    /// Never part of a stock base or a shipped build: user data, logs, Unity's backup folders, the part icon / craft
+    /// caches KSP writes at runtime (absent from a fresh install, different in every played one), the folder metadata
+    /// Finder and Explorer write, and a patched install's journal. Debug symbols are shipped when the build has them:
+    /// the build decides which ones a patch carries.
     /// </summary>
     static readonly string[] DefaultExcludes =
     [
         "saves/*", "Logs/*", "Screenshots/*", "thumbs/*", "@thumbs/*", "*/@thumbs/*", "*.loadmeta", "CKAN/*", "Ships-Old/*", "Notes/*",
-        "PluginData/*", "settings.cfg", "*.log", "dataLog.*", "rt_dump.txt", "*.pdb",
+        "PluginData/*", "settings.cfg", "*.log", "dataLog.*", "rt_dump.txt",
         ".DS_Store", "*/.DS_Store", "Thumbs.db", "*/Thumbs.db", "desktop.ini", "*/desktop.ini",
         "*_BackUpThisFolder_ButDontShipItWithYourGame/*", InstallJournal.Directory + "/*",
     ];

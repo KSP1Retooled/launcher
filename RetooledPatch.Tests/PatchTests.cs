@@ -243,6 +243,7 @@ public sealed class PatchRoundTripTests : IDisposable
         dlcEdited[0] ^= 1;
         Write(Build, "GameData/SquadExpansion/Serenity/dlc.bin", dlcEdited);
         Write(Build, "KSP_BackUpThisFolder_ButDontShipItWithYourGame/x.pdb", Bytes(10));
+        Write(Build, "KSP_x64_Data/Plugins/x86_64/lib_burst_generated.pdb", Bytes(2000));
 
         // payloads relocated between files, as Unity does with .resS data; GOG's second payload differs
         byte[] payloadA = Bytes(400_000), payloadB = Bytes(400_000);
