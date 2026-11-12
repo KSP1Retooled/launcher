@@ -155,6 +155,186 @@ public sealed class GitHubReleaseSourceTests
         Assert.Equal(valid, GitHubReleaseSource.IsValidRepository(repository));
 }
 
+public sealed class MirrorTests
+{
+    const string GitHubList = "https://api.github.com/repos/KSP1Retooled/retooled/releases?per_page=100";
+    const string GitCodeList =
+        "https://api.gitcode.com/api/v5/repos/ksp1retooled/retooled/releases?per_page=100&page=1";
+
+    const string GitCodeJson = """
+        [ { "tag_name": "1.13.0-rc6", "name": "RC 6", "prerelease": true, "body": "notes",
+            "created_at": "2026-11-11T19:02:45+08:00", "release_status": "pre",
+            "assets": [
+              { "browser_download_url": "https://raw.gitcode.com/ksp1retooled/retooled/archive/refs/heads/1.13.0-rc6.zip",
+                "name": "1.13.0-rc6.zip", "type": "source" },
+              { "browser_download_url": "https://gitcode.com/ksp1retooled/retooled/releases/download/1.13.0-rc6/retooled-windows.rtpatch",
+                "name": "retooled-windows.rtpatch", "type": "attach", "id": 1, "size": 3, "digest": "sha256:ABC" }
+            ] } ]
+        """;
+
+    [Theory]
+    [InlineData("KSP1Retooled/retooled", "ksp1retooled/retooled")]
+    [InlineData("ksp1retooled/RETOOLED", "ksp1retooled/retooled")]
+    [InlineData("o/r", null)]
+    public void OnlyTheDefaultRepositoryHasAMirror(string repository, string? mirror) =>
+        Assert.Equal(mirror, LauncherInfo.MirrorOf(repository));
+
+    [Fact]
+    public void AChannelWithoutAMirrorIsListedFromGitHubAlone()
+    {
+        var client = new HttpClient(new FakeHttp());
+        Assert.IsType<GitHubReleaseSource>(MirroredReleaseSource.For(client, "o/r"));
+        Assert.IsType<MirroredReleaseSource>(
+            MirroredReleaseSource.For(client, LauncherInfo.DebugChannel)
+        );
+    }
+
+    [Fact]
+    public async Task ReadsGitCodeReleasesAsTheChannelTheyMirror()
+    {
+        var http = new FakeHttp();
+        http.Json(GitCodeList, GitCodeJson);
+
+        var release = Assert.Single(
+            await new GitCodeReleaseSource(
+                new HttpClient(http),
+                LauncherInfo.DebugChannel,
+                LauncherInfo.DefaultMirror
+            ).GetReleasesAsync()
+        );
+
+        Assert.Equal(LauncherInfo.DebugChannel, release.Channel);
+        Assert.True(release.Prerelease);
+        Assert.Equal("https://gitcode.com/ksp1retooled/retooled/releases/1.13.0-rc6", release.PageUrl);
+        var asset = Assert.Single(release.Assets);
+        Assert.Equal("retooled-windows.rtpatch", asset.Name);
+        Assert.Equal(3, asset.Size);
+        Assert.Equal("abc", asset.Sha256);
+    }
+
+    [Fact]
+    public async Task ListsFromGitHubWhenItAnswers()
+    {
+        var http = new FakeHttp();
+        http.Json(GitHubList, """[ { "tag_name": "v1", "assets": [] } ]""");
+        http.Json(GitCodeList, GitCodeJson);
+
+        var releases = await MirroredReleaseSource
+            .For(new HttpClient(http), LauncherInfo.DefaultRepository)
+            .GetReleasesAsync();
+
+        Assert.Equal(["v1"], releases.Select(r => r.Tag));
+        Assert.DoesNotContain(http.Requests, r => r.RequestUri!.Host.EndsWith("gitcode.com"));
+    }
+
+    [Fact]
+    public async Task ListsFromTheMirrorWhenGitHubFails()
+    {
+        var http = new FakeHttp();
+        http.Routes[GitHubList] = () => throw new HttpRequestException("no route to host");
+        http.Json(GitCodeList, GitCodeJson);
+        var logged = new List<string>();
+
+        var releases = await MirroredReleaseSource
+            .For(new HttpClient(http), LauncherInfo.DefaultRepository, log: logged.Add)
+            .GetReleasesAsync();
+
+        Assert.Equal(["1.13.0-rc6"], releases.Select(r => r.Tag));
+        Assert.All(releases, r => Assert.Equal(LauncherInfo.DefaultRepository, r.Channel));
+        Assert.Contains(logged, l => l.Contains("no route to host"));
+    }
+
+    [Fact]
+    public async Task ReportsBothFailures()
+    {
+        var http = new FakeHttp();
+        http.Routes[GitHubList] = () => throw new HttpRequestException("no route to host");
+
+        var error = await Assert.ThrowsAsync<LauncherException>(() =>
+            MirroredReleaseSource
+                .For(new HttpClient(http), LauncherInfo.DefaultRepository)
+                .GetReleasesAsync()
+        );
+
+        Assert.Contains("no route to host", error.Message);
+        Assert.Contains("gitcode.com/ksp1retooled/retooled", error.Message);
+    }
+
+    [Fact]
+    public async Task PreferringGitCodeListsFromItFirst()
+    {
+        var http = new FakeHttp();
+        http.Json(GitHubList, """[ { "tag_name": "v1", "assets": [] } ]""");
+        http.Json(GitCodeList, GitCodeJson);
+
+        var releases = await MirroredReleaseSource
+            .For(new HttpClient(http), LauncherInfo.DefaultRepository, preferred: ReleaseMirror.GitCode)
+            .GetReleasesAsync();
+
+        Assert.Equal(["1.13.0-rc6"], releases.Select(r => r.Tag));
+        Assert.Single(http.Requests);
+    }
+
+    [Fact]
+    public async Task PreferringGitCodeFallsBackToGitHub()
+    {
+        var http = new FakeHttp();
+        http.Json(GitHubList, """[ { "tag_name": "v1", "assets": [] } ]""");
+
+        var releases = await MirroredReleaseSource
+            .For(new HttpClient(http), LauncherInfo.DefaultRepository, preferred: ReleaseMirror.GitCode)
+            .GetReleasesAsync();
+
+        Assert.Equal(["v1"], releases.Select(r => r.Tag));
+    }
+
+    [Fact]
+    public void AGitCodeAssetFallsBackToGitHubsCopy()
+    {
+        var source = MirroredReleaseSource.For(
+            new HttpClient(new FakeHttp()),
+            LauncherInfo.DefaultRepository,
+            preferred: ReleaseMirror.GitCode
+        );
+        var asset = new ReleaseAsset(
+            "retooled-linux.rtpatch",
+            1,
+            "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+            "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+            null
+        );
+        var release = new Release("v1", "", false, default, "", "", [asset]);
+
+        Assert.Equal(
+            [
+                "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+                "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+            ],
+            source.AssetRequests(release, asset).Select(r => r.RequestUri!.ToString())
+        );
+    }
+
+    [Fact]
+    public async Task CancellingDoesNotTurnToTheMirror()
+    {
+        using var cancel = new CancellationTokenSource();
+        var http = new FakeHttp();
+        http.Routes[GitHubList] = () =>
+        {
+            cancel.Cancel();
+            throw new TaskCanceledException();
+        };
+        http.Json(GitCodeList, GitCodeJson);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            MirroredReleaseSource
+                .For(new HttpClient(http), LauncherInfo.DefaultRepository)
+                .GetReleasesAsync(cancel.Token)
+        );
+        Assert.Single(http.Requests);
+    }
+}
+
 public sealed class PatchCacheTests : IDisposable
 {
     readonly string root = Path.Combine(
@@ -220,6 +400,49 @@ public sealed class PatchCacheTests : IDisposable
         var request = Assert.Single(http.Requests);
         Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
         Assert.Equal("application/octet-stream", request.Headers.Accept.Single().MediaType);
+    }
+
+    [Fact]
+    public async Task DownloadsFromTheMirrorWhenGitHubFails()
+    {
+        byte[] bytes = [1, 2, 3];
+        var http = new FakeHttp();
+        http.Routes["https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch"] =
+            () => throw new HttpRequestException("connection reset");
+        http.Bytes(
+            "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+            bytes
+        );
+        var client = new HttpClient(http);
+        var cache = new PatchCache(
+            client,
+            MirroredReleaseSource.For(client, LauncherInfo.DefaultRepository, token: "secret"),
+            root
+        );
+        var release = new Release(
+            "v1",
+            "",
+            false,
+            DateTimeOffset.UnixEpoch,
+            "",
+            "",
+            [
+                new ReleaseAsset(
+                    "retooled-linux.rtpatch",
+                    bytes.Length,
+                    "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+                    "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+                    Convert.ToHexStringLower(SHA256.HashData(bytes))
+                ),
+            ]
+        ) { Channel = LauncherInfo.DefaultRepository };
+
+        string path = await cache.GetPatchAsync(release, "linux", null, default);
+
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+        Assert.Equal(2, http.Requests.Count);
+        // the GitHub token stays with GitHub
+        Assert.Null(http.Requests[1].Headers.Authorization);
     }
 
     [Fact]
@@ -337,6 +560,16 @@ public sealed class LauncherSettingsTests : IDisposable
                 Channels = ["a/b", "A/B", LauncherInfo.DefaultRepository],
             }.AllChannels
         );
+
+    [Fact]
+    public void ThePreferredMirrorIsSavedByName()
+    {
+        new LauncherSettings { PreferredMirror = ReleaseMirror.GitCode }.Save(file);
+        Assert.Contains("\"GitCode\"", File.ReadAllText(file));
+        Assert.Equal(ReleaseMirror.GitCode, LauncherSettings.Load(file).PreferredMirror);
+        File.WriteAllText(file, "{}");
+        Assert.Equal(ReleaseMirror.GitHub, LauncherSettings.Load(file).PreferredMirror);
+    }
 
     [Fact]
     public void ARepositoryFromBeforeChannelsIsStillOffered()

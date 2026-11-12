@@ -12,10 +12,25 @@
   MinHeight="480"
   WindowStartupLocation="CenterScreen"
 >
+  <Window.Resources>
+    <StreamGeometry x:Key="GearIcon">M19.58,10.18 L22.41,10.60 L22.41,13.40 L19.58,13.82 L18.65,16.08 L20.35,18.37 L18.37,20.35 L16.08,18.65 L13.82,19.58 L13.40,22.41 L10.60,22.41 L10.18,19.58 L7.92,18.65 L5.63,20.35 L3.65,18.37 L5.35,16.08 L4.42,13.82 L1.59,13.40 L1.59,10.60 L4.42,10.18 L5.35,7.92 L3.65,5.63 L5.63,3.65 L7.92,5.35 L10.18,4.42 L10.60,1.59 L13.40,1.59 L13.82,4.42 L16.08,5.35 L18.37,3.65 L20.35,5.63 L18.65,7.92 Z M15.40,12 A3.4,3.4 0 1 0 8.60,12 A3.4,3.4 0 1 0 15.40,12 Z</StreamGeometry>
+  </Window.Resources>
+
   <DockPanel Margin="16">
     <!-- install folder -->
     <StackPanel DockPanel.Dock="Top" Spacing="6">
-      <TextBlock Text="KSP install" FontWeight="SemiBold" />
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="KSP install" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Button
+          Grid.Column="1"
+          Command="{Binding OpenSettingsCommand}"
+          ToolTip.Tip="Settings"
+          AutomationProperties.Name="Settings"
+          Padding="6"
+        >
+          <PathIcon Width="16" Height="16" Data="{StaticResource GearIcon}" />
+        </Button>
+      </Grid>
       <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
         <TextBox
           Grid.Column="0"

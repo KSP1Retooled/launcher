@@ -21,6 +21,9 @@ public sealed class LauncherSettings
     /// </summary>
     public List<string> Channels { get; set; } = [];
 
+    /// <summary>Where the default channel's releases are fetched from first; the other is the fallback.</summary>
+    public ReleaseMirror PreferredMirror { get; set; }
+
     /// <summary>Every channel to offer, the built-in ones first, including a <see cref="Repository"/> that is not in <see cref="Channels"/>.</summary>
     [JsonIgnore]
     public IReadOnlyList<string> AllChannels =>
@@ -59,6 +62,14 @@ public sealed class LauncherSettings
         );
         File.Move(file + ".tmp", file, overwrite: true);
     }
+}
+
+/// <summary>The hosts that carry the default channel's releases.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ReleaseMirror>))]
+public enum ReleaseMirror
+{
+    GitHub,
+    GitCode,
 }
 
 [JsonSourceGenerationOptions(

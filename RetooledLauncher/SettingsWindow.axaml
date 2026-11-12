@@ -1,0 +1,30 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:app="using:KSP.Retooled.Launcher.App"
+  x:Class="KSP.Retooled.Launcher.App.SettingsWindow"
+  x:DataType="app:SettingsViewModel"
+  Title="Settings"
+  Width="520"
+  SizeToContent="Height"
+  CanResize="False"
+  WindowStartupLocation="CenterOwner"
+>
+  <StackPanel Margin="20" Spacing="16">
+    <!-- one StackPanel per setting; add new ones here -->
+    <StackPanel Spacing="6">
+      <TextBlock Text="Download mirror" FontWeight="SemiBold" />
+      <TextBlock Text="{Binding MirrorDescription}" TextWrapping="Wrap" Opacity="0.7" />
+      <ComboBox
+        ItemsSource="{Binding Mirrors}"
+        SelectedItem="{Binding SelectedMirror}"
+        HorizontalAlignment="Stretch"
+      />
+    </StackPanel>
+
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+      <Button Content="Save" IsDefault="True" Classes="accent" Click="OnSave" />
+    </StackPanel>
+  </StackPanel>
+</Window>

@@ -7,6 +7,9 @@ namespace KSP.Retooled.Launcher.Releases;
 public interface IReleaseSource
 {
     Task<IReadOnlyList<Release>> GetReleasesAsync(CancellationToken cancellation = default);
+
+    /// <summary>Requests for <paramref name="asset"/> of <paramref name="release"/>, which this source listed, to try in turn.</summary>
+    IEnumerable<HttpRequestMessage> AssetRequests(Release release, ReleaseAsset asset);
 }
 
 /// <summary>
@@ -74,6 +77,15 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
             ? Request(HttpMethod.Get, asset.DownloadUrl, "application/octet-stream")
             : Request(HttpMethod.Get, asset.ApiUrl, "application/octet-stream");
 
+    /// <summary>Where GitHub serves the file <paramref name="name"/> of the release tagged <paramref name="tag"/>.</summary>
+    public string DownloadUrl(string tag, string name) =>
+        $"https://github.com/{Repository}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}";
+
+    public IEnumerable<HttpRequestMessage> AssetRequests(Release release, ReleaseAsset asset)
+    {
+        yield return AssetRequest(asset);
+    }
+
     public static bool IsValidRepository(string repository)
     {
         var parts = repository.Split('/');
@@ -131,8 +143,8 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
             ]
         );
 
-    /// <summary>GitHub reports digests as <c>sha256:&lt;hex&gt;</c>.</summary>
-    static string? Sha256(string? digest) =>
+    /// <summary>GitHub (and GitCode) report digests as <c>sha256:&lt;hex&gt;</c>.</summary>
+    internal static string? Sha256(string? digest) =>
         digest != null && digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
             ? digest[7..].ToLowerInvariant()
             : null;
