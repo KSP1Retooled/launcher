@@ -49,33 +49,102 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # Pinned, and checked against its publisher's signature, because the setup wizard is built from it.
+      - name: Install Inno Setup (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download is-7_1_1 --repo jrsoftware/issrc --pattern innosetup-7.1.1-x64.exe --dir $env:RUNNER_TEMP
+          $installer = Join-Path $env:RUNNER_TEMP innosetup-7.1.1-x64.exe
+          $signature = Get-AuthenticodeSignature $installer
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notlike 'CN=Pyrsys B.V.,*') {
+            throw "unexpected signature on the Inno Setup installer: $($signature.Status) $($signature.SignerCertificate.Subject)"
+          }
+          $dir = Join-Path $env:RUNNER_TEMP inno
+          Start-Process $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/PORTABLE=1', '/CURRENTUSER', "/DIR=$dir" -Wait
+          Get-Item (Join-Path $dir ISCC.exe)
+          $dir >> $env:GITHUB_PATH
+
       - name: Build the installer
         shell: bash
         run: |
           version=${TAG#v}
+          # the pages of the macOS installer; the Windows one gets its own wizard below
+          pages=()
+          if [ "$RUNNER_OS" = macOS ]; then
+            pages=(--instWelcome RetooledLauncher/Installer/macos-welcome.txt
+                   --instConclusion RetooledLauncher/Installer/macos-conclusion.txt)
+          fi
           dotnet tool restore
           dotnet publish RetooledLauncher --configuration Release --runtime ${{ matrix.rid }} --self-contained \
             --output publish -p:Version=$version
           dotnet vpk pack --packId KSPRetooled.Launcher --packVersion "$version" \
             --packTitle "KSP Retooled Launcher" --packAuthors "KSP Retooled contributors" \
             --packDir publish --mainExe ${{ matrix.exe }} --icon RetooledLauncher/Icons/${{ matrix.icon }} \
-            --runtime ${{ matrix.rid }} --channel ${{ matrix.channel }} --outputDir installers
+            --runtime ${{ matrix.rid }} --channel ${{ matrix.channel }} --outputDir installers "${pages[@]}"
           ls -l installers
           # what an installed launcher updates itself from
           ls installers/releases.${{ matrix.channel }}.json installers/*-${{ matrix.channel }}-full.nupkg
           # the self-contained zip, for those who would rather not run an installer; the AppImage already is one
           if [ "$RUNNER_OS" != Linux ]; then ls installers/*-${{ matrix.channel }}-Portable.zip; fi
 
+      # Velopack's Setup.exe installs without asking anything, so the wizard installs the portable zip in its place,
+      # under the same name. Velopack's is kept aside to test moving its installs over.
+      - name: Build the setup wizard (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $portable = Join-Path $env:RUNNER_TEMP wizard-source
+          Expand-Archive (Get-Item installers/*-Portable.zip).FullName $portable
+          Move-Item installers/*-Setup.exe (Join-Path $env:RUNNER_TEMP velopack-setup.exe)
+          ISCC /Q "/DSourceDir=$portable" "/DAppVersion=$($env:TAG.TrimStart('v'))" "/DChannel=${{ matrix.channel }}" `
+            /Oinstallers RetooledLauncher/Installer/Setup.iss
+          if ($LASTEXITCODE) { throw "ISCC exited with $LASTEXITCODE" }
+          Get-Item installers/*-${{ matrix.channel }}-Setup.exe
+
+      # Installs over what an earlier release's setup left, as an upgrading user would, then uninstalls.
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $old = Join-Path $env:LOCALAPPDATA KSPRetooled.Launcher
+          $oldKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\KSPRetooled.Launcher'
+          Start-Process (Join-Path $env:RUNNER_TEMP velopack-setup.exe) -ArgumentList '--silent' -Wait
+          if (-not (Test-Path $oldKey)) { throw "Velopack's setup did not install" }
+          Get-Process RetooledLauncher -ErrorAction SilentlyContinue | Stop-Process -Force -PassThru | Wait-Process
+
+          $dir = Join-Path $env:RUNNER_TEMP launcher-install
+          $log = Join-Path $env:RUNNER_TEMP setup.log
           $setup = (Get-Item installers/*-Setup.exe).FullName
-          Start-Process $setup -ArgumentList '--silent' -Wait
-          $app = Start-Process "$env:LOCALAPPDATA/KSPRetooled.Launcher/current/RetooledLauncher.exe" -PassThru
+          $run = Start-Process $setup -Wait -PassThru -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES',
+            "/DIR=$dir", '/TASKS=desktopicon,startmenuicon', "/LOG=$log"
+          if ($run.ExitCode) { Get-Content $log; throw "setup exited with $($run.ExitCode)" }
+          if ((Test-Path $old) -or (Test-Path $oldKey)) { Get-Content $log; throw 'the earlier install is still there' }
+          $shortcuts = @(
+            Join-Path ([Environment]::GetFolderPath('Desktop')) 'KSP Retooled Launcher.lnk'
+            Join-Path ([Environment]::GetFolderPath('Programs')) 'KSP Retooled Launcher.lnk'
+          )
+          foreach ($shortcut in $shortcuts) { if (-not (Test-Path $shortcut)) { throw "no shortcut at $shortcut" } }
+
+          # The stub starts current/RetooledLauncher.exe and exits, so look for the launcher it started.
+          Start-Process (Join-Path $dir 'KSP Retooled Launcher.exe')
           Start-Sleep 15
-          if ($app.HasExited) { throw "the launcher exited with $($app.ExitCode)" }
-          Stop-Process $app
+          $app = Get-Process RetooledLauncher -ErrorAction SilentlyContinue | Where-Object Path -like "$dir\*"
+          if (-not $app) { throw 'the installed launcher is not running' }
+          Stop-Process -InputObject $app
+          $app | Wait-Process
+
+          # The uninstaller copies itself elsewhere and returns at once, so wait for it to finish its work.
+          $data = Join-Path $env:LOCALAPPDATA KSPRetooled/Launcher
+          New-Item -ItemType Directory -Force $data | Out-Null
+          Start-Process (Join-Path $dir unins000.exe) -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES' -Wait
+          $deadline = (Get-Date).AddMinutes(1)
+          while ((Test-Path $dir) -and (Get-Date) -lt $deadline) { Start-Sleep 1 }
+          if (Test-Path $dir) { Get-ChildItem $dir -Recurse -Force; throw 'the uninstaller left the install folder' }
+          foreach ($shortcut in $shortcuts) { if (Test-Path $shortcut) { throw "the uninstaller left $shortcut" } }
+          if (Test-Path $data) { throw "the uninstaller left the launcher's data in $data" }
 
       # The zip's stub starts current/RetooledLauncher.exe and exits, so look for the launcher it started.
       - name: Smoke test the portable zip (Windows)

@@ -41,7 +41,10 @@ including anything you couldn't test. Write the title in the imperative, such as
 alone".
 
 CI runs the tests on Linux and Windows. Changes to the launcher, or to the installer workflow, also build the
-installers and portable zips for every platform, then install and start them.
+installers and portable zips for every platform, then install and start them. To build the Windows setup wizard
+yourself, extract the portable zip and run Inno Setup 7's `ISCC` on
+[RetooledLauncher/Installer/Setup.iss](RetooledLauncher/Installer/Setup.iss); the script says how. Don't test it on a
+machine where you use the launcher: it takes over an existing install, and uninstalling deletes the launcher's data.
 
 ## Licence
 
