@@ -24,48 +24,33 @@ The launcher needs a stock KSP 1.12.5 install to do anything useful.
 | `RetooledPatch` | Builds, applies and reverts `.rtpatch` files |
 | `RetooledPatch.Cli` | The `retooled-patch` command |
 
-The [launcher](RetooledLauncher/README.md) and [patch](RetooledPatch/README.md) READMEs describe how each one behaves.
-Update them when you change that behaviour.
+The [launcher](RetooledLauncher/README.md) and [patch](RetooledPatch/README.md)
+READMEs describe how each one behaves. Update them when you change that behaviour.
 
 ## Making a change
 
 1. Branch from `main`.
-2. Make the change, with tests for any change in behaviour. Logic belongs in `RetooledLauncher.Core` or
-   `RetooledPatch`, where the tests can reach it.
+2. Make the change, with tests for any change in behaviour. Logic belongs in
+   `RetooledLauncher.Core` or `RetooledPatch`, where the tests can reach it.
 3. Run `dotnet test ksp1retooled-launcher.slnx`.
-4. If you changed the UI, start the app and try it, because the tests don't cover `RetooledLauncher`.
+4. If you changed the UI, start the app and try it, because the tests don't
+   cover `RetooledLauncher`.
 5. Open a pull request against `main`.
-
-In the pull request, explain what changed and why, call out any behaviour changes, and say how you tested it,
-including anything you couldn't test. Write the title in the imperative, such as "Leave files the patch doesn't change
-alone".
-
-CI runs the tests on Linux and Windows. Changes to the launcher, or to the installer workflow, also build the
-installers and portable zips for every platform, then install and start them. To build the Windows setup wizard
-yourself, extract the portable zip and run Inno Setup 7's `ISCC` on
-[RetooledLauncher/Installer/Setup.iss](RetooledLauncher/Installer/Setup.iss); the script says how. Don't test it on a
-machine where you use the launcher: it takes over an existing install, and uninstalling deletes the launcher's data.
 
 ## Licence
 
-By contributing, you agree that your work is released under the [MIT licence](LICENSE). If you add third-party code,
-keep its licence and add it to [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+By contributing, you agree that your work is released under the
+[MIT licence](LICENSE). If you add third-party code, keep its licence and add
+it to [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Releasing
 
-Maintainers release by pushing a version tag from `main`:
+Make a release by creating a new tag:
 
 ```sh
 git tag v1.2.0
 git push origin v1.2.0
 ```
 
-The version comes from the tag, so there's nothing to bump. A tag with a hyphen, such as `v1.2.0-beta.1`, becomes a
-pre-release. The tag publishes the NuGet packages, creates the GitHub release, and attaches the installers and
-portable zips. The release notes are [release-notes-header.md](.github/release-notes-header.md) followed by GitHub's
-generated list of changes. `{{DOWNLOAD_URL}}` in the header becomes the base URL of the release's files, so
-`{{DOWNLOAD_URL}}/name` links to the file `name`.
-
-NuGet versions can't be replaced, so a fix that needs a code change gets a new tag. If only the installers failed,
-re-run the failed jobs. See [publish.yml](.github/workflows/publish.yml) and
-[installers.yml](.github/workflows/installers.yml).
+CI will take care of creating the release and all the attached packages.
+If you want to edit the release blurb it is in `.github\release-notes-header.md`.
