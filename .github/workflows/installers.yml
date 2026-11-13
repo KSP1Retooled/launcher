@@ -288,22 +288,32 @@ jobs:
             # codesign takes everything in Contents/MacOS for code, and won't seal a bundle with a .NET assembly
             # there, signed through extended attributes or not. So everything there that isn't a binary moves to
             # Contents/Resources/MacOS, where it is sealed as a resource, and a relative link takes its place, so the
-            # runtime still finds it beside the executable.
+            # runtime still finds it beside the executable. The .NET host follows the link to its runtimeconfig.json
+            # and takes the folder it lands in for the app's, so each binary that stays gets a link there too, and
+            # either folder holds the whole app.
             macos=$app/Contents/MacOS
             store=$app/Contents/Resources/MacOS
             # on fd 3, so nothing in the loop can read the file list from stdin and cut it short
             while IFS= read -r -d '' file <&3; do
-              case $(file -b "$file" < /dev/null) in *Mach-O*) continue ;; esac
               rel=${file#"$macos/"}
-              mkdir -p "$(dirname "$store/$rel")"
-              mv "$file" "$store/$rel"
+              # from a file at rel in one folder to the bundle's Contents
               up=..
               rest=$rel
               while [ "$rest" != "${rest#*/}" ]; do rest=${rest#*/}; up=../$up; done
-              ln -s "$up/Resources/MacOS/$rel" "$file"
+              mkdir -p "$(dirname "$store/$rel")"
+              case $(file -b "$file" < /dev/null) in
+                *Mach-O*)
+                  ln -s "../$up/MacOS/$rel" "$store/$rel" ;;
+                *)
+                  mv "$file" "$store/$rel"
+                  ln -s "$up/Resources/MacOS/$rel" "$file" ;;
+              esac
             done 3< <(find "$macos" -type f -print0)
             echo "moved $(find "$store" -type f | wc -l) files out of Contents/MacOS; what stays:"
             find "$macos" -type f -exec file {} +
+            # a link that leads nowhere would only show when the launcher fails to start
+            broken=$(find "$macos" "$store" -type l ! -exec test -e {} \; -print)
+            [ -z "$broken" ] || { echo "links that lead nowhere:"; echo "$broken"; exit 1; }
 
             # inside out: every binary, then the bundle, which seals the rest
             find "$app/Contents" -type f -exec sh -c 'file -b "$1" | grep -q Mach-O' sh {} \; \
