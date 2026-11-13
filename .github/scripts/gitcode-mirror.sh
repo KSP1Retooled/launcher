@@ -159,6 +159,14 @@ prerelease=$(jq -r '.isPrerelease' <<<"$release")
 name="${name:-$TAG}"
 body="${body:-Release $TAG}"   # name and body are required by GitCode
 
+# Point asset download links in the notes at the GitCode copies, which live
+# at the same path: .../releases/download/<tag>/<file>.
+body=$(jq -rn --arg body "$body" --arg from "$GITHUB_REPOSITORY" \
+  --arg to "$GITCODE_OWNER/$GITCODE_REPO" '
+  ($from | gsub("(?<c>[.\\\\+*?()|\\[\\]{}^$])"; "\\\(.c)")) as $re
+  | $body | gsub("https://github\\.com/" + $re + "/releases/download/";
+                 "https://gitcode.com/" + $to + "/releases/download/"; "i")')
+
 # GitCode has release_status (pre | latest) instead of a prerelease flag.
 # Only claim "latest" when GitHub also considers this the latest release, so
 # re-mirroring an old release does not demote the current one.
