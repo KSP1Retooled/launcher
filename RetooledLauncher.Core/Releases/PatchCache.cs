@@ -29,11 +29,11 @@ public interface IPatchProvider
 
 /// <summary>
 /// Downloads patch files into <c>&lt;cache&gt;/&lt;channel&gt;@&lt;tag&gt;/</c> and keeps them, so the installed release's
-/// patch is at hand to roll back to if an upgrade fails. A file is reused only when its size (and GitHub's digest, if
-/// any) match. Local patch files are copied into <c>&lt;cache&gt;/local@&lt;sha256&gt;/</c>: by content, because a rebuilt
+/// patch is at hand to roll back to if an upgrade fails. A file is reused only when its size (and the published digest,
+/// if any) match. Each of the source's requests for a file is tried in turn until one is answered. Local patch files are copied into <c>&lt;cache&gt;/local@&lt;sha256&gt;/</c>: by content, because a rebuilt
 /// file of the same name must not overwrite the copy of the installed one.
 /// </summary>
-public sealed class PatchCache(HttpClient http, GitHubReleaseSource source, string directory)
+public sealed class PatchCache(HttpClient http, IReleaseSource source, string directory)
     : IPatchProvider
 {
     public string Directory { get; } = directory;
@@ -62,20 +62,10 @@ public sealed class PatchCache(HttpClient http, GitHubReleaseSource source, stri
 
         System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string partial = path + ".part";
-        using (var request = source.AssetRequest(asset))
         using (
-            var response = await http.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellation
-                )
-                .ConfigureAwait(false)
+            var response = await OpenAsync(release, asset, cancellation).ConfigureAwait(false)
         )
         {
-            if (!response.IsSuccessStatusCode)
-                throw new LauncherException(
-                    $"downloading {asset.Name} of {release.Tag} failed: {(int)response.StatusCode} {response.ReasonPhrase}"
-                );
             long total = response.Content.Headers.ContentLength ?? asset.Size;
             await using var body = await response
                 .Content.ReadAsStreamAsync(cancellation)
@@ -111,6 +101,48 @@ public sealed class PatchCache(HttpClient http, GitHubReleaseSource source, stri
         }
         File.Move(partial, path, overwrite: true);
         return path;
+    }
+
+    /// <summary>The first successful response to the source's requests for <paramref name="asset"/>.</summary>
+    async Task<HttpResponseMessage> OpenAsync(
+        Release release,
+        ReleaseAsset asset,
+        CancellationToken cancellation
+    )
+    {
+        Exception? first = null;
+        foreach (var request in source.AssetRequests(release, asset))
+        {
+            using (request)
+            {
+                HttpResponseMessage response;
+                try
+                {
+                    response = await http.SendAsync(
+                            request,
+                            HttpCompletionOption.ResponseHeadersRead,
+                            cancellation
+                        )
+                        .ConfigureAwait(false);
+                }
+                catch (Exception e)
+                    when (MirroredReleaseSource.IsUnreachable(e, cancellation))
+                {
+                    first ??= new LauncherException(
+                        $"downloading {asset.Name} of {release.Tag} failed: {e.Message}",
+                        e
+                    );
+                    continue;
+                }
+                if (response.IsSuccessStatusCode)
+                    return response;
+                first ??= new LauncherException(
+                    $"downloading {asset.Name} of {release.Tag} failed: {(int)response.StatusCode} {response.ReasonPhrase}"
+                );
+                response.Dispose();
+            }
+        }
+        throw first ?? new LauncherException($"{asset.Name} of {release.Tag} has nowhere to be downloaded from");
     }
 
     public async Task<string> ImportAsync(

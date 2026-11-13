@@ -24,6 +24,9 @@ public interface IDialogs
 
     /// <summary>Opens <paramref name="url"/> in the browser: false if that did not work.</summary>
     Task<bool> OpenUrlAsync(string url);
+
+    /// <summary>Shows the settings window: true if the user saved.</summary>
+    Task<bool> ShowSettingsAsync(SettingsViewModel settings);
 }
 
 /// <summary>One row of the release list.</summary>
@@ -47,7 +50,13 @@ public sealed partial class MainViewModel : ObservableObject
     readonly LauncherSettings settings;
     readonly IDialogs dialogs;
     readonly LauncherUpdater updater;
-    readonly HttpClient http = new() { Timeout = TimeSpan.FromMinutes(30) };
+    // a short connect timeout, so an unreachable GitHub turns to the mirror quickly
+    readonly HttpClient http = new(
+        new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(15) }
+    )
+    {
+        Timeout = TimeSpan.FromMinutes(30),
+    };
     readonly string? token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
     readonly StringBuilder log = new();
     ReleaseCatalog catalog = ReleaseCatalog.Empty;
@@ -389,6 +398,17 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(Idle))]
+    async Task OpenSettingsAsync()
+    {
+        var edited = new SettingsViewModel(settings);
+        if (!await dialogs.ShowSettingsAsync(edited) || !edited.ApplyTo(settings))
+            return;
+        Save();
+        if (LauncherInfo.MirrorOf(LauncherInfo.RepositoryOf(Channel)) != null)
+            await RefreshAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(Idle))]
     async Task AddChannelAsync()
     {
         string? channel = await dialogs.PromptAsync(
@@ -609,7 +629,14 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    GitHubReleaseSource Source() => new(http, Channel, token);
+    IReleaseSource Source() =>
+        MirroredReleaseSource.For(
+            http,
+            Channel,
+            token,
+            settings.PreferredMirror,
+            line => Dispatcher.UIThread.Post(() => Append(line))
+        );
 
     void Inspect()
     {
@@ -650,6 +677,7 @@ public sealed partial class MainViewModel : ObservableObject
         DetectCommand.NotifyCanExecuteChanged();
         RefreshCommand.NotifyCanExecuteChanged();
         AddChannelCommand.NotifyCanExecuteChanged();
+        OpenSettingsCommand.NotifyCanExecuteChanged();
         RemoveChannelCommand.NotifyCanExecuteChanged();
         InstallSelectedCommand.NotifyCanExecuteChanged();
         InstallFileCommand.NotifyCanExecuteChanged();

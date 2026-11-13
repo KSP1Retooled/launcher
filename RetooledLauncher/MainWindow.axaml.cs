@@ -82,6 +82,9 @@ public sealed partial class MainWindow : Window, IDialogs
     public async Task<bool> OpenUrlAsync(string url) =>
         Uri.TryCreate(url, UriKind.Absolute, out var uri) && await Launcher.LaunchUriAsync(uri);
 
+    public async Task<bool> ShowSettingsAsync(SettingsViewModel settings) =>
+        await new SettingsWindow { DataContext = settings }.ShowDialog<bool>(this);
+
     /// <summary>A small modal message box, with <paramref name="input"/> under the message: true when <paramref name="accept"/> is pressed.</summary>
     async Task<bool> ShowAsync(
         string title,

@@ -25,6 +25,15 @@ public static class LauncherInfo
     public static string RepositoryOf(string channel) =>
         IsDebugChannel(channel) ? channel[..^DebugSuffix.Length] : channel;
 
+    /// <summary>The GitCode (gitcode.com) copy of <see cref="DefaultRepository"/>, for when GitHub cannot be reached.</summary>
+    public const string DefaultMirror = "ksp1retooled/retooled";
+
+    /// <summary>The GitCode repository that mirrors a GitHub one, if any.</summary>
+    public static string? MirrorOf(string repository) =>
+        repository.Equals(DefaultRepository, StringComparison.OrdinalIgnoreCase)
+            ? DefaultMirror
+            : null;
+
     /// <summary>Where the launcher itself is released.</summary>
     public const string Repository = "KSP1Retooled/launcher";
 
