@@ -176,30 +176,59 @@ public sealed class LauncherServiceTests : IDisposable
             )
             .ToDictionary();
 
+    string BackupFolder => Path.Combine(Install, SavesBackup.BackupFolder);
+
+    /// <summary>The names of every file in the backup folder, in order.</summary>
     string[] Backups() =>
-        Directory.Exists(Path.Combine(Install, SavesBackup.BackupFolder))
+        Directory.Exists(BackupFolder)
             ?
             [
                 .. Directory
-                    .EnumerateDirectories(Path.Combine(Install, SavesBackup.BackupFolder))
+                    .EnumerateFiles(BackupFolder)
                     .Select(Path.GetFileName)
                     .Order(StringComparer.Ordinal)!,
             ]
             : [];
 
+    static SavesBackupRecord Record(string version, DateTime created, bool stock = false) =>
+        new()
+        {
+            Version = version,
+            Stock = stock,
+            Created = created,
+        };
+
     [Fact]
-    public async Task InstallingBacksUpTheSaves()
+    public async Task InstallingZipsTheSaves()
     {
         await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
 
         string backup = Assert.Single(Backups());
-        Assert.Matches(@"^\d{4}-\d{2}-\d{2}$", backup);
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}\.zip$", backup);
+        using var zip = System.IO.Compression.ZipFile.OpenRead(Path.Combine(BackupFolder, backup));
+        using var saved = new MemoryStream();
+        using (var entry = zip.GetEntry("saves/default/persistent.sfs")!.Open())
+            entry.CopyTo(saved);
         Assert.Equal(
             stockTree["saves/default/persistent.sfs"],
-            PatchApplier.Sha256Hex(
-                Path.Combine(Install, SavesBackup.BackupFolder, backup, "default/persistent.sfs")
-            )
+            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(saved.ToArray()))
         );
+    }
+
+    [Fact]
+    public async Task ABackupRecordsTheVersionInstalledBeforeTheUpgrade()
+    {
+        await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
+        await Service().InstallAsync(Install, Get("v1.1.0"), catalog);
+
+        var backups = SavesBackup.List(Install);
+        Assert.Equal(2, backups.Count);
+        Assert.Equal("v1.1.0", KspInstall.Inspect(Install).InstalledTag);
+
+        Assert.Equal("v1.0.0", backups[0].Record.Version);
+        Assert.False(backups[0].Record.Stock);
+        Assert.Equal(SavesBackup.StockVersion, backups[1].Record.Version);
+        Assert.True(backups[1].Record.Stock);
     }
 
     [Fact]
@@ -208,24 +237,57 @@ public sealed class LauncherServiceTests : IDisposable
         await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
         await Service().InstallAsync(Install, Get("v1.1.0"), catalog);
 
-        var backups = Backups();
+        var backups = SavesBackup.List(Install).Select(b => Path.GetFileName(b.Path)).ToArray();
         Assert.Equal(2, backups.Length);
-        Assert.Equal(backups[0] + " (2)", backups[1]);
+        Assert.Equal(Path.GetFileNameWithoutExtension(backups[1]) + " (2).zip", backups[0]);
     }
 
     [Fact]
     public void ABackupIsNamedAfterTheDateAndNumberedWhenTheDateIsTaken()
     {
-        var date = new DateTime(2026, 11, 13);
+        var date = new DateTime(2026, 11, 13, 12, 0, 0, DateTimeKind.Local);
 
-        string? first = SavesBackup.Create(Install, date);
-        string? second = SavesBackup.Create(Install, date);
-        string? third = SavesBackup.Create(Install, date);
+        string? first = SavesBackup.Create(Install, Record("v1.0.0", date));
+        string? second = SavesBackup.Create(Install, Record("v1.0.0", date));
+        string? third = SavesBackup.Create(Install, Record("v1.0.0", date));
 
-        Assert.Equal("2026-11-13", Path.GetFileName(first));
-        Assert.Equal("2026-11-13 (2)", Path.GetFileName(second));
-        Assert.Equal("2026-11-13 (3)", Path.GetFileName(third));
-        Assert.True(File.Exists(Path.Combine(third!, "default", "persistent.sfs")));
+        Assert.Equal("2026-11-13.zip", Path.GetFileName(first));
+        Assert.Equal("2026-11-13 (2).zip", Path.GetFileName(second));
+        Assert.Equal("2026-11-13 (3).zip", Path.GetFileName(third));
+    }
+
+    [Fact]
+    public void PruneKeepsTheNewestBackupsAndTheNewestStockOne()
+    {
+        var start = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        SavesBackup.Create(Install, Record("1.12.5", start, stock: true));
+        string newestStock = SavesBackup.Create(Install, Record("1.12.5", start.AddDays(1), stock: true))!;
+        for (int i = 0; i < SavesBackup.Keep; i++)
+            SavesBackup.Create(Install, Record($"v1.{i}.0", start.AddDays(2 + i)));
+        File.WriteAllText(Path.Combine(BackupFolder, "mine.zip"), "not a backup");
+
+        var deleted = SavesBackup.Prune(Install);
+
+        Assert.Single(deleted);
+        var kept = SavesBackup.List(Install);
+        Assert.Equal(SavesBackup.Keep + 1, kept.Count);
+        Assert.Equal(newestStock, kept[^1].Path);
+        Assert.True(File.Exists(Path.Combine(BackupFolder, "mine.zip")));
+    }
+
+    [Fact]
+    public void PruneKeepsOnlyTheNewestWhenTheyIncludeAStockBackup()
+    {
+        var start = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        for (int i = 0; i < SavesBackup.Keep + 3; i++)
+            SavesBackup.Create(Install, Record($"v1.{i}.0", start.AddDays(i), stock: i == SavesBackup.Keep + 2));
+
+        SavesBackup.Prune(Install);
+
+        var kept = SavesBackup.List(Install);
+        Assert.Equal(SavesBackup.Keep, kept.Count);
+        Assert.True(kept[0].Record.Stock);
+        Assert.Equal("v1.3.0", kept[^1].Record.Version);
     }
 
     [Fact]
@@ -233,7 +295,7 @@ public sealed class LauncherServiceTests : IDisposable
     {
         Directory.Delete(Path.Combine(Install, SavesBackup.SavesFolder), recursive: true);
 
-        Assert.Null(SavesBackup.Create(Install, DateTime.Now));
+        Assert.Null(SavesBackup.Create(Install, Record("v1.0.0", DateTime.UtcNow)));
         Assert.Empty(Backups());
     }
 
@@ -249,9 +311,6 @@ public sealed class LauncherServiceTests : IDisposable
 
         Assert.Equal(InstallStatus.Stock, KspInstall.Inspect(Install).Status);
         Assert.Empty(Backups());
-        Assert.Empty(
-            Directory.EnumerateFileSystemEntries(Path.Combine(Install, SavesBackup.BackupFolder))
-        );
     }
 
     Dictionary<string, string> Expected(string tag)

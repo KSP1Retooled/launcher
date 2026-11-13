@@ -70,6 +70,7 @@ public sealed class InstalledRelease
     WriteIndented = true
 )]
 [JsonSerializable(typeof(InstalledRelease))]
+[JsonSerializable(typeof(SavesBackupRecord))]
 sealed partial class InstallJson : JsonSerializerContext;
 
 public static class KspInstall

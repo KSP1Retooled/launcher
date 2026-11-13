@@ -96,7 +96,8 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
     )
     {
         string install = info.Path;
-        await BackUpSavesAsync(install, progress, cancellation).ConfigureAwait(false);
+        // taken while the old release is still installed, so the backup records the version the saves were made with
+        await BackUpSavesAsync(info, progress, cancellation).ConfigureAwait(false);
 
         InstalledRelease? previous = null;
         if (info.Status == InstallStatus.Retooled)
@@ -153,20 +154,25 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
     }
 
     /// <summary>
-    /// Copies the saves aside before anything changes, since saves from one release may not load in another. If the
-    /// copy fails, the install stops there and the game is left as it was.
+    /// Zips the saves before anything changes, since saves from one release may not load in another, then deletes the
+    /// backups <see cref="SavesBackup.Prune"/> no longer keeps. If the backup fails, the install stops there and the game
+    /// is left as it was.
     /// </summary>
     async Task BackUpSavesAsync(
-        string install,
+        InstallInfo info,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellation
     )
     {
+        string install = info.Path;
+        var record = SavesBackupRecord.For(info);
+        record.Created = DateTime.UtcNow;
+
         string? backup;
         try
         {
             backup = await Task.Run(
-                    () => SavesBackup.Create(install, DateTime.Now, progress, cancellation),
+                    () => SavesBackup.Create(install, record, progress, cancellation),
                     CancellationToken.None
                 )
                 .ConfigureAwait(false);
@@ -178,8 +184,21 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
                 e
             );
         }
-        if (backup != null)
-            log.WriteLine($"backed up the saves to {Path.GetRelativePath(install, backup)}");
+        if (backup == null)
+            return;
+        log.WriteLine(
+            $"backed up the {(record.Version == "" ? "" : record.Version + " ")}saves to {Path.GetRelativePath(install, backup)}"
+        );
+
+        try
+        {
+            foreach (string deleted in SavesBackup.Prune(install))
+                log.WriteLine($"deleted the old backup {Path.GetRelativePath(install, deleted)}");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            log.WriteLine($"warning: old backups could not be deleted: {e.Message}");
+        }
     }
 
     /// <summary>
