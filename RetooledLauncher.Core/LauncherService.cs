@@ -96,6 +96,8 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
     )
     {
         string install = info.Path;
+        await BackUpSavesAsync(install, progress, cancellation).ConfigureAwait(false);
+
         InstalledRelease? previous = null;
         if (info.Status == InstallStatus.Retooled)
         {
@@ -151,7 +153,37 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
     }
 
     /// <summary>
-    /// What to restore if the install fails: the patch <paramref name="installed"/> was applied from, wherever it came
+    /// Copies the saves aside before anything changes, since saves from one release may not load in another. If the
+    /// copy fails, the install stops there and the game is left as it was.
+    /// </summary>
+    async Task BackUpSavesAsync(
+        string install,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellation
+    )
+    {
+        string? backup;
+        try
+        {
+            backup = await Task.Run(
+                    () => SavesBackup.Create(install, DateTime.Now, progress, cancellation),
+                    CancellationToken.None
+                )
+                .ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            throw new LauncherException(
+                $"backing up the saves failed, so nothing was installed: {e.Message}",
+                e
+            );
+        }
+        if (backup != null)
+            log.WriteLine($"backed up the saves to {Path.GetRelativePath(install, backup)}");
+    }
+
+    /// <summary>
+    /// What to restore if the install fails:the patch <paramref name="installed"/> was applied from, wherever it came
     /// from, or failing that its release if <paramref name="catalog"/> lists it. A release of another channel that
     /// happens to share the tag is a different build, so it does not count. Null when there is nothing to restore.
     /// </summary>
