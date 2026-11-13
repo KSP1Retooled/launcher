@@ -55,7 +55,7 @@ public static partial class PatchBuilder
     /// </summary>
     static readonly string[] DefaultExcludes =
     [
-        "saves/*", "Logs/*", "Screenshots/*", "thumbs/*", "@thumbs/*", "*/@thumbs/*", "*.loadmeta", "CKAN/*", "Ships-Old/*", "Notes/*",
+        "saves/*", "saves-backup/*", "Logs/*", "Screenshots/*", "thumbs/*", "@thumbs/*", "*/@thumbs/*", "*.loadmeta", "CKAN/*", "Ships-Old/*", "Notes/*",
         "PluginData/*", "settings.cfg", "*.log", "dataLog.*", "rt_dump.txt",
         ".DS_Store", "*/.DS_Store", "Thumbs.db", "*/Thumbs.db", "desktop.ini", "*/desktop.ini",
         "*_BackUpThisFolder_ButDontShipItWithYourGame/*", InstallJournal.Directory + "/*",

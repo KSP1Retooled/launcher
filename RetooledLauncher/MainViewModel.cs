@@ -459,7 +459,7 @@ public sealed partial class MainViewModel : ObservableObject
             release.Prerelease
             && !await dialogs.ConfirmAsync(
                 "Pre-release",
-                $"{release.Tag} is a pre-release and may be unstable. Back up your saves before playing it.",
+                $"{release.Tag} is a pre-release and may be unstable. Your saves folder is copied to saves-backup before it is installed.",
                 "Install anyway"
             )
         )
@@ -468,7 +468,7 @@ public sealed partial class MainViewModel : ObservableObject
             action == InstallAction.Downgrade
             && !await dialogs.ConfirmAsync(
                 "Downgrade",
-                $"Saves made with {Install?.Release?.Tag} may not load in {release.Tag}.",
+                $"Saves made with {Install?.Release?.Tag} may not load in {release.Tag}. Your saves folder is copied to saves-backup first.",
                 "Downgrade"
             )
         )

@@ -167,9 +167,92 @@ public sealed class LauncherServiceTests : IDisposable
         patches.Files[tag] = patch;
     }
 
-    /// <summary>The install's files without the launcher's own bookkeeping.</summary>
+    /// <summary>The install's files without the launcher's own bookkeeping and saves backups.</summary>
     Dictionary<string, string> Installed() =>
-        Tree(Install).Where(p => !p.Key.StartsWith(InstallJournal.Directory + "/")).ToDictionary();
+        Tree(Install)
+            .Where(p =>
+                !p.Key.StartsWith(InstallJournal.Directory + "/")
+                && !p.Key.StartsWith(SavesBackup.BackupFolder + "/")
+            )
+            .ToDictionary();
+
+    string[] Backups() =>
+        Directory.Exists(Path.Combine(Install, SavesBackup.BackupFolder))
+            ?
+            [
+                .. Directory
+                    .EnumerateDirectories(Path.Combine(Install, SavesBackup.BackupFolder))
+                    .Select(Path.GetFileName)
+                    .Order(StringComparer.Ordinal)!,
+            ]
+            : [];
+
+    [Fact]
+    public async Task InstallingBacksUpTheSaves()
+    {
+        await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
+
+        string backup = Assert.Single(Backups());
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}$", backup);
+        Assert.Equal(
+            stockTree["saves/default/persistent.sfs"],
+            PatchApplier.Sha256Hex(
+                Path.Combine(Install, SavesBackup.BackupFolder, backup, "default/persistent.sfs")
+            )
+        );
+    }
+
+    [Fact]
+    public async Task EachInstallOnTheSameDayGetsItsOwnBackup()
+    {
+        await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
+        await Service().InstallAsync(Install, Get("v1.1.0"), catalog);
+
+        var backups = Backups();
+        Assert.Equal(2, backups.Length);
+        Assert.Equal(backups[0] + " (2)", backups[1]);
+    }
+
+    [Fact]
+    public void ABackupIsNamedAfterTheDateAndNumberedWhenTheDateIsTaken()
+    {
+        var date = new DateTime(2026, 11, 13);
+
+        string? first = SavesBackup.Create(Install, date);
+        string? second = SavesBackup.Create(Install, date);
+        string? third = SavesBackup.Create(Install, date);
+
+        Assert.Equal("2026-11-13", Path.GetFileName(first));
+        Assert.Equal("2026-11-13 (2)", Path.GetFileName(second));
+        Assert.Equal("2026-11-13 (3)", Path.GetFileName(third));
+        Assert.True(File.Exists(Path.Combine(third!, "default", "persistent.sfs")));
+    }
+
+    [Fact]
+    public void NoSavesMeansNoBackup()
+    {
+        Directory.Delete(Path.Combine(Install, SavesBackup.SavesFolder), recursive: true);
+
+        Assert.Null(SavesBackup.Create(Install, DateTime.Now));
+        Assert.Empty(Backups());
+    }
+
+    [Fact]
+    public async Task ACancelledBackupLeavesNoBackupAndInstallsNothing()
+    {
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            Service().InstallAsync(Install, Get("v1.0.0"), catalog, cancellation: cancel.Token)
+        );
+
+        Assert.Equal(InstallStatus.Stock, KspInstall.Inspect(Install).Status);
+        Assert.Empty(Backups());
+        Assert.Empty(
+            Directory.EnumerateFileSystemEntries(Path.Combine(Install, SavesBackup.BackupFolder))
+        );
+    }
 
     Dictionary<string, string> Expected(string tag)
     {
@@ -260,7 +343,7 @@ public sealed class LauncherServiceTests : IDisposable
 
         Assert.Equal(InstallStatus.Stock, info.Status);
         Assert.Null(info.InstalledTag);
-        AssertTree(stockTree, Tree(Install));
+        AssertTree(stockTree, Installed());
         Assert.Empty(patches.Kept);
     }
 
@@ -287,7 +370,7 @@ public sealed class LauncherServiceTests : IDisposable
 
         Assert.Contains("stock install was restored", error.Message);
         Assert.Equal(InstallStatus.Stock, KspInstall.Inspect(Install).Status);
-        AssertTree(stockTree, Tree(Install));
+        AssertTree(stockTree, Installed());
     }
 
     [Fact]
@@ -314,7 +397,7 @@ public sealed class LauncherServiceTests : IDisposable
         AssertTree(Expected("v1.0.0"), Installed());
 
         Assert.Equal(InstallStatus.Stock, (await Service().UninstallAsync(Install)).Status);
-        AssertTree(stockTree, Tree(Install));
+        AssertTree(stockTree, Installed());
     }
 
     [Fact]
@@ -433,7 +516,7 @@ public sealed class LauncherServiceTests : IDisposable
         var info = await Service().UninstallAsync(Install);
 
         Assert.Equal(InstallStatus.Stock, info.Status);
-        AssertTree(stockTree, Tree(Install));
+        AssertTree(stockTree, Installed());
     }
 
     [Fact]
