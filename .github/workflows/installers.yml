@@ -287,12 +287,17 @@ jobs:
             # codesign takes everything in Contents/MacOS for code, the .NET assemblies too, and refuses to seal a
             # bundle with any of it unsigned. A file that isn't a binary keeps its signature in extended attributes,
             # which the disk image and a ditto zip carry. Elsewhere in the bundle, only binaries are code.
-            find "$app/Contents" -type f -print0 | while IFS= read -r -d '' file; do
-              case $file in
-                "$app/Contents/MacOS/"*) codesign --force --sign - "$file" ;;
-                *) if file -b "$file" | grep -q Mach-O; then codesign --force --sign - "$file"; fi ;;
-              esac
-            done
+            # -exec, not a while-read loop: a command in the loop that reads stdin eats the rest of the file list, and
+            # the files after it are skipped without a word.
+            macos=$app/Contents/MacOS
+            find "$macos" -type f -exec codesign --force --sign - {} +
+            find "$app/Contents" -type f -not -path "$macos/*" \
+              -exec sh -c 'file -b "$1" | grep -q Mach-O' sh {} \; -exec codesign --force --sign - {} \;
+            # Anything left unsigned is named here, all at once, rather than one at a time by the bundle's signature.
+            unsigned=$(find "$macos" -type f -exec sh -c 'codesign --verify "$1" 2> /dev/null || echo "$1"' sh {} \;)
+            [ -z "$unsigned" ] || { echo "these files did not take a signature:"; echo "$unsigned"; exit 1; }
+            # A link or anything else that isn't a plain file can't be signed in place.
+            find "$macos" -mindepth 1 -not -type f -ls
             codesign --force --sign - "$app"
             rm "$portable"
             ditto -c -k --sequesterRsrc --keepParent "$app" "$portable"
