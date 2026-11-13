@@ -267,7 +267,8 @@ jobs:
       # Gatekeeper checks a downloaded app's whole signature strictly, and calls it damaged if any part doesn't hold.
       # The smoke tests can't see that, because nothing they start is quarantined. Without a Developer ID, the app is
       # ad-hoc signed again here from the inside out, so every binary and the bundle carry a signature that holds, and
-      # the portable zip gets the same app. macOS can then be told to open it (Privacy & Security, Open Anyway) rather
+      # the portable zip gets the same app. The smoke test below starts that app, so it also shows that the launcher
+      # still runs with its assemblies moved. macOS can then be told to open it (Privacy & Security, Open Anyway) rather
       # than refusing it outright.
       - name: Build the disk image
         env:
@@ -284,20 +285,29 @@ jobs:
 
           if [ "$SIGNED" != true ]; then
             xattr -cr "$app"
-            # codesign takes everything in Contents/MacOS for code, the .NET assemblies too, and refuses to seal a
-            # bundle with any of it unsigned. A file that isn't a binary keeps its signature in extended attributes,
-            # which the disk image and a ditto zip carry. Elsewhere in the bundle, only binaries are code.
-            # -exec, not a while-read loop: a command in the loop that reads stdin eats the rest of the file list, and
-            # the files after it are skipped without a word.
+            # codesign takes everything in Contents/MacOS for code, and won't seal a bundle with a .NET assembly
+            # there, signed through extended attributes or not. So everything there that isn't a binary moves to
+            # Contents/Resources/MacOS, where it is sealed as a resource, and a relative link takes its place, so the
+            # runtime still finds it beside the executable.
             macos=$app/Contents/MacOS
-            find "$macos" -type f -exec codesign --force --sign - {} +
-            find "$app/Contents" -type f -not -path "$macos/*" \
-              -exec sh -c 'file -b "$1" | grep -q Mach-O' sh {} \; -exec codesign --force --sign - {} \;
-            # Anything left unsigned is named here, all at once, rather than one at a time by the bundle's signature.
-            unsigned=$(find "$macos" -type f -exec sh -c 'codesign --verify "$1" 2> /dev/null || echo "$1"' sh {} \;)
-            [ -z "$unsigned" ] || { echo "these files did not take a signature:"; echo "$unsigned"; exit 1; }
-            # A link or anything else that isn't a plain file can't be signed in place.
-            find "$macos" -mindepth 1 -not -type f -ls
+            store=$app/Contents/Resources/MacOS
+            # on fd 3, so nothing in the loop can read the file list from stdin and cut it short
+            while IFS= read -r -d '' file <&3; do
+              case $(file -b "$file" < /dev/null) in *Mach-O*) continue ;; esac
+              rel=${file#"$macos/"}
+              mkdir -p "$(dirname "$store/$rel")"
+              mv "$file" "$store/$rel"
+              up=..
+              rest=$rel
+              while [ "$rest" != "${rest#*/}" ]; do rest=${rest#*/}; up=../$up; done
+              ln -s "$up/Resources/MacOS/$rel" "$file"
+            done 3< <(find "$macos" -type f -print0)
+            echo "moved $(find "$store" -type f | wc -l) files out of Contents/MacOS; what stays:"
+            find "$macos" -type f -exec file {} +
+
+            # inside out: every binary, then the bundle, which seals the rest
+            find "$app/Contents" -type f -exec sh -c 'file -b "$1" | grep -q Mach-O' sh {} \; \
+              -exec codesign --force --sign - {} \;
             codesign --force --sign - "$app"
             rm "$portable"
             ditto -c -k --sequesterRsrc --keepParent "$app" "$portable"
