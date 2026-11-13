@@ -1,0 +1,3 @@
+KSP Retooled Launcher is in your Applications folder.
+
+To return KSP to stock, click Uninstall in the launcher before you remove the launcher itself.

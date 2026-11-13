@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/installers.yml
+      - .github/actions/pack/**
       - dotnet-tools.json
       - RetooledLauncher/**
       - RetooledLauncher.Core/**
@@ -24,62 +25,100 @@ on:
 permissions:
   contents: read
 
+env:
+  TAG: ${{ inputs.tag || 'v0.0.1-dev' }}
+
 jobs:
-  build:
-    name: ${{ matrix.channel }}
-    runs-on: ${{ matrix.os }}
+  windows:
+    name: windows-x64
+    runs-on: windows-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: windows-latest, rid: win-x64, channel: windows-x64, exe: RetooledLauncher.exe, icon: icon.ico }
-          - { os: ubuntu-latest, rid: linux-x64, channel: linux-x64, exe: RetooledLauncher, icon: icon.png }
-          - { os: macos-latest, rid: osx-arm64, channel: macos-arm64, exe: RetooledLauncher, icon: icon.icns }
-          - { os: macos-15-intel, rid: osx-x64, channel: macos-x64, exe: RetooledLauncher, icon: icon.icns }
-    env:
-      # Not VERSION: MSBuild reads environment variables as properties.
-      TAG: ${{ inputs.tag || 'v0.0.1-dev' }}
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.tag || github.ref }}
 
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Build the installer
-        shell: bash
+      # Pinned, and checked against its publisher's signature, because the setup wizard is built from it.
+      - name: Install Inno Setup
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          version=${TAG#v}
-          dotnet tool restore
-          dotnet publish RetooledLauncher --configuration Release --runtime ${{ matrix.rid }} --self-contained \
-            --output publish -p:Version=$version
-          dotnet vpk pack --packId KSPRetooled.Launcher --packVersion "$version" \
-            --packTitle "KSP Retooled Launcher" --packAuthors "KSP Retooled contributors" \
-            --packDir publish --mainExe ${{ matrix.exe }} --icon RetooledLauncher/Icons/${{ matrix.icon }} \
-            --runtime ${{ matrix.rid }} --channel ${{ matrix.channel }} --outputDir installers
-          ls -l installers
-          # what an installed launcher updates itself from
-          ls installers/releases.${{ matrix.channel }}.json installers/*-${{ matrix.channel }}-full.nupkg
-          # the self-contained zip, for those who would rather not run an installer; the AppImage already is one
-          if [ "$RUNNER_OS" != Linux ]; then ls installers/*-${{ matrix.channel }}-Portable.zip; fi
+          gh release download is-7_1_1 --repo jrsoftware/issrc --pattern innosetup-7.1.1-x64.exe --dir $env:RUNNER_TEMP
+          $installer = Join-Path $env:RUNNER_TEMP innosetup-7.1.1-x64.exe
+          $signature = Get-AuthenticodeSignature $installer
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notlike 'CN=Pyrsys B.V.,*') {
+            throw "unexpected signature on the Inno Setup installer: $($signature.Status) $($signature.SignerCertificate.Subject)"
+          }
+          $dir = Join-Path $env:RUNNER_TEMP inno
+          Start-Process $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/PORTABLE=1', '/CURRENTUSER', "/DIR=$dir" -Wait
+          Get-Item (Join-Path $dir ISCC.exe)
+          $dir >> $env:GITHUB_PATH
 
-      - name: Smoke test (Windows)
-        if: runner.os == 'Windows'
+      - uses: ./.github/actions/pack
+        with:
+          tag: ${{ env.TAG }}
+          rid: win-x64
+          channel: windows-x64
+          exe: RetooledLauncher.exe
+          icon: icon.ico
+
+      # Velopack's Setup.exe installs without asking anything, so the wizard installs the portable zip in its place,
+      # under the same name. Velopack's is kept aside to test moving its installs over.
+      - name: Build the setup wizard
         shell: pwsh
         run: |
+          $portable = Join-Path $env:RUNNER_TEMP wizard-source
+          Expand-Archive (Get-Item installers/*-Portable.zip).FullName $portable
+          Move-Item installers/*-Setup.exe (Join-Path $env:RUNNER_TEMP velopack-setup.exe)
+          ISCC /Q "/DSourceDir=$portable" "/DAppVersion=$($env:TAG.TrimStart('v'))" "/DChannel=windows-x64" `
+            /Oinstallers RetooledLauncher/Installer/Setup.iss
+          if ($LASTEXITCODE) { throw "ISCC exited with $LASTEXITCODE" }
+          Get-Item installers/*-windows-x64-Setup.exe
+
+      # Installs over what an earlier release's setup left, as an upgrading user would, then uninstalls.
+      - name: Smoke test the setup wizard
+        shell: pwsh
+        run: |
+          $old = Join-Path $env:LOCALAPPDATA KSPRetooled.Launcher
+          $oldKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\KSPRetooled.Launcher'
+          Start-Process (Join-Path $env:RUNNER_TEMP velopack-setup.exe) -ArgumentList '--silent' -Wait
+          if (-not (Test-Path $oldKey)) { throw "Velopack's setup did not install" }
+          Get-Process RetooledLauncher -ErrorAction SilentlyContinue | Stop-Process -Force -PassThru | Wait-Process
+
+          $dir = Join-Path $env:RUNNER_TEMP launcher-install
+          $log = Join-Path $env:RUNNER_TEMP setup.log
           $setup = (Get-Item installers/*-Setup.exe).FullName
-          Start-Process $setup -ArgumentList '--silent' -Wait
-          $app = Start-Process "$env:LOCALAPPDATA/KSPRetooled.Launcher/current/RetooledLauncher.exe" -PassThru
+          $run = Start-Process $setup -Wait -PassThru -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES',
+            "/DIR=$dir", '/TASKS=desktopicon,startmenuicon', "/LOG=$log"
+          if ($run.ExitCode) { Get-Content $log; throw "setup exited with $($run.ExitCode)" }
+          if ((Test-Path $old) -or (Test-Path $oldKey)) { Get-Content $log; throw 'the earlier install is still there' }
+          $shortcuts = @(
+            Join-Path ([Environment]::GetFolderPath('Desktop')) 'KSP Retooled Launcher.lnk'
+            Join-Path ([Environment]::GetFolderPath('Programs')) 'KSP Retooled Launcher.lnk'
+          )
+          foreach ($shortcut in $shortcuts) { if (-not (Test-Path $shortcut)) { throw "no shortcut at $shortcut" } }
+
+          # The stub starts current/RetooledLauncher.exe and exits, so look for the launcher it started.
+          Start-Process (Join-Path $dir 'KSP Retooled Launcher.exe')
           Start-Sleep 15
-          if ($app.HasExited) { throw "the launcher exited with $($app.ExitCode)" }
-          Stop-Process $app
+          $app = Get-Process RetooledLauncher -ErrorAction SilentlyContinue | Where-Object Path -like "$dir\*"
+          if (-not $app) { throw 'the installed launcher is not running' }
+          Stop-Process -InputObject $app
+          $app | Wait-Process
+
+          # The uninstaller copies itself elsewhere and returns at once, so wait for it to finish its work.
+          $data = Join-Path $env:LOCALAPPDATA KSPRetooled/Launcher
+          New-Item -ItemType Directory -Force $data | Out-Null
+          Start-Process (Join-Path $dir unins000.exe) -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES' -Wait
+          $deadline = (Get-Date).AddMinutes(1)
+          while ((Test-Path $dir) -and (Get-Date) -lt $deadline) { Start-Sleep 1 }
+          if (Test-Path $dir) { Get-ChildItem $dir -Recurse -Force; throw 'the uninstaller left the install folder' }
+          foreach ($shortcut in $shortcuts) { if (Test-Path $shortcut) { throw "the uninstaller left $shortcut" } }
+          if (Test-Path $data) { throw "the uninstaller left the launcher's data in $data" }
 
       # The zip's stub starts current/RetooledLauncher.exe and exits, so look for the launcher it started.
-      - name: Smoke test the portable zip (Windows)
-        if: runner.os == 'Windows'
+      - name: Smoke test the portable zip
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP portable
@@ -91,8 +130,33 @@ jobs:
           if (-not $app) { throw "the launcher from the portable zip is not running" }
           Stop-Process -InputObject $app
 
-      - name: Smoke test (Linux)
-        if: runner.os == 'Linux'
+      - uses: actions/upload-artifact@v5
+        with:
+          name: installer-windows-x64
+          if-no-files-found: error
+          path: |
+            installers/*-Setup.exe
+            installers/*-Portable.zip
+            installers/releases.*.json
+            installers/*-full.nupkg
+
+  linux:
+    name: linux-x64
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: ./.github/actions/pack
+        with:
+          tag: ${{ env.TAG }}
+          rid: linux-x64
+          channel: linux-x64
+          icon: icon.png
+
+      - name: Smoke test
         run: |
           sudo apt-get update
           sudo apt-get install --yes xvfb libice6 libsm6 libfontconfig1
@@ -101,14 +165,50 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN=1 timeout 15 xvfb-run --auto-servernum installers/*.AppImage || status=$?
           [ "$status" -eq 124 ] || { echo "the launcher exited with $status"; exit 1; }
 
-      - name: Smoke test (macOS)
-        if: runner.os == 'macOS'
+      - uses: actions/upload-artifact@v5
+        with:
+          name: installer-linux-x64
+          if-no-files-found: error
+          path: |
+            installers/*.AppImage
+            installers/releases.*.json
+            installers/*-full.nupkg
+
+  macos:
+    name: ${{ matrix.channel }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, rid: osx-arm64, channel: macos-arm64 }
+          - { os: macos-15-intel, rid: osx-x64, channel: macos-x64 }
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: ./.github/actions/pack
+        with:
+          tag: ${{ env.TAG }}
+          rid: ${{ matrix.rid }}
+          channel: ${{ matrix.channel }}
+          icon: icon.icns
+          # the installer's opening and closing pages
+          pack-args: >-
+            --instWelcome RetooledLauncher/Installer/macos-welcome.txt
+            --instConclusion RetooledLauncher/Installer/macos-conclusion.txt
+
+      - name: Smoke test
         run: |
+          # the .app on its own, for those who would rather not run the installer
+          ls installers/*-${{ matrix.channel }}-Portable.zip
           sudo installer -pkg installers/*.pkg -target /
           app=$(find /Applications "$HOME/Applications" -maxdepth 1 -name '*.app' -newer dotnet-tools.json | head -n 1)
           echo "installed $app"
           codesign --display --verbose=2 "$app" 2>&1 | head -n 12 || true
-          "$app/Contents/MacOS/${{ matrix.exe }}" &
+          "$app/Contents/MacOS/RetooledLauncher" &
           pid=$!
           sleep 15
           kill -0 "$pid" || { wait "$pid"; echo "the launcher exited with $?"; exit 1; }
@@ -119,8 +219,6 @@ jobs:
           name: installer-${{ matrix.channel }}
           if-no-files-found: error
           path: |
-            installers/*-Setup.exe
-            installers/*.AppImage
             installers/*.pkg
             installers/*-Portable.zip
             installers/releases.*.json
@@ -128,7 +226,7 @@ jobs:
 
   attach:
     name: Attach to the release
-    needs: build
+    needs: [windows, linux, macos]
     if: inputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 15

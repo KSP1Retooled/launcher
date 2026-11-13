@@ -1,0 +1,3 @@
+This installs KSP Retooled Launcher in your Applications folder.
+
+The launcher installs KSP Retooled into an existing stock KSP 1.12.5 install, and keeps itself up to date.

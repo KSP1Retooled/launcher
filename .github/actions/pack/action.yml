@@ -1,0 +1,54 @@
+name: Pack the launcher
+description: >
+  Publishes the launcher for one platform and packs it with Velopack into installers/: the installer, the update feed
+  and package an installed launcher updates itself from, and the portable zip where there is one.
+
+inputs:
+  tag:
+    description: The release tag, such as v1.2.0
+    required: true
+  rid:
+    description: The .NET runtime identifier, such as win-x64
+    required: true
+  channel:
+    description: The Velopack channel, such as windows-x64
+    required: true
+  exe:
+    description: The launcher's executable
+    default: RetooledLauncher
+  icon:
+    description: The icon, in RetooledLauncher/Icons
+    required: true
+  pack-args:
+    description: More arguments for vpk pack, split on spaces
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: 10.0.x
+
+    - shell: bash
+      env:
+        # Not VERSION: MSBuild reads environment variables as properties.
+        TAG: ${{ inputs.tag }}
+        RID: ${{ inputs.rid }}
+        CHANNEL: ${{ inputs.channel }}
+        EXE: ${{ inputs.exe }}
+        ICON: ${{ inputs.icon }}
+        PACK_ARGS: ${{ inputs.pack-args }}
+      run: |
+        version=${TAG#v}
+        dotnet tool restore
+        dotnet publish RetooledLauncher --configuration Release --runtime "$RID" --self-contained \
+          --output publish -p:Version=$version
+        # shellcheck disable=SC2086 # PACK_ARGS is a list of arguments
+        dotnet vpk pack --packId KSPRetooled.Launcher --packVersion "$version" \
+          --packTitle "KSP Retooled Launcher" --packAuthors "KSP Retooled contributors" \
+          --packDir publish --mainExe "$EXE" --icon "RetooledLauncher/Icons/$ICON" \
+          --runtime "$RID" --channel "$CHANNEL" --outputDir installers $PACK_ARGS
+        ls -l installers
+        # what an installed launcher updates itself from
+        ls "installers/releases.$CHANNEL.json" installers/*-"$CHANNEL"-full.nupkg
