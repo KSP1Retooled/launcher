@@ -2,9 +2,15 @@ name: Publish
 
 # A tag such as v1.2.0 publishes that version of KSP1Retooled.Patch and KSP1Retooled.Patch.Cli to nuget.org.
 # The Trusted Publishing policy on nuget.org names this file, so renaming it means updating the policy.
+# It can also be run by hand for an existing tag, for example to redo a release that failed part way.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to publish, such as v1.2.0
+        required: true
 
 jobs:
   publish:
@@ -16,9 +22,11 @@ jobs:
       id-token: write
     env:
       # Not VERSION: MSBuild reads environment variables as properties, and "v1.2.0" is not a valid package version.
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -55,8 +63,13 @@ jobs:
           notes=$RUNNER_TEMP/release-notes.md
           sed "s|{{DOWNLOAD_URL}}|$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG|g" \
             .github/release-notes-header.md > "$notes"
-          gh release create "$TAG" packages/*.nupkg --verify-tag --title "$TAG" \
-            --notes-file "$notes" --generate-notes $prerelease
+          # A manual rerun finds the release already made; refresh its packages instead.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" packages/*.nupkg --clobber
+          else
+            gh release create "$TAG" packages/*.nupkg --verify-tag --title "$TAG" \
+              --notes-file "$notes" --generate-notes $prerelease
+          fi
 
   installers:
     needs: publish
@@ -64,15 +77,16 @@ jobs:
       contents: write
     uses: ./.github/workflows/installers.yml
     with:
-      tag: ${{ github.ref_name }}
+      tag: ${{ inputs.tag || github.ref_name }}
 
-  # Copies the finished release, installers included, to GitCode.
+  # Syncs the repository and tags to GitCode, then copies the finished
+  # release, installers included.
   mirror:
     needs: installers
     permissions:
       contents: read
     uses: ./.github/workflows/gitcode-mirror.yml
     with:
-      tag: ${{ github.ref_name }}
+      tag: ${{ inputs.tag || github.ref_name }}
     secrets:
       GITEEPAT: ${{ secrets.GITEEPAT }}
