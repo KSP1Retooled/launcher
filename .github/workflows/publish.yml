@@ -78,6 +78,8 @@ jobs:
     uses: ./.github/workflows/installers.yml
     with:
       tag: ${{ inputs.tag || github.ref_name }}
+    # the macOS signing and notarization secrets
+    secrets: inherit
 
   # Syncs the repository and tags to GitCode, then copies the finished
   # release, installers included.

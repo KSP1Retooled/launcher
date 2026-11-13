@@ -22,6 +22,23 @@ inputs:
   pack-args:
     description: More arguments for vpk pack, split on spaces
     default: ''
+  sign-app-identity:
+    description: >
+      macOS only: the Developer ID Application identity to sign the app with. Signing also notarizes, so it needs
+      notary-profile and keychain. Without it, Velopack leaves the app unsigned or ad-hoc signed.
+    default: ''
+  sign-install-identity:
+    description: macOS only, with sign-app-identity, the Developer ID Installer identity to sign the pkg with
+    default: ''
+  sign-entitlements:
+    description: macOS only, with sign-app-identity, the entitlements the app is signed with
+    default: ''
+  notary-profile:
+    description: macOS only, with sign-app-identity, the notarytool keychain profile to notarize with
+    default: ''
+  keychain:
+    description: macOS only, with sign-app-identity, the keychain that holds the identities and notary profile
+    default: ''
 
 runs:
   using: composite
@@ -39,7 +56,19 @@ runs:
         EXE: ${{ inputs.exe }}
         ICON: ${{ inputs.icon }}
         PACK_ARGS: ${{ inputs.pack-args }}
+        SIGN_APP_IDENTITY: ${{ inputs.sign-app-identity }}
+        SIGN_INSTALL_IDENTITY: ${{ inputs.sign-install-identity }}
+        SIGN_ENTITLEMENTS: ${{ inputs.sign-entitlements }}
+        NOTARY_PROFILE: ${{ inputs.notary-profile }}
+        KEYCHAIN: ${{ inputs.keychain }}
       run: |
+        # Identities have spaces in them, so they can't go through PACK_ARGS.
+        signing=()
+        if [ -n "$SIGN_APP_IDENTITY" ]; then
+          signing+=(--signAppIdentity "$SIGN_APP_IDENTITY" --signEntitlements "$SIGN_ENTITLEMENTS"
+            --notaryProfile "$NOTARY_PROFILE" --keychain "$KEYCHAIN")
+          [ -z "$SIGN_INSTALL_IDENTITY" ] || signing+=(--signInstallIdentity "$SIGN_INSTALL_IDENTITY")
+        fi
         version=${TAG#v}
         dotnet tool restore
         dotnet publish RetooledLauncher --configuration Release --runtime "$RID" --self-contained \
@@ -48,7 +77,7 @@ runs:
         dotnet vpk pack --packId KSPRetooled.Launcher --packVersion "$version" \
           --packTitle "KSP Retooled Launcher" --packAuthors "KSP Retooled contributors" \
           --packDir publish --mainExe "$EXE" --icon "RetooledLauncher/Icons/$ICON" \
-          --runtime "$RID" --channel "$CHANNEL" --outputDir installers $PACK_ARGS
+          --runtime "$RID" --channel "$CHANNEL" --outputDir installers $PACK_ARGS "${signing[@]}"
         ls -l installers
         # what an installed launcher updates itself from
         ls "installers/releases.$CHANNEL.json" installers/*-"$CHANNEL"-full.nupkg

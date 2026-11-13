@@ -4,7 +4,7 @@ This is the launcher for KSP Retooled. It allows you to install retooled into an
 
 There are different version of the launcher available depending on your OS. Download the one that matches your OS below. If you would rather not run an installer, the portable zip holds the whole launcher: extract it anywhere and start `KSP Retooled Launcher`.
 
-On macOS, open the disk image and drag *KSP Retooled Launcher* to Applications. Started from the disk image itself, it can't update itself.
+On macOS, open the disk image and drag *KSP Retooled Launcher* to Applications. Started from the disk image itself, it can't update itself. If macOS says it can't verify the launcher, open System Settings → Privacy & Security and click **Open Anyway** next to *KSP Retooled Launcher*.
 
 | System | File |
 | ------ | ---- |
