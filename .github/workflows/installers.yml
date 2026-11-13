@@ -214,11 +214,72 @@ jobs:
           kill -0 "$pid" || { wait "$pid"; echo "the launcher exited with $?"; exit 1; }
           kill "$pid"
 
+      # The same .app as the portable zip, so it updates itself once it is dragged to Applications. The user owns that
+      # copy, so unlike the pkg's, replacing it needs no admin prompt. hdiutil sometimes fails with "Resource busy" on
+      # hosted runners, so it gets a few tries.
+      - name: Build the disk image
+        env:
+          CHANNEL: ${{ matrix.channel }}
+        run: |
+          stage=$RUNNER_TEMP/dmg
+          mkdir "$stage"
+          ditto -x -k installers/*-"$CHANNEL"-Portable.zip "$stage"
+          ln -s /Applications "$stage/Applications"
+          for attempt in 1 2 3; do
+            hdiutil create -volname "KSP Retooled Launcher" -srcfolder "$stage" -format UDZO -ov \
+              "installers/KSPRetooled.Launcher-$CHANNEL.dmg" && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep 10
+          done
+          ls -l installers/*.dmg
+
+      # Copies the app out of the disk image as a user would, starts it, then updates it in place from a newer package
+      # with the updater Velopack put in the bundle, which is what the launcher runs to update itself.
+      - name: Smoke test the disk image and its updates
+        env:
+          CHANNEL: ${{ matrix.channel }}
+          RID: ${{ matrix.rid }}
+        run: |
+          mount=$RUNNER_TEMP/mount
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "installers/KSPRetooled.Launcher-$CHANNEL.dmg"
+          [ -L "$mount/Applications" ] || { echo "the disk image has no Applications link"; exit 1; }
+          apps=$RUNNER_TEMP/Applications
+          mkdir "$apps"
+          name=$(cd "$mount" && ls -d *.app)
+          ditto "$mount/$name" "$apps/$name"
+          hdiutil detach "$mount"
+          app=$apps/$name
+
+          "$app/Contents/MacOS/RetooledLauncher" &
+          pid=$!
+          sleep 15
+          kill -0 "$pid" || { wait "$pid"; echo "the launcher exited with $?"; exit 1; }
+          kill "$pid"
+          wait "$pid" || true
+
+          next=999.0.0
+          dotnet vpk pack --packId KSPRetooled.Launcher --packVersion "$next" \
+            --packTitle "KSP Retooled Launcher" --packAuthors "KSP Retooled contributors" \
+            --packDir publish --mainExe RetooledLauncher --icon RetooledLauncher/Icons/icon.icns \
+            --runtime "$RID" --channel "$CHANNEL" --outputDir "$RUNNER_TEMP/next"
+          "$app/Contents/MacOS/UpdateMac" apply --silent --norestart --verbose \
+            --package "$(ls "$RUNNER_TEMP"/next/*-full.nupkg)"
+
+          version=$(find "$app" -name sq.version -print -quit)
+          [ -n "$version" ] || { echo "the updated app has no sq.version"; exit 1; }
+          grep -q "<version>$next</version>" "$version" || { cat "$version"; echo "the app was not updated"; exit 1; }
+          "$app/Contents/MacOS/RetooledLauncher" &
+          pid=$!
+          sleep 15
+          kill -0 "$pid" || { wait "$pid"; echo "the updated launcher exited with $?"; exit 1; }
+          kill "$pid"
+
       - uses: actions/upload-artifact@v5
         with:
           name: installer-${{ matrix.channel }}
           if-no-files-found: error
           path: |
+            installers/*.dmg
             installers/*.pkg
             installers/*-Portable.zip
             installers/releases.*.json

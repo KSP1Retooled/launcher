@@ -4,12 +4,14 @@ This is the launcher for KSP Retooled. It allows you to install retooled into an
 
 There are different version of the launcher available depending on your OS. Download the one that matches your OS below. If you would rather not run an installer, the portable zip holds the whole launcher: extract it anywhere and start `KSP Retooled Launcher`.
 
+On macOS, open the disk image and drag *KSP Retooled Launcher* to Applications. Started from the disk image itself, it can't update itself.
+
 | System | File |
 | ------ | ---- |
 | Windows               | [`KSPRetooled.Launcher-windows-x64-Setup.exe`]({{DOWNLOAD_URL}}/KSPRetooled.Launcher-windows-x64-Setup.exe) |
 | Linux                 | [`KSPRetooled.Launcher-linux-x64.AppImage`]({{DOWNLOAD_URL}}/KSPRetooled.Launcher-linux-x64.AppImage) |
-| macOS (Apple silicon) | [`KSPRetooled.Launcher-macos-arm64-Setup.pkg`]({{DOWNLOAD_URL}}/KSPRetooled.Launcher-macos-arm64-Setup.pkg) |
-| macOS (Intel)         | [`KSPRetooled.Launcher-macos-x64-Setup.pkg`]({{DOWNLOAD_URL}}/KSPRetooled.Launcher-macos-x64-Setup.pkg) |
+| macOS (Apple silicon) | [`KSPRetooled.Launcher-macos-arm64.dmg`]({{DOWNLOAD_URL}}/KSPRetooled.Launcher-macos-arm64.dmg) |
+| macOS (Intel)         | [`KSPRetooled.Launcher-macos-x64.dmg`]({{DOWNLOAD_URL}}/KSPRetooled.Launcher-macos-x64.dmg) |
 
 | System | Portable zip |
 | ------ | ------------ |

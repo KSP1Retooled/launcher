@@ -230,6 +230,8 @@ public sealed partial class MainViewModel : ObservableObject
             await DownloadLauncherUpdateAsync();
             return;
         }
+        if (LauncherUpdater.OnReadOnlyVolume)
+            Append("the launcher can update itself once it is moved to Applications");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try
         {

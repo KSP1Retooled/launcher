@@ -5,8 +5,8 @@ This repo is the desktop launcher and patcher for KSP retooled.
 Just looking to install the launcher? Download the installer from the links below:
 * [Windows](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-windows-x64-Setup.exe)
 * [Linux](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-linux-x64.AppImage)
-* [Macos (Arm64)](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-macos-arm64-Setup.pkg)
-* [Macos (x86-64)](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-macos-x64-Setup.pkg)
+* [Macos (Arm64)](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-macos-arm64.dmg)
+* [Macos (x86-64)](https://github.com/KSP1Retooled/launcher/releases/latest/download/KSPRetooled.Launcher-macos-x64.dmg)
 * Other? [See the release page][releases].
 
 Looking to uninstall? Also documented on [the release page][releases].
