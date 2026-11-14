@@ -43,7 +43,12 @@ licensed under the MIT License.
 RetooledLauncher uses Markdown.Avalonia (NuGet package `Markdown.Avalonia.Tight`,
 https://github.com/whistyun/Markdown.Avalonia), which is licensed under the MIT License.
 
+# DotMake.CommandLine
+
+RetooledPatch.Cli uses DotMake.CommandLine (NuGet package `DotMake.CommandLine`, https://github.com/dotmake-build/command-line),
+which is licensed under the MIT License.
+
 # System.CommandLine
 
-RetooledPatch.Cli uses System.CommandLine (NuGet package `System.CommandLine`, https://github.com/dotnet/command-line-api),
+RetooledPatch.Cli uses System.CommandLine, through DotMake.CommandLine (NuGet package `System.CommandLine`, https://github.com/dotnet/command-line-api),
 which is licensed under the MIT License.
