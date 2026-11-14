@@ -1,8 +1,8 @@
 name: Mirror release to GitCode
 
 # Copies a GitHub release and its assets to the GitCode repository.
-# publish.yml calls this once the installers are attached: releases it creates
-# with github.token do not fire release events, so the release trigger below
+# publish.yml calls this once it has published the release: releases it
+# publishes with github.token do not fire release events, so the release trigger below
 # only covers releases created or edited by hand.
 on:
   release:
