@@ -11,6 +11,12 @@
 # rejected branch (for example a protected branch on GitCode) is reported as a
 # warning so it does not block the release.
 #
+# README.md is the exception: GitCode keeps its own (Chinese) version. A
+# branch whose README.md on GitCode differs from GitHub's is not overwritten.
+# Instead GitHub's branch is merged into it, with a merge commit whose tree is
+# GitHub's except for GitCode's README.md. Every GitHub commit and tag is
+# still there unchanged; a tag's own snapshot has GitHub's README.md.
+#
 # Run from a full clone (actions/checkout with fetch-depth: 0), after the
 # workflow's TCP tuning step so pushes get the same tuned connection.
 #
@@ -19,6 +25,8 @@
 set -euo pipefail
 
 remote="https://gitcode.com/${GITCODE_OWNER}/${GITCODE_REPO}.git"
+# The file GitCode keeps its own version of.
+KEEP_FILE=README.md
 
 # retry <attempts> <command...>, waiting 15 s, 30 s, 45 s... between tries.
 retry() {
@@ -71,9 +79,53 @@ if ! retry 3 git_gitcode push --force "$remote" 'refs/tags/*:refs/tags/*'; then
   exit 1
 fi
 
-echo "Pushing branches to $remote"
-if ! retry 3 git_gitcode push --force "$remote" 'refs/remotes/origin/*:refs/heads/*'; then
-  echo "::warning::Some branches could not be pushed to GitCode (protected branch?); tags were synced."
+# GitCode's branches, to find the ones carrying their own $KEEP_FILE. Without
+# them a push could overwrite that file, so no branch is pushed if this fails.
+echo "Fetching branches from $remote"
+if ! retry 3 git_gitcode fetch --prune --no-tags "$remote" '+refs/heads/*:refs/remotes/gitcode/*'; then
+  echo "::warning::Could not fetch GitCode's branches, so none were pushed (their $KEEP_FILE would be at risk); tags were synced."
+else
+  index=$(mktemp)
+  refspecs=()
+  while read -r branch; do
+    src=refs/remotes/origin/$branch
+    dst=refs/remotes/gitcode/$branch
+    theirs=$(git rev-parse -q --verify "$dst:$KEEP_FILE" || true)
+    ours=$(git rev-parse -q --verify "$src:$KEEP_FILE" || true)
+    if [ -z "$theirs" ] || [ "$theirs" = "$ours" ] ||
+       git merge-base --is-ancestor "$dst" "$src"; then
+      # GitCode has no $KEEP_FILE of its own here: mirror the branch as it is.
+      refspecs+=("+$src:refs/heads/$branch")
+    elif git merge-base --is-ancestor "$src" "$dst"; then
+      echo "Branch $branch: GitCode already has every commit"
+    else
+      # Merge GitHub's branch into GitCode's: GitHub's tree with GitCode's
+      # $KEEP_FILE put back. GitCode's branch only moves forward, so this
+      # one is pushed without forcing.
+      mode=$(git ls-tree "$dst" -- "$KEEP_FILE" | cut -d' ' -f1)
+      tree=$(
+        export GIT_INDEX_FILE=$index
+        git read-tree "$src"
+        git update-index --add --cacheinfo "$mode,$theirs,$KEEP_FILE"
+        git write-tree
+      )
+      merge=$(git \
+        -c user.name='github-actions[bot]' \
+        -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+        commit-tree "$tree" -p "$dst" -p "$src" \
+        -m "Sync $branch from GitHub, keeping $KEEP_FILE")
+      echo "Branch $branch: keeping GitCode's $KEEP_FILE (merge $merge)"
+      refspecs+=("$merge:refs/heads/$branch")
+    fi
+  done < <(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin)
+  rm -f "$index"
+
+  if (( ${#refspecs[@]} )); then
+    echo "Pushing branches to $remote"
+    if ! retry 3 git_gitcode push "$remote" "${refspecs[@]}"; then
+      echo "::warning::Some branches could not be pushed to GitCode (protected branch?); tags were synced."
+    fi
+  fi
 fi
 
 if [ -n "${TAG:-}" ]; then

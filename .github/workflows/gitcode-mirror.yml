@@ -76,7 +76,8 @@ jobs:
 
       # Push branches and tags to GitCode over HTTPS, so the release's tag
       # always exists there before the release is created. Runs after the
-      # TCP tuning step, so pushes use the tuned connection too.
+      # TCP tuning step, so pushes use the tuned connection too. GitCode's
+      # own README.md is kept (see the script).
       - name: Sync repository to GitCode
         env:
           # The GITEEPAT secret now holds the GitCode personal access token.
