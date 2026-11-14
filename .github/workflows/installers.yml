@@ -280,7 +280,7 @@ jobs:
             --instConclusion RetooledLauncher/Installer/macos-conclusion.txt
           sign-app-identity: ${{ steps.signing.outputs.keychain && secrets.MACOS_SIGN_IDENTITY || '' }}
           sign-install-identity: ${{ steps.signing.outputs.keychain && secrets.MACOS_INSTALLER_IDENTITY || '' }}
-          sign-entitlements: RetooledLauncher/Installer/macos-entitlements.plist
+          sign-entitlements: RetooledLauncher/Installer/macos.entitlements
           notary-profile: retooled
           keychain: ${{ steps.signing.outputs.keychain }}
 
