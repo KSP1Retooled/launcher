@@ -2,7 +2,8 @@ name: Publish
 
 # A tag such as v1.2.0 publishes that version of KSP1Retooled.Patch and KSP1Retooled.Patch.Cli to nuget.org.
 # The Trusted Publishing policy on nuget.org names this file, so renaming it means updating the policy.
-# It can also be run by hand for an existing tag, for example to redo a release that failed part way.
+# The GitHub release is made as a draft and published only once every installer is attached, so launchers never see a
+# release without its updates. It can also be run by hand for an existing tag, to finish a draft that a failed run left.
 on:
   push:
     tags: ['v*']
@@ -40,6 +41,27 @@ jobs:
           dotnet pack RetooledPatch --configuration Release --output packages -p:Version=$version
           dotnet pack RetooledPatch.Cli --configuration Release --output packages -p:Version=$version
 
+      # A draft stays hidden, from launchers looking for updates too, until the release job below publishes it with
+      # every installer attached. Before the push, so a run for a published release stops before changing anything.
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=
+          case "$TAG" in *-*) prerelease=--prerelease ;; esac
+          notes=$RUNNER_TEMP/release-notes.md
+          sed "s|{{DOWNLOAD_URL}}|$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG|g" \
+            .github/release-notes-header.md > "$notes"
+          draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || true)
+          case "$draft" in
+            # A rerun finds the draft an earlier run left; refresh its packages instead.
+            true) gh release upload "$TAG" packages/*.nupkg --clobber ;;
+            # Launchers may already have updated from it, and rebuilt installers would have other hashes.
+            false) echo "::error::$TAG is already published"; exit 1 ;;
+            *) gh release create "$TAG" packages/*.nupkg --draft --verify-tag --title "$TAG" \
+                 --notes-file "$notes" --generate-notes $prerelease ;;
+          esac
+
       # The temporary key lasts an hour, so request it right before the push.
       - uses: NuGet/login@v1
         id: login
@@ -54,23 +76,6 @@ jobs:
           dotnet nuget push 'packages/*.nupkg' --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json --skip-duplicate
 
-      - name: Create the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          prerelease=
-          case "$TAG" in *-*) prerelease=--prerelease ;; esac
-          notes=$RUNNER_TEMP/release-notes.md
-          sed "s|{{DOWNLOAD_URL}}|$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG|g" \
-            .github/release-notes-header.md > "$notes"
-          # A manual rerun finds the release already made; refresh its packages instead.
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" packages/*.nupkg --clobber
-          else
-            gh release create "$TAG" packages/*.nupkg --verify-tag --title "$TAG" \
-              --notes-file "$notes" --generate-notes $prerelease
-          fi
-
   installers:
     needs: publish
     permissions:
@@ -81,10 +86,56 @@ jobs:
     # the macOS signing and notarization secrets
     secrets: inherit
 
+  # Publishes the draft once everything is attached. If an installer job failed, the draft stays hidden with what was
+  # attached, and "Re-run failed jobs" finishes it.
+  release:
+    name: Publish the release
+    needs: installers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          sparse-checkout: .github/release-notes-header.md
+          sparse-checkout-cone-mode: false
+
+      - name: Check the assets
+        run: |
+          version=${TAG#v}
+          expected=(KSP1Retooled.Patch.$version.nupkg KSP1Retooled.Patch.Cli.$version.nupkg)
+          for channel in windows-x64 linux-x64 macos-arm64 macos-x64; do
+            # what an installed launcher updates itself from
+            expected+=("releases.$channel.json" "KSPRetooled.Launcher-$version-$channel-full.nupkg")
+          done
+          expected+=(KSPRetooled.Launcher-macos-arm64-Setup.pkg KSPRetooled.Launcher-macos-x64-Setup.pkg)
+          # and everything the release notes link to
+          mapfile -t linked < <(grep -o '{{DOWNLOAD_URL}}/[^)]*' .github/release-notes-header.md | cut -d/ -f2)
+          expected+=("${linked[@]}")
+
+          [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true ] \
+            || { echo "::error::$TAG is not a draft"; exit 1; }
+          uploaded=$(gh release view "$TAG" --json assets --jq '.assets[] | select(.state == "uploaded") | .name')
+          missing=()
+          for name in "${expected[@]}"; do
+            grep -qxF "$name" <<< "$uploaded" || missing+=("$name")
+          done
+          [ ${#missing[@]} -eq 0 ] || { echo "::error::Not attached to the draft: ${missing[*]}"; exit 1; }
+
+      # Without --tag, publishing a draft can replace its tag with a generated untagged-<hash> one.
+      - name: Publish the draft
+        run: gh release edit "$TAG" --tag "$TAG" --draft=false
+
   # Syncs the repository and tags to GitCode, then copies the finished
   # release, installers included.
   mirror:
-    needs: installers
+    needs: release
     permissions:
       contents: read
     uses: ./.github/workflows/gitcode-mirror.yml
