@@ -18,7 +18,12 @@
       plugins, and we don't register any. Finally, it finds the calling assemblies so that it can resolve image paths,
       and NoImages makes sure that no images are loaded.
     -->
-    <PublishTrimmed>true</PublishTrimmed>
+    <PublishAot>true</PublishAot>
+    <!--
+      Native AOT puts the launcher's debug symbols in the publish folder: a .pdb on Windows, a .dSYM folder on macOS and
+      a .dbg file on Linux. Velopack leaves out only .pdb files, so without this the other two would ship.
+    -->
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
   </PropertyGroup>
 
   <ItemGroup>
