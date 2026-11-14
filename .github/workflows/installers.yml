@@ -177,7 +177,8 @@ jobs:
   macos:
     name: ${{ matrix.channel }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # Apple's notarization is usually done in minutes, but can sit in review for hours. Hosted runners stop at six.
+    timeout-minutes: 300
     strategy:
       fail-fast: false
       matrix:
