@@ -164,10 +164,10 @@ public sealed class ReleaseCatalogTests
     public void NewerThanLooksPastPrereleasesUnlessOnOne(string version, string? expected)
     {
         var catalog = new ReleaseCatalog([
-            Make("v0.9.0"),
-            Make("v1.0.0"),
-            Make("v1.1.0-beta.1", prerelease: true),
-            Make("v1.1.0-beta.2", prerelease: true),
+            Make("v0.9.0", day: 0),
+            Make("v1.0.0", day: 1),
+            Make("v1.1.0-beta.1", prerelease: true, day: 2),
+            Make("v1.1.0-beta.2", prerelease: true, day: 3),
             Make("nightly", day: 9),
         ]);
         Assert.Equal(expected, catalog.NewerThan(version)?.Tag);
@@ -263,20 +263,31 @@ public sealed class ReleaseCatalogTests
     }
 
     [Fact]
-    public void AStrayTagDoesNotUnsortTheVersionedReleases()
+    public void OrdersByCreationDateRatherThanVersion()
     {
-        // a maintenance release of an older line, published after the newer line's release
+        // a maintenance release of an older line, created after the newer line's release
         var catalog = new ReleaseCatalog([
             Make("v2.0.0", day: 10),
             Make("v1.9.1", day: 12),
             Make("old-build", day: 1),
             Make("v1.0.0", day: 0),
         ]);
-        Assert.Equal(["v2.0.0", "v1.9.1", "old-build", "v1.0.0"], catalog.All.Select(r => r.Tag));
+        Assert.Equal(["v1.9.1", "v2.0.0", "old-build", "v1.0.0"], catalog.All.Select(r => r.Tag));
     }
 
     [Fact]
-    public void NonVersionTagsAreOrderedByPublishDate()
+    public void OrdersByCreationDateRatherThanPublishDate()
+    {
+        // v1.1.0 was drafted first and published after v1.0.1
+        var catalog = new ReleaseCatalog([
+            Make("v1.1.0", day: 9) with { Created = Day0.AddDays(1) },
+            Make("v1.0.1", day: 5),
+        ]);
+        Assert.Equal(["v1.0.1", "v1.1.0"], catalog.All.Select(r => r.Tag));
+    }
+
+    [Fact]
+    public void NonVersionTagsAreOrderedByCreationDate()
     {
         var catalog = new ReleaseCatalog([
             Make("nightly-b", day: 2),

@@ -22,6 +22,9 @@ public sealed record Release(
     IReadOnlyList<ReleaseAsset> Assets
 )
 {
+    /// <summary>When the release was created, which orders the catalog; a draft is created before it is published.</summary>
+    public DateTimeOffset Created { get; init; } = Published;
+
     /// <summary>The repository it was listed from: tags are only unique within one.</summary>
     public string Channel { get; init; } = "";
 

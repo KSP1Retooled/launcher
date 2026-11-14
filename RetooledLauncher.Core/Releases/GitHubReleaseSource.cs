@@ -125,7 +125,7 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
     }
 
     internal static Release Convert(GitHubRelease r) =>
-        new(
+        new Release(
             r.TagName,
             r.Name ?? "",
             r.Prerelease,
@@ -141,7 +141,10 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
                     Sha256(a.Digest)
                 )),
             ]
-        );
+        )
+        {
+            Created = r.CreatedAt ?? r.PublishedAt ?? DateTimeOffset.MinValue,
+        };
 
     /// <summary>GitHub (and GitCode) report digests as <c>sha256:&lt;hex&gt;</c>.</summary>
     internal static string? Sha256(string? digest) =>
