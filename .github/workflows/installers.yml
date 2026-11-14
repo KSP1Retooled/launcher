@@ -149,6 +149,11 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
+      # Native AOT links the launcher with clang and needs the zlib headers.
+      - run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang zlib1g-dev
+
       - uses: ./.github/actions/pack
         with:
           tag: ${{ env.TAG }}
