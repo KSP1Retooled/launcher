@@ -14,35 +14,16 @@ public enum InstallAction
 }
 
 /// <summary>
-/// The releases of one repository, newest first: releases tagged with a semantic version by version (so a maintenance
-/// release of an older line stays below the newer line), any other tag by publish date among them. Pre-releases are only offered when the user opts in, but the installed release is always
-/// listed so the install never shows a version the launcher pretends not to know.
+/// The releases of one repository, newest first by creation date, whatever their tags. Pre-releases are only offered
+/// when the user opts in, but the installed release is always listed so the install never shows a version the
+/// launcher pretends not to know.
 /// </summary>
 public sealed class ReleaseCatalog
 {
     public IReadOnlyList<Release> All { get; }
 
-    public ReleaseCatalog(IEnumerable<Release> releases)
-    {
-        var list = releases.ToList();
-        var versions = list.ToDictionary(
-            r => r,
-            r => ReleaseVersion.TryParse(r.Tag, out var v) ? v : null
-        );
-        var ordered = list.Where(r => versions[r] != null)
-            .OrderByDescending(r => versions[r])
-            .ThenByDescending(r => r.Published)
-            .ToList();
-        // a tag that is not a version goes before the first release published before it
-        foreach (
-            var other in list.Where(r => versions[r] == null).OrderByDescending(r => r.Published)
-        )
-        {
-            int at = ordered.FindIndex(r => r.Published < other.Published);
-            ordered.Insert(at < 0 ? ordered.Count : at, other);
-        }
-        All = ordered;
-    }
+    public ReleaseCatalog(IEnumerable<Release> releases) =>
+        All = [.. releases.OrderByDescending(r => r.Created)];
 
     public static ReleaseCatalog Empty { get; } = new([]);
 
