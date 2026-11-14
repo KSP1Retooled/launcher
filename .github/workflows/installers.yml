@@ -229,7 +229,7 @@ jobs:
             certificate=$RUNNER_TEMP/certificate.p12
             printf '%s' "$2" | grep -v -e '-----' | tr -d ' \t\r\n' | base64 --decode > "$certificate" \
               || { echo "::error::$1 isn't valid base64"; exit 1; }
-            start=$(head -c 10 "$certificate" | tr -cd '[:print:]')
+            start=$(head -c 10 "$certificate" | LC_ALL=C tr -cd '[:print:]')
             if [ "$start" = -----BEGIN ]; then
               echo "::error::$1 holds a PEM file (a .cer, .pem or .key) encoded twice, not a .p12"; exit 1
             fi
