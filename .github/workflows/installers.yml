@@ -239,8 +239,10 @@ jobs:
               exit 1
             fi
             echo "importing $1 ($(wc -c < "$certificate") bytes)"
+            # -T names the tools that may use the key. For any other, macOS asks first, in a dialog nobody sees
+            # here. codesign signs the app and the disk image, and productbuild is what Velopack signs the pkg with.
             security import "$certificate" -f pkcs12 -k "$keychain" -P "$3" \
-              -T /usr/bin/codesign -T /usr/bin/productsign \
+              -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/productsign \
               || { echo "::error::macOS couldn't import $1. A .cer alone, without its private key, can't be imported" \
                      "this way; a .p12 made by OpenSSL 3 needs -legacy; and the password must match."; exit 1; }
             rm "$certificate"
@@ -265,6 +267,31 @@ jobs:
           done
           echo "$identities" | grep -qF "$IDENTITY" \
             || { echo "::error::\"$IDENTITY\" has no private key in the .p12, or isn't valid"; exit 1; }
+          # Velopack signs the pkg with productbuild and waits on it for as long as it runs. When productbuild may
+          # not use the installer key, macOS asks instead of failing, and the job sits at "Creating installer '.pkg'"
+          # until it is cancelled. So a scrap pkg is signed here first, the way Velopack does it, for a minute at most.
+          if [ -n "$INSTALLER_IDENTITY" ]; then
+            scrap=$RUNNER_TEMP/signing-check
+            mkdir -p "$scrap/root"
+            echo check > "$scrap/root/check"
+            pkgbuild --quiet --root "$scrap/root" --identifier signing.check --version 1 "$scrap/component.pkg"
+            productbuild --quiet --synthesize --package "$scrap/component.pkg" "$scrap/distribution.xml"
+            productbuild --distribution "$scrap/distribution.xml" --package-path "$scrap" \
+              --sign "$INSTALLER_IDENTITY" --timestamp=none "$scrap/signed.pkg" &
+            signer=$!
+            for _ in $(seq 60); do
+              kill -0 "$signer" 2> /dev/null || break
+              sleep 1
+            done
+            if kill -0 "$signer" 2> /dev/null; then
+              kill "$signer" 2> /dev/null || true
+              echo "::error::productbuild was still waiting to sign with \"$INSTALLER_IDENTITY\" after a minute." \
+                "macOS is probably asking whether it may use that key, which -T on security import decides."
+              exit 1
+            fi
+            wait "$signer" || { echo "::error::productbuild couldn't sign a pkg with \"$INSTALLER_IDENTITY\""; exit 1; }
+            rm -r "$scrap"
+          fi
           xcrun notarytool store-credentials retooled --keychain "$keychain" \
             --apple-id "$NOTARY_APPLE_ID" --password "$NOTARY_PASSWORD" --team-id "$NOTARY_TEAM_ID"
           echo "keychain=$keychain" >> "$GITHUB_OUTPUT"
