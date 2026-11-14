@@ -1,7 +1,9 @@
 name: Installers
 
 # Builds the launcher's installers and portable zips on each platform, then installs and starts them, because a package
-# that builds can still fail to run. With a tag, they are attached to that tag's release.
+# that builds can still fail to run. A run with a tag is a release: the macOS ones are signed with a Developer ID and
+# notarized, and all of them are attached to that tag's release. Any other run, such as a pull request's, only builds
+# and tests them.
 on:
   pull_request:
     paths:
@@ -191,7 +193,7 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
 
       # A downloaded app opens only if it is signed with a Developer ID and notarized. Anything else, Gatekeeper refuses
-      # as damaged or unverified. Signing needs these repository secrets:
+      # as damaged or unverified. Only a release is signed and notarized, and that needs these repository secrets:
       #   MACOS_CERTIFICATE           a base64 .p12 with the Developer ID Application certificate and its key (it may
       #                               hold the Developer ID Installer one too)
       #   MACOS_CERTIFICATE_PASSWORD  the .p12's password
@@ -200,9 +202,12 @@ jobs:
       #   MACOS_SIGN_IDENTITY         such as "Developer ID Application: Name (TEAMID)"
       #   MACOS_INSTALLER_IDENTITY    optional, such as "Developer ID Installer: Name (TEAMID)", to sign the pkg
       #   MACOS_NOTARY_APPLE_ID, MACOS_NOTARY_PASSWORD (an app-specific password), MACOS_NOTARY_TEAM_ID
-      # Without them, as on pull requests from forks, the app is ad-hoc signed instead.
+      # A release without them is ad-hoc signed instead. So is every other build, such as a pull request's, even with
+      # them: it is only built and tested here, and signing it would wait on Apple's notary for the app, the pkg and
+      # the disk image.
       - name: Set up code signing
         id: signing
+        if: inputs.tag != ''
         env:
           CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -340,7 +345,7 @@ jobs:
         env:
           CHANNEL: ${{ matrix.channel }}
           SIGNED: ${{ steps.signing.outputs.keychain != '' }}
-          IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          IDENTITY: ${{ steps.signing.outputs.keychain && secrets.MACOS_SIGN_IDENTITY || '' }}
           KEYCHAIN: ${{ steps.signing.outputs.keychain }}
         run: |
           stage=$RUNNER_TEMP/dmg
