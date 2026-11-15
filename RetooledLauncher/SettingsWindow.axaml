@@ -22,6 +22,16 @@
       />
     </StackPanel>
 
+    <StackPanel Spacing="6">
+      <TextBlock Text="Launch arguments" FontWeight="SemiBold" />
+      <TextBlock Text="{Binding LaunchArgumentsDescription}" TextWrapping="Wrap" Opacity="0.7" />
+      <TextBox
+        Text="{Binding LaunchArguments}"
+        Watermark="-popupwindow -force-vulkan"
+        AutomationProperties.Name="Launch arguments"
+      />
+    </StackPanel>
+
     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
       <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
       <Button Content="Save" IsDefault="True" Classes="accent" Click="OnSave" />

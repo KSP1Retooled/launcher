@@ -17,7 +17,15 @@ public sealed partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(LauncherSettings settings)
     {
         selectedMirror = Mirrors.First(m => m.Value == settings.PreferredMirror);
+        launchArguments = settings.LaunchArguments ?? "";
     }
+
+    public string LaunchArgumentsDescription { get; } =
+        "Command line arguments passed to the game when you press Play, separated by spaces. Put double quotes "
+        + "around an argument that contains a space.";
+
+    [ObservableProperty]
+    string launchArguments;
 
     public string MirrorDescription { get; } =
         $"Where releases of the {LauncherInfo.DefaultRepository} channels are downloaded from. If it cannot be "
@@ -35,9 +43,16 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Copies the choices into <paramref name="settings"/>: true if any changed.</summary>
     public bool ApplyTo(LauncherSettings settings)
     {
-        if (settings.PreferredMirror == SelectedMirror.Value)
+        string? arguments = string.IsNullOrWhiteSpace(LaunchArguments)
+            ? null
+            : LaunchArguments.Trim();
+        if (
+            settings.PreferredMirror == SelectedMirror.Value
+            && settings.LaunchArguments == arguments
+        )
             return false;
         settings.PreferredMirror = SelectedMirror.Value;
+        settings.LaunchArguments = arguments;
         return true;
     }
 }

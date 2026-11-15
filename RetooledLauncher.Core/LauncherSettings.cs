@@ -24,6 +24,12 @@ public sealed class LauncherSettings
     /// <summary>Where the default channel's releases are fetched from first; the other is the fallback.</summary>
     public ReleaseMirror PreferredMirror { get; set; }
 
+    /// <summary>
+    /// The command line arguments the game is started with, as the user typed them, or null for none. See
+    /// <see cref="Installs.GameStarter.SplitArguments"/>.
+    /// </summary>
+    public string? LaunchArguments { get; set; }
+
     /// <summary>Every channel to offer, the built-in ones first, including a <see cref="Repository"/> that is not in <see cref="Channels"/>.</summary>
     [JsonIgnore]
     public IReadOnlyList<string> AllChannels =>

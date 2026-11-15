@@ -401,10 +401,14 @@ public sealed partial class MainViewModel : ObservableObject
     async Task OpenSettingsAsync()
     {
         var edited = new SettingsViewModel(settings);
+        var mirror = settings.PreferredMirror;
         if (!await dialogs.ShowSettingsAsync(edited) || !edited.ApplyTo(settings))
             return;
         Save();
-        if (LauncherInfo.MirrorOf(LauncherInfo.RepositoryOf(Channel)) != null)
+        if (
+            settings.PreferredMirror != mirror
+            && LauncherInfo.MirrorOf(LauncherInfo.RepositoryOf(Channel)) != null
+        )
             await RefreshAsync();
     }
 
@@ -516,7 +520,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         try
         {
-            GameStarter.Start(Install!.Path, PatchPlatform);
+            GameStarter.Start(Install!.Path, PatchPlatform, settings.LaunchArguments);
         }
         catch (Exception e)
             when (e is LauncherException or System.ComponentModel.Win32Exception or IOException)

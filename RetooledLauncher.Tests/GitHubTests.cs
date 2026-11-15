@@ -572,6 +572,18 @@ public sealed class LauncherSettingsTests : IDisposable
     }
 
     [Fact]
+    public void TheLaunchArgumentsAreSaved()
+    {
+        new LauncherSettings { LaunchArguments = "-popupwindow -logFile \"my log.txt\"" }.Save(file);
+        Assert.Equal(
+            "-popupwindow -logFile \"my log.txt\"",
+            LauncherSettings.Load(file).LaunchArguments
+        );
+        File.WriteAllText(file, "{}");
+        Assert.Null(LauncherSettings.Load(file).LaunchArguments);
+    }
+
+    [Fact]
     public void ARepositoryFromBeforeChannelsIsStillOffered()
     {
         File.WriteAllText(file, """{ "repository": "o/r" }""");
@@ -698,5 +710,52 @@ public sealed class InstallLocatorTests
             )
         );
         Assert.Null(InstallLocator.ParseMinigalaxyInstallFolder("garbage"));
+    }
+}
+
+public sealed class GameStarterTests
+{
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  \t ")]
+    public void NoArgumentsSplitToNone(string? commandLine) =>
+        Assert.Empty(GameStarter.SplitArguments(commandLine));
+
+    [Fact]
+    public void ArgumentsAreSplitAtWhitespace() =>
+        Assert.Equal(
+            ["-popupwindow", "-screen-width", "1920"],
+            GameStarter.SplitArguments("  -popupwindow -screen-width\t1920 ")
+        );
+
+    [Fact]
+    public void QuotesKeepWhitespaceAndAreRemoved() =>
+        Assert.Equal(
+            ["-logFile", @"C:\my logs\ksp.log", "--name=Jeb Kerman", ""],
+            GameStarter.SplitArguments("""-logFile "C:\my logs\ksp.log" --name="Jeb Kerman" "" """)
+        );
+
+    [Theory]
+    [InlineData("windows")]
+    [InlineData("linux")]
+    public void ThePlayerIsGivenTheArguments(string platform)
+    {
+        var start = GameStarter.StartInfo("install", platform, "-a \"b c\"");
+        Assert.Equal(Path.Combine("install", KspInstall.Player(platform)), start.FileName);
+        Assert.Equal(["-a", "b c"], start.ArgumentList);
+        Assert.Equal("install", start.WorkingDirectory);
+        Assert.Empty(GameStarter.StartInfo("install", platform, null).ArgumentList);
+    }
+
+    [Fact]
+    public void OnMacosTheArgumentsFollowArgs()
+    {
+        string app = Path.Combine("install", "KSP.app");
+        Assert.Equal(
+            ["-a", app, "--args", "-a", "b c"],
+            GameStarter.StartInfo("install", "macos", "-a \"b c\"").ArgumentList
+        );
+        Assert.Equal(["-a", app], GameStarter.StartInfo("install", "macos", " ").ArgumentList);
     }
 }
