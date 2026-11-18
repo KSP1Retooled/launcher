@@ -15,29 +15,36 @@ public enum InstallAction
 
 /// <summary>
 /// The releases of one repository, newest first by creation date, whatever their tags. Pre-releases are only offered
-/// when the user opts in, but the installed release is always listed so the install never shows a version the
-/// launcher pretends not to know.
+/// when the user opts in or the repository has no other releases, but the installed release is always listed so the
+/// install never shows a version the launcher pretends not to know.
 /// </summary>
 public sealed class ReleaseCatalog
 {
     public IReadOnlyList<Release> All { get; }
 
-    public ReleaseCatalog(IEnumerable<Release> releases) =>
+    /// <summary>True when every release is a pre-release, so they are offered without the opt-in.</summary>
+    public bool OnlyPrereleases { get; }
+
+    public ReleaseCatalog(IEnumerable<Release> releases)
+    {
         All = [.. releases.OrderByDescending(r => r.Created)];
+        OnlyPrereleases = All.Count > 0 && All.All(r => r.Prerelease);
+    }
 
     public static ReleaseCatalog Empty { get; } = new([]);
 
     public Release? Find(string? tag) => tag == null ? null : All.FirstOrDefault(r => r.Tag == tag);
 
-    /// <summary>The releases to show: stable ones, pre-releases when opted in, and the installed one regardless.</summary>
+    /// <summary>
+    /// The releases to show: stable ones, pre-releases when opted in or there is nothing else, and the installed one
+    /// regardless.
+    /// </summary>
     public IReadOnlyList<Release> Visible(bool includePrereleases, string? installedTag = null) =>
-        [.. All.Where(r => includePrereleases || !r.Prerelease || r.Tag == installedTag)];
+        [.. All.Where(r => Offers(r, includePrereleases) || r.Tag == installedTag)];
 
-    /// <summary>The newest release with a patch for <paramref name="platform"/>, honouring the pre-release opt-in.</summary>
+    /// <summary>The newest offered release with a patch for <paramref name="platform"/>.</summary>
     public Release? Latest(string platform, bool includePrereleases) =>
-        All.FirstOrDefault(r =>
-            (includePrereleases || !r.Prerelease) && r.PatchFor(platform) != null
-        );
+        All.FirstOrDefault(r => Offers(r, includePrereleases) && r.PatchFor(platform) != null);
 
     /// <summary>The newest offered release that is newer than the installed one, or null if it is current.</summary>
     public Release? UpgradeFor(string? installedTag, string platform, bool includePrereleases)
@@ -91,6 +98,9 @@ public sealed class ReleaseCatalog
             return a.CompareTo(b);
         return 0;
     }
+
+    bool Offers(Release release, bool includePrereleases) =>
+        includePrereleases || OnlyPrereleases || !release.Prerelease;
 
     int IndexOf(string tag)
     {

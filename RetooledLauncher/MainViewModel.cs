@@ -89,6 +89,18 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IncludePrereleases { get; set; }
 
+    /// <summary>
+    /// What the pre-release box shows: ticked, without changing the saved choice, while the channel has nothing but
+    /// pre-releases and so offers them anyway.
+    /// </summary>
+    public bool ShowsPrereleases
+    {
+        get => IncludePrereleases || catalog.OnlyPrereleases;
+        set => IncludePrereleases = value;
+    }
+
+    public bool CanChoosePrereleases => !catalog.OnlyPrereleases;
+
     [ObservableProperty]
     public partial string Channel { get; set; }
 
@@ -667,6 +679,8 @@ public sealed partial class MainViewModel : ObservableObject
             ?? Releases.FirstOrDefault(r => r.IsInstalled)
             ?? Releases.FirstOrDefault(r => r.HasBuild);
         OnPropertyChanged(nameof(HasReleases));
+        OnPropertyChanged(nameof(ShowsPrereleases));
+        OnPropertyChanged(nameof(CanChoosePrereleases));
         Changed();
     }
 
