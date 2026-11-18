@@ -17,10 +17,15 @@ public interface IReleaseSource
 /// A token (e.g. <c>GITHUB_TOKEN</c>) is only needed for a private repository or to lift the anonymous rate limit.
 /// </summary>
 /// <param name="channel">A repository, with <see cref="LauncherInfo.DebugSuffix"/> for its debug patches.</param>
-public sealed class GitHubReleaseSource(HttpClient http, string channel, string? token = null)
-    : IReleaseSource
+public sealed class GitHubReleaseSource(
+    HttpClient http,
+    string channel,
+    string? token = null,
+    GitHubMetadataCache? cache = null
+) : IReleaseSource
 {
     const int MaxPages = 10;
+    readonly GitHubMetadataCache metadata = cache ?? GitHubMetadataCache.For(http);
 
     public string Repository { get; } = LauncherInfo.RepositoryOf(channel);
 
@@ -30,28 +35,104 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
     {
         if (!IsValidRepository(Repository))
             throw new LauncherException($"'{Repository}' is not a GitHub repository (owner/name)");
-        var releases = new List<Release>();
-        string? url = $"https://api.github.com/repos/{Repository}/releases?per_page=100";
-        for (int page = 0; url != null && page < MaxPages; page++)
+        var scope = metadata.ForToken(token);
+        await scope.Gate.WaitAsync(cancellation).ConfigureAwait(false);
+        try
         {
-            using var request = Request(HttpMethod.Get, url, "application/vnd.github+json");
-            using var response = await http.SendAsync(request, cancellation).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-                throw new LauncherException(Describe(response, Repository));
-            await using var body = await response
-                .Content.ReadAsStreamAsync(cancellation)
-                .ConfigureAwait(false);
-            var items =
-                await JsonSerializer
-                    .DeserializeAsync(body, GitHubJson.Default.ListGitHubRelease, cancellation)
-                    .ConfigureAwait(false)
-                ?? [];
-            releases.AddRange(
-                items.Where(r => !r.Draft).Select(r => Convert(r) with { Channel = channel })
-            );
-            url = NextPage(response);
+            if (!scope.Repositories.TryGetValue(Repository, out var stored))
+                scope.Repositories[Repository] = stored = metadata.Load(
+                    Repository, string.IsNullOrEmpty(token)
+                );
+            var now = metadata.Clock.GetUtcNow();
+            if (
+                stored.Pages.Count > 0
+                && now >= stored.CheckedAt
+                && now - stored.CheckedAt < metadata.Freshness
+            )
+                return Releases(stored);
+            if (now < scope.RetryAt)
+                throw new LauncherException($"GitHub's rate limit was reached; try again after {scope.RetryAt:u}");
+
+            var updated = new Metadata();
+            string? url = $"https://api.github.com/repos/{Repository}/releases?per_page=100";
+            for (int page = 0; url != null && page < MaxPages; page++)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                // Never forward credentials to another host through a pagination link.
+                if (
+                    !Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                    || uri.Scheme != "https"
+                    || uri.Host != "api.github.com"
+                )
+                    throw new LauncherException("GitHub returned an invalid pagination URL");
+                stored.Pages.TryGetValue(url, out var previous);
+                using var request = Request(HttpMethod.Get, url, "application/vnd.github+json");
+                if (previous?.ETag is string etag)
+                    request.Headers.TryAddWithoutValidation("If-None-Match", etag);
+                using var response = await http.SendAsync(
+                    request, HttpCompletionOption.ResponseHeadersRead, cancellation
+                ).ConfigureAwait(false);
+                ObserveRateLimit(scope, response);
+                MetadataPage current;
+                if (response.StatusCode == System.Net.HttpStatusCode.NotModified && previous != null)
+                    current = previous;
+                else
+                {
+                    if (!response.IsSuccessStatusCode)
+                        throw new LauncherException(Describe(response, Repository));
+                    await using var body = await response.Content
+                        .ReadAsStreamAsync(cancellation).ConfigureAwait(false);
+                    current = new MetadataPage
+                    {
+                        ETag = response.Headers.ETag?.ToString(),
+                        Next = NextPage(response),
+                        Items = await JsonSerializer.DeserializeAsync(
+                            body, GitHubJson.Default.ListGitHubRelease, cancellation
+                        ).ConfigureAwait(false) ?? [],
+                    };
+                }
+                updated.Pages[url] = current;
+                url = current.Next;
+                if (url != null && metadata.Clock.GetUtcNow() < scope.RetryAt)
+                    throw new LauncherException($"GitHub's rate limit was reached; try again after {scope.RetryAt:u}");
+            }
+            updated.CheckedAt = metadata.Clock.GetUtcNow();
+            scope.Repositories[Repository] = updated;
+            metadata.Save(Repository, string.IsNullOrEmpty(token), updated);
+            return Releases(updated);
         }
-        return releases;
+        finally
+        {
+            scope.Gate.Release();
+        }
+    }
+
+    IReadOnlyList<Release> Releases(Metadata stored) =>
+        stored.Pages.Values
+            .SelectMany(p => p.Items)
+            .Where(r => !r.Draft)
+            .Select(r => Convert(r) with { Channel = channel })
+            .ToArray();
+
+    void ObserveRateLimit(GitHubMetadataCache.Scope scope, HttpResponseMessage response)
+    {
+        var now = metadata.Clock.GetUtcNow();
+        DateTimeOffset retry = default;
+        if (response.Headers.RetryAfter is { } after)
+            retry = after.Date ?? now + (after.Delta ?? TimeSpan.FromMinutes(1));
+        if (response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining)
+            && remaining.FirstOrDefault() == "0"
+            && response.Headers.TryGetValues("X-RateLimit-Reset", out var reset)
+            && long.TryParse(reset.FirstOrDefault(), out long seconds)
+            && seconds >= 0 && seconds <= 253402300799)
+        {
+            var at = DateTimeOffset.FromUnixTimeSeconds(seconds);
+            if (at > retry) retry = at;
+        }
+        if ((int)response.StatusCode is 403 or 429 && retry <= now)
+            retry = now + TimeSpan.FromMinutes(1);
+        if (retry > scope.RetryAt)
+            scope.RetryAt = retry;
     }
 
     /// <summary>A request for <paramref name="url"/> carrying the headers GitHub wants and the token if any.</summary>
@@ -202,4 +283,5 @@ sealed class GitHubAsset
 }
 
 [JsonSerializable(typeof(List<GitHubRelease>))]
+[JsonSerializable(typeof(Metadata))]
 sealed partial class GitHubJson : JsonSerializerContext;
