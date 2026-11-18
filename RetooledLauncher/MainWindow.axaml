@@ -177,7 +177,8 @@
         <CheckBox
           Grid.Column="2"
           Content="Show pre-releases"
-          IsChecked="{Binding IncludePrereleases}"
+          IsChecked="{Binding ShowsPrereleases}"
+          IsEnabled="{Binding CanChoosePrereleases}"
         />
         <Button Grid.Column="3" Content="Refresh" Command="{Binding RefreshCommand}" />
       </Grid>

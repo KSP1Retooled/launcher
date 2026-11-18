@@ -236,6 +236,27 @@ public sealed class ReleaseCatalogTests
     }
 
     [Fact]
+    public void OffersPrereleasesWhenThereIsNothingElse()
+    {
+        var catalog = new ReleaseCatalog([
+            Make("v1.0.0-beta.1", prerelease: true),
+            Make("v1.0.0-beta.2", prerelease: true, day: 1),
+        ]);
+        Assert.True(catalog.OnlyPrereleases);
+        Assert.Equal(
+            ["v1.0.0-beta.2", "v1.0.0-beta.1"],
+            catalog.Visible(includePrereleases: false).Select(r => r.Tag)
+        );
+        Assert.Equal("v1.0.0-beta.2", catalog.Latest("windows", includePrereleases: false)?.Tag);
+        Assert.Equal(
+            "v1.0.0-beta.2",
+            catalog.UpgradeFor("v1.0.0-beta.1", "windows", includePrereleases: false)?.Tag
+        );
+        Assert.False(Catalog().OnlyPrereleases);
+        Assert.False(ReleaseCatalog.Empty.OnlyPrereleases);
+    }
+
+    [Fact]
     public void APrereleaseUserIsOfferedTheStableReleaseThatSupersedesIt()
     {
         var catalog = new ReleaseCatalog([
