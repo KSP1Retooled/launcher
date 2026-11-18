@@ -26,10 +26,11 @@ public sealed class MirroredReleaseSource(
         string channel,
         string? token = null,
         ReleaseMirror preferred = ReleaseMirror.GitHub,
-        Action<string>? log = null
+        Action<string>? log = null,
+        GitHubMetadataCache? cache = null
     )
     {
-        var github = new GitHubReleaseSource(http, channel, token);
+        var github = new GitHubReleaseSource(http, channel, token, cache);
         return LauncherInfo.MirrorOf(github.Repository) is string repository
             ? new MirroredReleaseSource(
                 github,

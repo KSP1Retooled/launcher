@@ -59,6 +59,8 @@ public sealed partial class MainViewModel : ObservableObject
     };
     readonly string? token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
     readonly StringBuilder log = new();
+    readonly GitHubMetadataCache metadata = new(Path.Combine(LauncherInfo.DataDirectory, "metadata"));
+    CancellationTokenSource? releaseRefresh;
     ReleaseCatalog catalog = ReleaseCatalog.Empty;
     CancellationTokenSource? cancel;
 
@@ -259,7 +261,8 @@ public sealed partial class MainViewModel : ObservableObject
             var releases = await new GitHubReleaseSource(
                 http,
                 LauncherInfo.Repository,
-                token
+                token,
+                metadata
             ).GetReleasesAsync(timeout.Token);
             LauncherUpdate = new ReleaseCatalog(releases).NewerThan(LauncherInfo.Version);
         }
@@ -382,15 +385,23 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(Idle))]
     async Task RefreshAsync()
     {
+        var previous = releaseRefresh;
+        using var refresh = new CancellationTokenSource();
+        releaseRefresh = refresh;
+        previous?.Cancel();
         string channel = Channel;
         ReleaseError = "";
         var found = ReleaseCatalog.Empty;
         string error = "";
         try
         {
-            found = new ReleaseCatalog(await Source().GetReleasesAsync());
+            found = new ReleaseCatalog(await Source().GetReleasesAsync(refresh.Token));
             if (found.All.Count == 0)
                 error = $"{channel} has no releases yet.";
+        }
+        catch (OperationCanceledException) when (refresh.IsCancellationRequested)
+        {
+            return;
         }
         catch (Exception e)
             when (e
@@ -402,7 +413,12 @@ public sealed partial class MainViewModel : ObservableObject
         {
             error = $"Could not list releases: {e.Message}";
         }
-        if (channel != Channel)
+        finally
+        {
+            if (ReferenceEquals(releaseRefresh, refresh))
+                releaseRefresh = null;
+        }
+        if (channel != Channel || refresh.IsCancellationRequested)
             return; // the user has moved on, and the listing of the channel they chose is on its way
         catalog = found;
         ReleaseError = error;
@@ -651,7 +667,8 @@ public sealed partial class MainViewModel : ObservableObject
             Channel,
             token,
             settings.PreferredMirror,
-            line => Dispatcher.UIThread.Post(() => Append(line))
+            line => Dispatcher.UIThread.Post(() => Append(line)),
+            metadata
         );
 
     void Inspect()
