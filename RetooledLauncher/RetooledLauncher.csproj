@@ -12,6 +12,13 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Icons/icon.ico</ApplicationIcon>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!--
+      Trimming gives warnings for Markdown.Avalonia, but only for reflection that the launcher never reaches. The
+      reflection loads the SyntaxHigh plugin, which isn't in the Tight package. It also sorts out dependencies between
+      plugins, and we don't register any. Finally, it finds the calling assemblies so that it can resolve image paths,
+      and NoImages makes sure that no images are loaded.
+    -->
+    <PublishTrimmed>true</PublishTrimmed>
   </PropertyGroup>
 
   <ItemGroup>
