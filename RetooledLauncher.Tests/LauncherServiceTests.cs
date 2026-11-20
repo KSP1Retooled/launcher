@@ -394,6 +394,19 @@ public sealed class LauncherServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AnUpgradeReusesTheStockHashesOfTheLastInstall()
+    {
+        await Service().InstallAsync(Install, Get("v1.0.0"), catalog);
+        var log = new StringWriter();
+
+        await new LauncherService(patches, Platform, log).InstallAsync(Install, Get("v1.1.0"), catalog);
+
+        Assert.DoesNotContain("reused 0 hashes", log.ToString());
+        Assert.Contains("hashes from the last install", log.ToString());
+        AssertTree(Expected("v1.1.0"), Installed());
+    }
+
+    [Fact]
     public async Task UninstallRestoresTheStockInstall()
     {
         await Service().InstallAsync(Install, Get("v1.1.0"), catalog);

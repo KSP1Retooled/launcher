@@ -43,6 +43,10 @@ saves and settings alone. A path may be a file in stock and a directory in the b
 reverse, so an apply removes stock files before it adds any, and a revert does the opposite. Retooled saves do not load
 in stock KSP.
 
+The journal also records each original's hash, size and write time. A revert returns these for the files that it put
+back. The launcher passes them to the next apply when it updates, and that apply doesn't hash a file again while its
+size and write time still match. Files that stayed in the install the whole time are still hashed.
+
 The moves run in a transaction (with [TxFileManager](https://github.com/chinhdo/txFileManager), the library CKAN uses),
 so an in-place apply that fails partway puts every file back and removes `.retooled`, leaving the install unpatched with
 nothing to revert. The journal covers what a transaction can't: if the process dies, or undoing the apply fails too, it

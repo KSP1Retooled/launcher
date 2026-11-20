@@ -15,6 +15,11 @@ public sealed class ApplyOptions
     public TextWriter Log { get; init; } = TextWriter.Null;
     public IProgress<PatchProgress>? Progress { get; init; }
     public CancellationToken Cancellation { get; init; }
+    /// <summary>
+    /// Hashes of stock files from an earlier apply, by path, usually what <see cref="PatchReverter.Revert"/> returned.
+    /// A file whose size and write time still match is not read again.
+    /// </summary>
+    public IReadOnlyDictionary<string, StockFile>? KnownFiles { get; init; }
     /// <summary>Called with the destination of each move into or out of the install; lets the tests stop a commit half way.</summary>
     internal Action<string>? BeforeMove { get; init; }
 }
@@ -31,7 +36,21 @@ public sealed class InstallCheck
     public bool CanApply => !AlreadyPatched && Problems.Count == 0;
 
     internal Recipe?[] Chosen = [];
-    internal Dictionary<string, string?> Hashes = [];
+    /// <summary>The install's copy of each hashed source path, or null where it is missing or no source's size.</summary>
+    internal Dictionary<string, StockFile?> Hashes = [];
+}
+
+/// <summary>A stock file's hash with the size and write time it had when it was hashed.</summary>
+public sealed record StockFile(long Size, DateTime Written, string Sha256)
+{
+    /// <summary>Reads the size and write time before hashing, so a write during the hash leaves a stale time, not a stale hash.</summary>
+    public static StockFile Hash(string path)
+    {
+        var info = new FileInfo(path);
+        return new StockFile(info.Length, info.LastWriteTimeUtc, PatchApplier.Sha256Hex(path));
+    }
+
+    public bool Matches(FileInfo info) => info.Length == Size && info.LastWriteTimeUtc == Written;
 }
 
 /// <summary>
@@ -66,7 +85,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
         var outputs = Enumerable.Range(0, manifest.Outputs.Count).Where(i => applicable[manifest.Outputs[i].Component]).ToList();
         var changed = outputs.Where(i => !IsUnchanged(manifest.Outputs[i]));
         var hashes = HashInputs(changed.SelectMany(i => manifest.Outputs[i].Recipes.SelectMany(r => r.Inputs())), options);
-        bool Matches(int source) => hashes[manifest.Sources[source].Path] == manifest.Sources[source].Sha256;
+        bool Matches(int source) => hashes[manifest.Sources[source].Path]?.Sha256 == manifest.Sources[source].Sha256;
 
         var chosen = new Recipe?[manifest.Outputs.Count];
         var problems = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -100,30 +119,41 @@ public sealed class PatchApplier(PatchFile patch, string install)
     bool IsUnchanged(OutputFile output) =>
         output.Recipes is [{ Same: int same }] && manifest.Sources[same].Path == output.Path;
 
-    /// <summary>Hashes the install's copy of every listed source path, skipping files whose size matches no source there.</summary>
-    Dictionary<string, string?> HashInputs(IEnumerable<int> sources, ApplyOptions options)
+    /// <summary>
+    /// Hashes the install's copy of every listed source path, skipping files whose size matches no source there and
+    /// reusing <see cref="ApplyOptions.KnownFiles"/> where the size and write time still match.
+    /// </summary>
+    Dictionary<string, StockFile?> HashInputs(IEnumerable<int> sources, ApplyOptions options)
     {
         var sizes = sources.Distinct().Select(s => manifest.Sources[s])
             .GroupBy(s => s.Path, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Select(s => s.Size).ToHashSet(), StringComparer.Ordinal);
-        var hashes = new ConcurrentDictionary<string, string?>(StringComparer.Ordinal);
+        var hashes = new ConcurrentDictionary<string, StockFile?>(StringComparer.Ordinal);
         var work = new List<(string Path, long Size)>();
+        int reused = 0;
         foreach (var (path, candidates) in sizes)
         {
             var info = new FileInfo(Path.Combine(install, path));
-            if (info.Exists && candidates.Contains(info.Length)) work.Add((path, info.Length));
-            else hashes[path] = null;
+            if (!info.Exists || !candidates.Contains(info.Length))
+                hashes[path] = null;
+            else if (options.KnownFiles?.GetValueOrDefault(path) is { } known && known.Matches(info))
+            {
+                hashes[path] = known;
+                reused++;
+            }
+            else
+                work.Add((path, info.Length));
         }
 
         long total = work.Sum(w => w.Size), done = 0;
         Parallel.ForEach(work.OrderByDescending(w => w.Size),
             new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = options.Cancellation }, w =>
             {
-                hashes[w.Path] = Sha256Hex(Path.Combine(install, w.Path));
+                hashes[w.Path] = StockFile.Hash(Path.Combine(install, w.Path));
                 options.Progress?.Report(new PatchProgress("verify", Interlocked.Add(ref done, w.Size), total));
             });
-        options.Log.WriteLine($"hashed {work.Count} stock files ({total / 1048576.0:F0} MB)");
-        return new Dictionary<string, string?>(hashes, StringComparer.Ordinal);
+        options.Log.WriteLine($"hashed {work.Count} stock files ({total / 1048576.0:F0} MB), reused {reused} hashes from the last install");
+        return new Dictionary<string, StockFile?>(hashes, StringComparer.Ordinal);
     }
 
     public InstallCheck Apply(ApplyOptions options)
