@@ -100,17 +100,18 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
         await BackUpSavesAsync(info, progress, cancellation).ConfigureAwait(false);
 
         InstalledRelease? previous = null;
+        Dictionary<string, StockFile>? known = null;
         if (info.Status == InstallStatus.Retooled)
         {
             previous = await RollbackTargetAsync(info.Release, catalog, progress, cancellation)
                 .ConfigureAwait(false);
             log.WriteLine($"removing {info.Release?.Tag ?? "the installed version"}");
-            await RevertAsync(install, progress).ConfigureAwait(false);
+            known = await RevertAsync(install, progress).ConfigureAwait(false);
         }
 
         try
         {
-            await ApplyAsync(install, patch, target, progress, cancellation).ConfigureAwait(false);
+            await ApplyAsync(install, patch, target, progress, cancellation, known).ConfigureAwait(false);
         }
         catch (Exception failure)
             when (failure
@@ -123,7 +124,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
         {
             log.WriteLine($"installing {target.Tag} failed: {failure.Message}");
             if (InstallJournal.Exists(install))
-                await RevertAsync(install, progress).ConfigureAwait(false);
+                known = await RevertAsync(install, progress).ConfigureAwait(false);
             if (previous != null)
             {
                 log.WriteLine($"putting {previous.Tag} back");
@@ -133,7 +134,8 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
                         Open(previous.Patch!, previous.Tag),
                         previous,
                         progress,
-                        CancellationToken.None
+                        CancellationToken.None,
+                        known
                     )
                     .ConfigureAwait(false);
                 throw new LauncherException(
@@ -272,7 +274,8 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
         PatchFile patch,
         InstalledRelease release,
         IProgress<LauncherProgress>? progress,
-        CancellationToken cancellation
+        CancellationToken cancellation,
+        IReadOnlyDictionary<string, StockFile>? known = null
     ) =>
         Task.Run(
             () =>
@@ -283,6 +286,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
                         Log = log,
                         Progress = Forward(progress, release.Tag),
                         Cancellation = cancellation,
+                        KnownFiles = known,
                     }
                 );
                 release.Installed = DateTime.UtcNow;
@@ -291,7 +295,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
             CancellationToken.None
         );
 
-    Task RevertAsync(string install, IProgress<LauncherProgress>? progress) =>
+    Task<Dictionary<string, StockFile>> RevertAsync(string install, IProgress<LauncherProgress>? progress) =>
         Task.Run(() => PatchReverter.Revert(install, log, Forward(progress, null)));
 
     PatchFile Open(string path, string tag)

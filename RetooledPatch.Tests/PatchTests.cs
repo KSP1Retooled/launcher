@@ -507,6 +507,52 @@ public sealed class PatchRoundTripTests : IDisposable
     }
 
     [Fact]
+    public void AnApplyReusesTheHashesARevertReturns()
+    {
+        Applier(Gog).Apply(new ApplyOptions());
+        var patched = Tree(Gog);
+        var known = PatchReverter.Revert(Gog);
+        Assert.Equal(PatchApplier.Sha256Hex(Path.Combine(Gog, "KSP_x64_Data/level0")), known["KSP_x64_Data/level0"].Sha256);
+
+        var log = new StringWriter();
+        Applier(Gog).Apply(new ApplyOptions { KnownFiles = known, Log = log });
+        var reused = System.Text.RegularExpressions.Regex.Match(log.ToString(), @"reused (\d+) hashes");
+        Assert.True(int.Parse(reused.Groups[1].Value) > 0, log.ToString());
+        var again = Tree(Gog);
+        // the journal records when it was applied
+        patched.Remove(InstallJournal.FileName);
+        again.Remove(InstallJournal.FileName);
+        Assert.Equal(patched.OrderBy(p => p.Key), again.OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void AKnownHashIsUsedOnlyWhileTheFileIsUnchanged()
+    {
+        const string level0 = "KSP_x64_Data/level0";
+        Applier(Gog).Apply(new ApplyOptions());
+        var known = PatchReverter.Revert(Gog);
+
+        // a wrong recorded hash shows the file was not read again
+        var wrong = new Dictionary<string, StockFile>(known) { [level0] = known[level0] with { Sha256 = new string('0', 64) } };
+        Assert.Contains("modified " + level0, Applier(Gog).Check(new ApplyOptions { KnownFiles = wrong }).Problems);
+
+        File.SetLastWriteTimeUtc(Path.Combine(Gog, level0), DateTime.UtcNow.AddMinutes(1));
+        Assert.True(Applier(Gog).Check(new ApplyOptions { KnownFiles = wrong }).CanApply);
+    }
+
+    [Fact]
+    public void AJournalWithoutTimestampsGivesNoKnownHashes()
+    {
+        Applier(Gog).Apply(new ApplyOptions());
+        var journal = InstallJournal.Load(Gog)!;
+        foreach (var file in journal.Files) (file.OriginalSize, file.OriginalWritten) = (null, null);
+        journal.Save(Gog);
+
+        Assert.Empty(PatchReverter.Revert(Gog));
+        Assert.Equal(gogTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Fact]
     public void RevertUndoesAnInterruptedApply()
     {
         Applier(Gog).Apply(new ApplyOptions());

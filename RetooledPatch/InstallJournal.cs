@@ -71,6 +71,10 @@ public sealed class JournalFile
     public JournalAction Action { get; set; }
     /// <summary>SHA-256 of the stock file (replaced and removed files).</summary>
     public string? Original { get; set; }
+    /// <summary>The stock file's size when <see cref="Original"/> was hashed; journals from older launchers lack it.</summary>
+    public long? OriginalSize { get; set; }
+    /// <summary>The stock file's write time (UTC) when <see cref="Original"/> was hashed.</summary>
+    public DateTime? OriginalWritten { get; set; }
     /// <summary>SHA-256 of the retooled file (replaced and added files).</summary>
     public string? Retooled { get; set; }
 }
@@ -80,7 +84,7 @@ public sealed class JournalFile
 /// transaction, so an exception puts every file back and leaves no journal. If that rollback fails too, or the process
 /// dies, the journal stays and <see cref="PatchReverter"/> finishes the job.
 /// </summary>
-sealed class InstallCommit(string install, InstallJournal journal, Dictionary<string, string?> hashes, TextWriter log, Action<string>? beforeMove)
+sealed class InstallCommit(string install, InstallJournal journal, Dictionary<string, StockFile?> hashes, TextWriter log, Action<string>? beforeMove)
 {
     /// <summary>
     /// The longest the runtime allows. A timeout rolls back on another thread while the moves carry on, so there can't be
@@ -137,22 +141,30 @@ sealed class InstallCommit(string install, InstallJournal journal, Dictionary<st
 
     void Plan(List<OutputFile> staged, IEnumerable<string> remove, List<string> directories)
     {
-        string StockHash(string path) => hashes.GetValueOrDefault(path) ?? PatchApplier.Sha256Hex(Full(path));
+        JournalFile Stock(string path, JournalAction action)
+        {
+            var stock = hashes.GetValueOrDefault(path) ?? StockFile.Hash(Full(path));
+            return new JournalFile
+            {
+                Path = path,
+                Action = action,
+                Original = stock.Sha256,
+                OriginalSize = stock.Size,
+                OriginalWritten = stock.Written,
+            };
+        }
 
         // removed files go first: a path can be a file in stock and a directory in the build (MainMenu.nib on macOS) or
         // the reverse, and the build's can only be made once stock's has left
         foreach (string path in remove.Distinct(StringComparer.Ordinal).Where(p => File.Exists(Full(p))))
-            journal.Files.Add(new JournalFile { Path = path, Action = JournalAction.Removed, Original = StockHash(path) });
+            journal.Files.Add(Stock(path, JournalAction.Removed));
         foreach (var output in staged)
         {
-            bool exists = File.Exists(Full(output.Path));
-            journal.Files.Add(new JournalFile
-            {
-                Path = output.Path,
-                Action = exists ? JournalAction.Replaced : JournalAction.Added,
-                Original = exists ? StockHash(output.Path) : null,
-                Retooled = output.Sha256,
-            });
+            var file = File.Exists(Full(output.Path))
+                ? Stock(output.Path, JournalAction.Replaced)
+                : new JournalFile { Path = output.Path, Action = JournalAction.Added };
+            file.Retooled = output.Sha256;
+            journal.Files.Add(file);
         }
 
         var created = new SortedSet<string>(StringComparer.Ordinal);
@@ -221,7 +233,11 @@ public static class PatchReverter
     /// <summary>Caches only Retooled writes (the texture cache), relative to the install.</summary>
     static readonly string[] RuntimeArtifacts = ["PluginData/TextureCache"];
 
-    public static void Revert(string install, TextWriter? log = null, IProgress<PatchProgress>? progress = null)
+    /// <summary>
+    /// Returns the restored stock files the journal has a hash and timestamp for, to pass to the next apply as
+    /// <see cref="ApplyOptions.KnownFiles"/>. A move keeps the write time, so they still match unless changed since.
+    /// </summary>
+    public static Dictionary<string, StockFile> Revert(string install, TextWriter? log = null, IProgress<PatchProgress>? progress = null)
     {
         install = Path.TrimEndingDirectorySeparator(Path.GetFullPath(install));
         log ??= TextWriter.Null;
@@ -233,6 +249,7 @@ public static class PatchReverter
 
         string Full(string path) => Path.Combine(install, path);
         var problems = new List<string>();
+        var known = new Dictionary<string, StockFile>(StringComparer.Ordinal);
         int restored = 0, deleted = 0, done = 0;
         for (int i = journal.Files.Count - 1; i >= 0; i--)
         {
@@ -252,6 +269,8 @@ public static class PatchReverter
                 if (journal.CreatedDirectories.Contains(file.Path) && Directory.Exists(path)) Directory.Delete(path, recursive: true);
                 InstallCommit.MoveFile(backup, path);
                 restored++;
+                if (file is { Original: { } hash, OriginalSize: { } size, OriginalWritten: { } written })
+                    known[file.Path] = new StockFile(size, written, hash);
             }
             else if (!interrupted) problems.Add($"missing backup {InstallJournal.OriginalDirectory}/{file.Path}");
             progress?.Report(new PatchProgress("revert", ++done, journal.Files.Count));
@@ -274,5 +293,6 @@ public static class PatchReverter
                 + string.Join("\n  ", problems));
         Directory.Delete(Full(InstallJournal.Directory), recursive: true);
         log.WriteLine($"reverted {install}: restored {restored} stock files, deleted {deleted} retooled files");
+        return known;
     }
 }
