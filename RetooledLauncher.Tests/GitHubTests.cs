@@ -89,6 +89,7 @@ public sealed class GitHubReleaseSourceTests
     [Theory]
     [InlineData(LauncherInfo.DefaultRepository, true)]
     [InlineData(LauncherInfo.DebugChannel, true)]
+    [InlineData(LauncherInfo.ExperimentalChannel, true)]
     [InlineData("o/r#debug", false)]
     [InlineData("o/r", false)]
     public void OnlyTheBuiltInChannelsAreKeptOutOfTheSavedList(string channel, bool builtIn) =>
@@ -384,6 +385,25 @@ public sealed class PatchCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task ANewBuildOfAReleaseDoesNotOverwriteTheOldOne()
+    {
+        byte[] first = Encoding.UTF8.GetBytes("first build");
+        byte[] second = Encoding.UTF8.GetBytes("second build");
+        var http = new FakeHttp();
+        var client = new HttpClient(http);
+        var cache = new PatchCache(client, new GitHubReleaseSource(client, "o/r"), root);
+
+        http.Bytes("https://dl/pr-1", first);
+        string old = await cache.GetPatchAsync(WithPatch("pr-1", first, digest: true), "linux", null, default);
+        http.Bytes("https://dl/pr-1", second);
+        string rebuilt = await cache.GetPatchAsync(WithPatch("pr-1", second, digest: true), "linux", null, default);
+
+        Assert.NotEqual(old, rebuilt);
+        Assert.Equal(first, File.ReadAllBytes(old));
+        Assert.Equal(second, File.ReadAllBytes(rebuilt));
+    }
+
+    [Fact]
     public async Task UsesTheApiEndpointWhenATokenIsSet()
     {
         byte[] bytes = [1, 2, 3];
@@ -554,7 +574,7 @@ public sealed class LauncherSettingsTests : IDisposable
     [Fact]
     public void OffersTheDefaultChannelFirstAndOnlyOnce() =>
         Assert.Equal(
-            [LauncherInfo.DefaultRepository, LauncherInfo.DebugChannel, "a/b"],
+            [LauncherInfo.DefaultRepository, LauncherInfo.DebugChannel, LauncherInfo.ExperimentalChannel, "a/b"],
             new LauncherSettings
             {
                 Channels = ["a/b", "A/B", LauncherInfo.DefaultRepository],
@@ -588,7 +608,7 @@ public sealed class LauncherSettingsTests : IDisposable
     {
         File.WriteAllText(file, """{ "repository": "o/r" }""");
         Assert.Equal(
-            [LauncherInfo.DefaultRepository, LauncherInfo.DebugChannel, "o/r"],
+            [LauncherInfo.DefaultRepository, LauncherInfo.DebugChannel, LauncherInfo.ExperimentalChannel, "o/r"],
             LauncherSettings.Load(file).AllChannels
         );
     }

@@ -16,8 +16,8 @@ public sealed class LauncherSettings
     public string? Repository { get; set; }
 
     /// <summary>
-    /// The channels the user added; <see cref="LauncherInfo.DefaultRepository"/> and
-    /// <see cref="LauncherInfo.DebugChannel"/> are always offered too.
+    /// The channels the user added; <see cref="LauncherInfo.DefaultRepository"/>, <see cref="LauncherInfo.DebugChannel"/>
+    /// and <see cref="LauncherInfo.ExperimentalChannel"/> are always offered too.
     /// </summary>
     public List<string> Channels { get; set; } = [];
 
@@ -34,7 +34,7 @@ public sealed class LauncherSettings
     [JsonIgnore]
     public IReadOnlyList<string> AllChannels =>
         [
-            .. new[] { LauncherInfo.DefaultRepository, LauncherInfo.DebugChannel }
+            .. new[] { LauncherInfo.DefaultRepository, LauncherInfo.DebugChannel, LauncherInfo.ExperimentalChannel }
                 .Concat(Channels)
                 .Concat(Repository is string selected ? [selected] : [])
                 .Distinct(StringComparer.OrdinalIgnoreCase),

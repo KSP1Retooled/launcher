@@ -61,6 +61,12 @@ public sealed class InstalledRelease
     /// <summary>The cached patch it was applied from, to roll back to; null if installed by an older launcher.</summary>
     public string? Patch { get; set; }
 
+    /// <summary>
+    /// The published SHA-256 of the patch, which tells this build from a later one attached to the same release; null
+    /// if the release published none, the patch is a local file or an older launcher installed it.
+    /// </summary>
+    public string? Sha256 { get; set; }
+
     public bool IsFrom(string channel) =>
         string.Equals(Channel, channel, StringComparison.OrdinalIgnoreCase);
 }
