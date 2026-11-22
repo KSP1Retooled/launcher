@@ -11,19 +11,18 @@ static partial class GameSettingsFile
     private static partial Regex LanguageLine();
 
     /// <summary>
-    /// Sets LANGUAGE in <paramref name="install"/>'s settings.cfg; false, changing nothing, if the game hasn't written
-    /// one yet.
+    /// Returns the contents of settings.cfg with LANGUAGE updated, or null if the file is missing from
+    /// <paramref name="install"/>. The caller must replace settings.cfg with a new file to protect any other
+    /// install that shares the original file.
     /// </summary>
-    public static bool SetLanguage(string install, string language)
+    public static string? WithLanguage(string install, string language)
     {
         string path = Path.Combine(install, FileName);
-        if (!File.Exists(path)) return false;
+        if (!File.Exists(path)) return null;
         string text = File.ReadAllText(path);
         // stock writes LANGUAGE = en-us whatever the install's language, and never reads it
-        text = LanguageLine().IsMatch(text)
+        return LanguageLine().IsMatch(text)
             ? LanguageLine().Replace(text, m => m.Groups[1].Value + " " + language, 1)
             : "LANGUAGE = " + language + Environment.NewLine + text;
-        File.WriteAllText(path, text);
-        return true;
     }
 }

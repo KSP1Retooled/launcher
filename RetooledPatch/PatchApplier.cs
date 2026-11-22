@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;
 
@@ -10,7 +9,10 @@ public readonly record struct PatchProgress(string Stage, long Done, long Total)
 
 public sealed class ApplyOptions
 {
-    /// <summary>Write the retooled install here (unchanged files hard-linked) and leave the stock install alone; null patches in place.</summary>
+    /// <summary>
+    /// Destination for a separate patched install. The patcher hard-links unchanged files where possible
+    /// and copies them otherwise. A null destination patches the stock install in place.
+    /// </summary>
     public string? OutputDirectory { get; init; }
     public TextWriter Log { get; init; } = TextWriter.Null;
     public IProgress<PatchProgress>? Progress { get; init; }
@@ -193,14 +195,14 @@ public sealed class PatchApplier(PatchFile patch, string install)
     void CopyFromInstall(string path, string root)
     {
         string from = Path.Combine(install, path);
-        if (File.Exists(from)) LinkOrCopy(from, Destination(root, path));
+        if (File.Exists(from)) FileClone.LinkOrCopy(from, Destination(root, path));
         if (!Directory.Exists(from)) return;
 
         Directory.CreateDirectory(Path.Combine(root, path));
         foreach (string sub in Directory.EnumerateDirectories(from, "*", SearchOption.AllDirectories))
             Directory.CreateDirectory(Path.Combine(root, Path.GetRelativePath(install, sub)));
         foreach (string file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
-            LinkOrCopy(file, Path.Combine(root, Path.GetRelativePath(install, file)));
+            FileClone.LinkOrCopy(file, Path.Combine(root, Path.GetRelativePath(install, file)));
     }
 
     /// <summary>Writes every chosen output under <paramref name="root"/>; returns the staged outputs (in-place skips unchanged same-path files).</summary>
@@ -232,7 +234,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
                     {
                         string destination = Destination(root, output.Path);
                         if (inPlace) File.Copy(Path.Combine(install, source), destination);
-                        else LinkOrCopy(Path.Combine(install, source), destination);
+                        else FileClone.LinkOrCopy(Path.Combine(install, source), destination);
                         if (inPlace) staged.Add(output);
                     }
                     linked++;
@@ -325,23 +327,6 @@ public sealed class PatchApplier(PatchFile patch, string install)
             length -= n;
         }
     }
-
-    static void LinkOrCopy(string source, string destination)
-    {
-        try
-        {
-            if (OperatingSystem.IsWindows() ? CreateHardLink(destination, source, IntPtr.Zero) : link(source, destination) == 0) return;
-        }
-        catch (EntryPointNotFoundException) { }
-        catch (DllNotFoundException) { }
-        File.Copy(source, destination);
-    }
-
-    [DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]
-    static extern bool CreateHardLink(string fileName, string existingFileName, IntPtr securityAttributes);
-
-    [DllImport("libc", SetLastError = true)]
-    static extern int link(string existing, string link);
 
     static void MarkExecutable(string path)
     {
