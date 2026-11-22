@@ -199,21 +199,28 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>What is installed, as the selected channel's <see cref="catalog"/> wants it.</summary>
     string? InstalledTag => Install?.InstalledTagIn(Channel);
 
+    string? InstalledSha256 => Install?.Release?.Sha256;
+
+    Release? Upgrade =>
+        catalog.UpgradeFor(InstalledTag, PatchPlatform, IncludePrereleases, InstalledSha256);
+
     public string? UpdateNotice =>
-        Install?.Status == InstallStatus.Retooled
-        && catalog.UpgradeFor(InstalledTag, PatchPlatform, IncludePrereleases) is Release r
-            ? $"{r.Tag} is available."
+        Install?.Status == InstallStatus.Retooled && Upgrade is Release r
+            ? r.Tag == InstalledTag
+                ? $"{r.Tag} has a new build."
+                : $"{r.Tag} is available."
             : null;
 
     public string ActionLabel =>
         SelectedRelease == null
             ? "Install"
-            : catalog.ActionFor(SelectedRelease.Release, InstalledTag) switch
+            : catalog.ActionFor(SelectedRelease.Release, InstalledTag, InstalledSha256) switch
             {
                 InstallAction.Upgrade => $"Upgrade to {SelectedRelease.Release.Tag}",
                 InstallAction.Downgrade => $"Downgrade to {SelectedRelease.Release.Tag}",
                 InstallAction.Reinstall => $"Reinstall {SelectedRelease.Release.Tag}",
                 InstallAction.Replace => $"Switch to {SelectedRelease.Release.Tag}",
+                InstallAction.Update => $"Update {SelectedRelease.Release.Tag}",
                 _ => $"Install {SelectedRelease.Release.Tag}",
             };
 
@@ -395,7 +402,10 @@ public sealed partial class MainViewModel : ObservableObject
         string error = "";
         try
         {
-            found = new ReleaseCatalog(await Source().GetReleasesAsync(refresh.Token));
+            found = new ReleaseCatalog(
+                await Source().GetReleasesAsync(refresh.Token),
+                LauncherInfo.IsVersionedChannel(channel)
+            );
             if (found.All.Count == 0)
                 error = $"{channel} has no releases yet.";
         }
@@ -486,7 +496,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (SelectedRelease == null)
             return;
         var release = SelectedRelease.Release;
-        var action = catalog.ActionFor(release, InstalledTag);
+        var action = catalog.ActionFor(release, InstalledTag, InstalledSha256);
         if (
             release.Prerelease
             && !await dialogs.ConfirmAsync(
@@ -690,9 +700,7 @@ public sealed partial class MainViewModel : ObservableObject
         // keep the user's pick; otherwise offer the upgrade, else the installed release, else the newest
         SelectedRelease =
             Releases.FirstOrDefault(r => r.Release.Tag == previous)
-            ?? Releases.FirstOrDefault(r =>
-                r.Release == catalog.UpgradeFor(installed, PatchPlatform, IncludePrereleases)
-            )
+            ?? Releases.FirstOrDefault(r => r.Release == Upgrade)
             ?? Releases.FirstOrDefault(r => r.IsInstalled)
             ?? Releases.FirstOrDefault(r => r.HasBuild);
         OnPropertyChanged(nameof(HasReleases));

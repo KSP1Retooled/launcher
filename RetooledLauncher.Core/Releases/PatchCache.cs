@@ -28,9 +28,10 @@ public interface IPatchProvider
 }
 
 /// <summary>
-/// Downloads patch files into <c>&lt;cache&gt;/&lt;channel&gt;@&lt;tag&gt;/</c> and keeps them, so the installed release's
-/// patch is at hand to roll back to if an upgrade fails. A file is reused only when its size (and the published digest,
-/// if any) match. Each of the source's requests for a file is tried in turn until one is answered. Local patch files are copied into <c>&lt;cache&gt;/local@&lt;sha256&gt;/</c>: by content, because a rebuilt
+/// Downloads patch files into <c>&lt;cache&gt;/&lt;channel&gt;@&lt;tag&gt;@&lt;sha256 prefix&gt;/</c> and keeps them, so the
+/// installed release's patch is at hand to roll back to if an upgrade fails. The digest is part of the folder because a
+/// release's patches can be replaced in place, and the new build must not overwrite the installed one; it is left out when
+/// the release publishes none. A file is reused only when its size (and the published digest, if any) match. Each of the source's requests for a file is tried in turn until one is answered. Local patch files are copied into <c>&lt;cache&gt;/local@&lt;sha256&gt;/</c>: by content, because a rebuilt
 /// file of the same name must not overwrite the copy of the installed one.
 /// </summary>
 public sealed class PatchCache(HttpClient http, IReleaseSource source, string directory)
@@ -50,10 +51,8 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
             ?? throw new LauncherException(
                 $"{release.Tag} has no {platform} build ({release.PatchNameFor(platform)})"
             );
-        string path = Path.Combine(
-            EntryFor(release.Channel, release.Tag),
-            Path.GetFileName(asset.Name)
-        );
+        string build = asset.Sha256 is { Length: 64 } sha256 ? $"{release.Tag}@{sha256[..16]}" : release.Tag;
+        string path = Path.Combine(EntryFor(release.Channel, build), Path.GetFileName(asset.Name));
         if (
             File.Exists(path)
             && await IsIntactAsync(path, asset, cancellation).ConfigureAwait(false)

@@ -14,9 +14,20 @@ public static class LauncherInfo
     /// <summary>The default repository's releases with their debug patches; always offered.</summary>
     public const string DebugChannel = DefaultRepository + DebugSuffix;
 
+    /// <summary>
+    /// Builds of pull requests for players to try, one release per pull request (<c>pr-&lt;number&gt;</c>); always offered.
+    /// A release's patches are replaced in place when its pull request is built again.
+    /// </summary>
+    public const string ExperimentalChannel = "KSP1Retooled/experimental";
+
     public static bool IsBuiltInChannel(string channel) =>
         channel.Equals(DefaultRepository, StringComparison.OrdinalIgnoreCase)
-        || channel.Equals(DebugChannel, StringComparison.OrdinalIgnoreCase);
+        || channel.Equals(DebugChannel, StringComparison.OrdinalIgnoreCase)
+        || channel.Equals(ExperimentalChannel, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether the channel's releases are versions, each replacing the ones before it, rather than separate builds.</summary>
+    public static bool IsVersionedChannel(string channel) =>
+        !RepositoryOf(channel).Equals(ExperimentalChannel, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsDebugChannel(string channel) =>
         channel.EndsWith(DebugSuffix, StringComparison.OrdinalIgnoreCase);

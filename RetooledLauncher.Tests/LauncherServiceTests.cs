@@ -337,6 +337,17 @@ public sealed class LauncherServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RecordsTheDigestOfTheInstalledPatch()
+    {
+        var release = Get("v1.0.0");
+        release = release with { Assets = [.. release.Assets.Select(a => a with { Sha256 = "ab12" })] };
+
+        var info = await Service().InstallAsync(Install, release, catalog);
+
+        Assert.Equal("ab12", info.Release?.Sha256);
+    }
+
+    [Fact]
     public async Task LogsTheVersionBeingInstalled()
     {
         var log = new StringWriter();

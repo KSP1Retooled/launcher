@@ -307,6 +307,55 @@ public sealed class ReleaseCatalogTests
         Assert.Equal(["v1.0.1", "v1.1.0"], catalog.All.Select(r => r.Tag));
     }
 
+    static Release Built(string tag, string sha256, int day = 0)
+    {
+        var release = Make(tag, prerelease: true, day: day);
+        return release with { Assets = [.. release.Assets.Select(a => a with { Sha256 = sha256 })] };
+    }
+
+    [Fact]
+    public void SeparateBuildsAreNotVersionsOfEachOther()
+    {
+        var catalog = new ReleaseCatalog([Built("pr-1", "aa"), Built("pr-2", "bb", day: 1)], versioned: false);
+        Assert.Equal(InstallAction.Replace, catalog.ActionFor(catalog.Find("pr-2")!, "pr-1", "aa"));
+        Assert.Equal(InstallAction.Replace, catalog.ActionFor(catalog.Find("pr-1")!, "pr-2", "bb"));
+        Assert.Null(catalog.Latest("windows", includePrereleases: false));
+        Assert.Null(catalog.UpgradeFor("pr-1", "windows", includePrereleases: false, "aa"));
+        Assert.Null(catalog.UpgradeFor(null, "windows", includePrereleases: false));
+    }
+
+    [Fact]
+    public void ANewBuildOfTheInstalledReleaseIsAnUpdate()
+    {
+        var catalog = new ReleaseCatalog([Built("pr-1", "bb"), Built("pr-2", "cc", day: 1)], versioned: false);
+        var installed = catalog.Find("pr-1")!;
+        Assert.Equal(InstallAction.Update, catalog.ActionFor(installed, "pr-1", "aa"));
+        Assert.Same(installed, catalog.UpgradeFor("pr-1", "windows", includePrereleases: false, "aa"));
+        Assert.Equal(InstallAction.Reinstall, catalog.ActionFor(installed, "pr-1", "BB"));
+        Assert.Null(catalog.UpgradeFor("pr-1", "windows", includePrereleases: false, "bb"));
+        // installed by an older launcher, or from a release that published no digests
+        Assert.Equal(InstallAction.Reinstall, catalog.ActionFor(installed, "pr-1", installedSha256: null));
+        Assert.Equal(InstallAction.Reinstall, catalog.ActionFor(Make("pr-1"), "pr-1", "aa"));
+    }
+
+    [Fact]
+    public void ANewerVersionComesBeforeANewBuildOfTheInstalledOne()
+    {
+        var catalog = new ReleaseCatalog([Built("v1.0.0", "bb"), Built("v1.1.0", "cc", day: 1)]);
+        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.0.0", "windows", includePrereleases: true, "aa")?.Tag);
+        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.1.0", "windows", includePrereleases: true, "aa")?.Tag);
+        Assert.Null(catalog.UpgradeFor("v1.1.0", "windows", includePrereleases: true, "cc"));
+    }
+
+    [Fact]
+    public void OnlyTheExperimentalChannelHoldsSeparateBuilds()
+    {
+        Assert.False(LauncherInfo.IsVersionedChannel(LauncherInfo.ExperimentalChannel));
+        Assert.False(LauncherInfo.IsVersionedChannel(LauncherInfo.ExperimentalChannel + LauncherInfo.DebugSuffix));
+        Assert.True(LauncherInfo.IsVersionedChannel(LauncherInfo.DefaultRepository));
+        Assert.True(LauncherInfo.IsVersionedChannel("o/r"));
+    }
+
     [Fact]
     public void NonVersionTagsAreOrderedByCreationDate()
     {

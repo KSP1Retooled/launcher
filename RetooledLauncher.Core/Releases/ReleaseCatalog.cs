@@ -11,6 +11,9 @@ public enum InstallAction
 
     /// <summary>Retooled is installed but its version is unknown or not comparable.</summary>
     Replace,
+
+    /// <summary>The installed release's patches were replaced by a new build since it was installed.</summary>
+    Update,
 }
 
 /// <summary>
@@ -18,18 +21,18 @@ public enum InstallAction
 /// when the user opts in or the repository has no other releases, but the installed release is always listed so the
 /// install never shows a version the launcher pretends not to know.
 /// </summary>
-public sealed class ReleaseCatalog
+/// <param name="versioned">
+/// Whether each release replaces the ones before it. When false, as for <see cref="LauncherInfo.ExperimentalChannel"/>,
+/// the releases are separate builds: none is an upgrade of another, and only a new build of the installed one is offered.
+/// </param>
+public sealed class ReleaseCatalog(IEnumerable<Release> releases, bool versioned = true)
 {
-    public IReadOnlyList<Release> All { get; }
+    public IReadOnlyList<Release> All { get; } = [.. releases.OrderByDescending(r => r.Created)];
+
+    public bool Versioned { get; } = versioned;
 
     /// <summary>True when every release is a pre-release, so they are offered without the opt-in.</summary>
-    public bool OnlyPrereleases { get; }
-
-    public ReleaseCatalog(IEnumerable<Release> releases)
-    {
-        All = [.. releases.OrderByDescending(r => r.Created)];
-        OnlyPrereleases = All.Count > 0 && All.All(r => r.Prerelease);
-    }
+    public bool OnlyPrereleases => All.Count > 0 && All.All(r => r.Prerelease);
 
     public static ReleaseCatalog Empty { get; } = new([]);
 
@@ -42,17 +45,33 @@ public sealed class ReleaseCatalog
     public IReadOnlyList<Release> Visible(bool includePrereleases, string? installedTag = null) =>
         [.. All.Where(r => Offers(r, includePrereleases) || r.Tag == installedTag)];
 
-    /// <summary>The newest offered release with a patch for <paramref name="platform"/>.</summary>
+    /// <summary>The newest offered release with a patch for <paramref name="platform"/>; null when the releases are not <see cref="Versioned"/>.</summary>
     public Release? Latest(string platform, bool includePrereleases) =>
-        All.FirstOrDefault(r => Offers(r, includePrereleases) && r.PatchFor(platform) != null);
+        Versioned
+            ? All.FirstOrDefault(r => Offers(r, includePrereleases) && r.PatchFor(platform) != null)
+            : null;
 
-    /// <summary>The newest offered release that is newer than the installed one, or null if it is current.</summary>
-    public Release? UpgradeFor(string? installedTag, string platform, bool includePrereleases)
+    /// <summary>
+    /// The newest offered release that is newer than the installed one, or else the installed release if it has a new
+    /// build; null if the install is current.
+    /// </summary>
+    /// <param name="installedSha256">The installed patch's <see cref="Installs.InstalledRelease.Sha256"/>.</param>
+    public Release? UpgradeFor(
+        string? installedTag,
+        string platform,
+        bool includePrereleases,
+        string? installedSha256 = null
+    )
     {
         var latest = Latest(platform, includePrereleases);
-        if (latest == null || installedTag == null)
+        if (installedTag == null)
             return latest;
-        return ActionFor(latest, installedTag) == InstallAction.Upgrade ? latest : null;
+        if (latest != null && ActionFor(latest, installedTag) == InstallAction.Upgrade)
+            return latest;
+        var installed = Find(installedTag);
+        return installed?.PatchFor(platform) != null && IsRebuilt(installed, installedSha256)
+            ? installed
+            : null;
     }
 
     /// <summary>
@@ -72,17 +91,31 @@ public sealed class ReleaseCatalog
     }
 
     /// <param name="installedTag">The installed release's tag; null for a stock install, "" for Retooled of unknown version.</param>
-    public InstallAction ActionFor(Release target, string? installedTag)
+    /// <param name="installedSha256">The installed patch's <see cref="Installs.InstalledRelease.Sha256"/>.</param>
+    public InstallAction ActionFor(Release target, string? installedTag, string? installedSha256 = null)
     {
         if (installedTag == null)
             return InstallAction.Install;
         if (installedTag == target.Tag)
-            return InstallAction.Reinstall;
+            return IsRebuilt(target, installedSha256) ? InstallAction.Update : InstallAction.Reinstall;
+        if (!Versioned)
+            return InstallAction.Replace;
         int c = Compare(target, installedTag);
         return c > 0 ? InstallAction.Upgrade
             : c < 0 ? InstallAction.Downgrade
             : InstallAction.Replace;
     }
+
+    /// <summary>
+    /// Whether the installed patch of <paramref name="release"/> is no longer among its patches, which happens when its
+    /// patches are replaced in place. Unknown digests never count as a new build.
+    /// </summary>
+    static bool IsRebuilt(Release release, string? installedSha256) =>
+        installedSha256 != null
+        && release.Assets.Any(a => a.Sha256 != null)
+        && !release.Assets.Any(a =>
+            string.Equals(a.Sha256, installedSha256, StringComparison.OrdinalIgnoreCase)
+        );
 
     /// <summary>Positive when <paramref name="target"/> is newer than the installed tag, 0 when that cannot be told.</summary>
     int Compare(Release target, string installedTag)

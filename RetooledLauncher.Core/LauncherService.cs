@@ -243,7 +243,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
         }
     }
 
-    static InstalledRelease MarkerFor(Release release, string patch) =>
+    InstalledRelease MarkerFor(Release release, string patch) =>
         new()
         {
             Tag = release.Tag,
@@ -251,6 +251,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
             Prerelease = release.Prerelease,
             Channel = release.Channel,
             Patch = patch,
+            Sha256 = release.PatchFor(Platform)?.Sha256,
         };
 
     /// <summary>Restores the stock install; also finishes an interrupted install or uninstall.</summary>
