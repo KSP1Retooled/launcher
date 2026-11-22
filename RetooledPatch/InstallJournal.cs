@@ -99,6 +99,7 @@ sealed class InstallCommit(string install, InstallJournal journal, Dictionary<st
         Exception? failure = null;
         try
         {
+            SharedLinks.Unshare(install, staged.Select(o => o.Path).Concat(remove).Concat(requested).Append(GameSettingsFile.FileName), log);
             Plan(staged, remove, requested);
             journal.State = JournalState.Committing;
             journal.Save(install);
@@ -174,11 +175,14 @@ sealed class InstallCommit(string install, InstallJournal journal, Dictionary<st
         }
         foreach (string directory in directories) files.CreateDirectory(Full(directory));
 
-        if (language != null)
+        if (language != null && GameSettingsFile.WithLanguage(install, language) is string settings)
         {
-            files.Snapshot(Full(GameSettingsFile.FileName));
-            if (GameSettingsFile.SetLanguage(install, language))
-                log.WriteLine($"set LANGUAGE = {language} in {GameSettingsFile.FileName}");
+            // Stage a replacement to preserve the settings of any install that shares the original file.
+            string staged = Path.Combine(staging, GameSettingsFile.FileName);
+            File.WriteAllText(staged, settings);
+            files.Delete(Full(GameSettingsFile.FileName));
+            files.Move(staged, Full(GameSettingsFile.FileName));
+            log.WriteLine($"set LANGUAGE = {language} in {GameSettingsFile.FileName}");
         }
 
         // last, so a rollback that stops short leaves the journal saying the apply didn't finish

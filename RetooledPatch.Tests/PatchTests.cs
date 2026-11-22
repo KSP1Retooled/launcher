@@ -407,6 +407,75 @@ public sealed class PatchRoundTripTests : IDisposable
     }
 
     [Fact]
+    public void InPlaceReplacesAHardLinkedSettingsFileInsteadOfWritingIntoIt()
+    {
+        const string stock = "LANGUAGE = en-us\n";
+        Write(root, "shared-settings.cfg", System.Text.Encoding.UTF8.GetBytes(stock));
+        Assert.True(FileClone.TryHardLink(Path.Combine(root, "shared-settings.cfg"), Path.Combine(Gog, "settings.cfg")));
+
+        Applier(Gog).Apply(new ApplyOptions());
+
+        Assert.Equal("LANGUAGE = ja\n", File.ReadAllText(Path.Combine(Gog, "settings.cfg")));
+        Assert.Equal(stock, File.ReadAllText(Path.Combine(root, "shared-settings.cfg")));
+    }
+
+    /// <summary>
+    /// Moves the directory at <paramref name="relative"/> outside <paramref name="install"/> and puts a symlink
+    /// at its original path. If symlink creation fails, restores the directory and returns false.
+    /// </summary>
+    bool ShareDirectory(string install, string relative)
+    {
+        string inside = Path.Combine(install, relative), outside = Path.Combine(root, "shared", relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(outside)!);
+        Directory.Move(inside, outside);
+        try
+        {
+            Directory.CreateSymbolicLink(inside, outside);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Directory.Move(outside, inside);
+            return false;
+        }
+    }
+
+    [Fact]
+    public void InPlaceCopiesASymlinkedDirectoryBeforeChangingIt()
+    {
+        if (!ShareDirectory(Gog, "KSP_x64_Data")) return;
+        string shared = Path.Combine(root, "shared", "KSP_x64_Data");
+        // Verify that the local copy preserves a nested symlink that the patch never traverses.
+        Directory.CreateSymbolicLink(Path.Combine(shared, "Linked"), Path.Combine(Gog, "Missions"));
+        var before = Tree(shared);
+
+        Applier(Gog).Apply(new ApplyOptions());
+
+        Assert.Equal(before.OrderBy(p => p.Key), Tree(shared).OrderBy(p => p.Key));
+        var data = new DirectoryInfo(Path.Combine(Gog, "KSP_x64_Data"));
+        Assert.Null(data.LinkTarget);
+        Assert.NotNull(new DirectoryInfo(Path.Combine(data.FullName, "Linked")).LinkTarget);
+        var tree = Tree(Gog);
+        foreach (var (path, hash) in Shipped()) Assert.Equal(hash, tree[path]);
+        Assert.False(tree.ContainsKey("KSP_x64_Data/gone.assets"));
+
+        PatchReverter.Revert(Gog);
+        Assert.Equal(before.OrderBy(p => p.Key), Tree(shared).OrderBy(p => p.Key));
+        Assert.Equal(gogTree.OrderBy(p => p.Key), Tree(Gog).OrderBy(p => p.Key));
+    }
+
+    [Fact]
+    public void InPlaceLeavesASymlinkedDirectoryItDoesNotTouch()
+    {
+        Write(Gog, "GameData/SomeMod/mod.cfg", [1, 2, 3]);
+        if (!ShareDirectory(Gog, "GameData/SomeMod")) return;
+
+        Applier(Gog).Apply(new ApplyOptions());
+
+        Assert.NotNull(new DirectoryInfo(Path.Combine(Gog, "GameData/SomeMod")).LinkTarget);
+    }
+
+    [Fact]
     public void PatchedInstallIsRefusedUntilReverted()
     {
         Applier(Steam).Apply(new ApplyOptions());
@@ -852,6 +921,52 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal(0, Cli.Program.Main(["apply", "--install", Gog, "--patch", patch, "--out", output]));
         Assert.Equal(Shipped().OrderBy(p => p.Key), Tree(output).OrderBy(p => p.Key));
         Assert.Equal(2, Cli.Program.Main(["apply", "--install", Gog, "--patch", patch]));
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    }
+}
+
+public sealed class FileCloneTests : IDisposable
+{
+    // Create the test files on the same volume as the test assembly.
+    readonly string root = Path.Combine(AppContext.BaseDirectory, "clone-" + Guid.NewGuid().ToString("N"));
+
+    public FileCloneTests() => Directory.CreateDirectory(root);
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(70_000)]
+    [InlineData(3 << 20)]
+    public void ACloneIsAFileOfItsOwnAndALinkSharesTheContent(int length)
+    {
+        var bytes = new byte[length];
+        new Random(length).NextBytes(bytes);
+        string source = Path.Combine(root, "source"), clone = Path.Combine(root, "clone");
+        File.WriteAllBytes(source, bytes);
+        File.SetLastWriteTimeUtc(source, new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc));
+
+        FileClone.LinkOrCopy(source, clone);
+
+        Assert.Equal(bytes, File.ReadAllBytes(clone));
+        Assert.Equal(File.GetLastWriteTimeUtc(source), File.GetLastWriteTimeUtc(clone));
+        using (var stream = new FileStream(clone, FileMode.Open, FileAccess.Write))
+            stream.Write([1, 2, 3]);
+        byte[] after = File.ReadAllBytes(source);
+        Assert.Equal(File.ReadAllBytes(clone), after);
+    }
+
+    [Fact]
+    public void ACloneDoesNotReplaceAnExistingFile()
+    {
+        string source = Path.Combine(root, "source"), existing = Path.Combine(root, "existing");
+        File.WriteAllBytes(source, [1]);
+        File.WriteAllBytes(existing, [2]);
+        Assert.ThrowsAny<IOException>(() => FileClone.LinkOrCopy(source, existing));
+        Assert.Equal([2], File.ReadAllBytes(existing));
     }
 
     public void Dispose()
