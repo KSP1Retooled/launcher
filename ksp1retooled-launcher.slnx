@@ -1,5 +1,8 @@
 <Solution>
   <Project Path="RetooledLauncher/RetooledLauncher.csproj" />
+  <Folder Name="/Solution Files/">
+    <File Path=".editorconfig" />
+  </Folder>
   <Project Path="RetooledLauncher.Core/RetooledLauncher.Core.csproj" />
   <Project Path="RetooledLauncher.Tests/RetooledLauncher.Tests.csproj" />
   <Project Path="RetooledPatch/RetooledPatch.csproj" />
