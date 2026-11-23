@@ -6,7 +6,7 @@ namespace KSP.Retooled.Patch.Cli;
 // Every option has an explicit name, so that renaming a property can't change the command line.
 
 [CliCommand(Name = "build", Parent = typeof(RootCliCommand),
-            Description = "Builds one patch file that turns each --source install into the --target build."
+            Description = "Builds one patch file that turns each --source install into the --target build. "
                         + "The command also writes a report next to the patch file, named <file>.report.txt.")]
 public class BuildCliCommand
 {
