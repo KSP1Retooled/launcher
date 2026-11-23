@@ -442,7 +442,11 @@ public sealed partial class MainViewModel : ObservableObject
         CancellationTokenSource? previous = this.releaseRefresh;
         using CancellationTokenSource refresh = new();
         this.releaseRefresh = refresh;
-        await previous?.CancelAsync()!;
+        if (previous is not null)
+        {
+            await previous.CancelAsync();
+        }
+
         string channel = this.Channel;
         this.ReleaseError = string.Empty;
         ReleaseCatalog found = ReleaseCatalog.Empty;
