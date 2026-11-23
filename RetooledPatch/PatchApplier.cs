@@ -350,11 +350,11 @@ public sealed class PatchApplier(PatchFile patch, string install)
         if (segment.ArchiveBytes > 0 && section is null) throw new InvalidDataException("a recipe with blobs has no section");
         switch (segment.Kind)
         {
-            case SegmentKind.COPY:
+            case SegmentKind.Copy:
                 CopyRange(handle(segment.File!.Value), segment.Offset!.Value, segment.Length, output);
                 break;
 
-            case SegmentKind.LITERAL:
+            case SegmentKind.Literal:
                 byte[] buffer = new byte[(int)Math.Min(segment.Length, 1 << 20)];
                 for (long left = segment.Length; left > 0;)
                 {
@@ -365,7 +365,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
                 }
                 break;
 
-            case SegmentKind.BS_DIFF:
+            case SegmentKind.BsDiff:
                 byte[] reference = new byte[segment.Refs!.Sum(r => r.Length)];
                 int at = 0;
                 foreach (Extent extent in segment.Refs!)

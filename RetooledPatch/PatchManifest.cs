@@ -164,9 +164,12 @@ public sealed class Recipe
 
 public enum SegmentKind
 {
-    COPY,
-    BS_DIFF,
-    LITERAL
+    // TODO csavard: Also fix these enum serialization
+    // ReSharper disable InconsistentNaming
+    Copy,
+    BsDiff,
+    Literal
+    // ReSharper restore InconsistentNaming
 }
 
 /// <summary>
@@ -191,15 +194,15 @@ public sealed class Segment
 
     public static Segment Copy(int file, long offset, long length) => new()
     {
-        Kind = SegmentKind.COPY,
-        File = file,
+        Kind   = SegmentKind.Copy,
+        File   = file,
         Offset = offset,
         Length = length
     };
 
     public static Segment Diff(List<Extent> refs, long length, long blob) => new()
     {
-        Kind = SegmentKind.BS_DIFF,
+        Kind = SegmentKind.BsDiff,
         Refs = refs,
         Length = length,
         Blob = blob
@@ -207,7 +210,7 @@ public sealed class Segment
 
     public static Segment Literal(long length) => new()
     {
-        Kind = SegmentKind.LITERAL,
+        Kind = SegmentKind.Literal,
         Length = length
     };
 
@@ -217,8 +220,8 @@ public sealed class Segment
     [JsonIgnore]
     public long ArchiveBytes => this.Kind switch
     {
-        SegmentKind.BS_DIFF  => this.Blob ?? 0,
-        SegmentKind.LITERAL => this.Length,
+        SegmentKind.BsDiff  => this.Blob ?? 0,
+        SegmentKind.Literal => this.Length,
         _                   => 0,
     };
 }

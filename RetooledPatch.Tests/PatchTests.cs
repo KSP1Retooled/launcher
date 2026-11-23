@@ -369,7 +369,7 @@ public sealed class PatchRoundTripTests : IDisposable
     {
         PatchManifest m = PatchFile.Open(this.PatchPath).Manifest;
         OutputFile output = m.Outputs.Single(o => o.Path is "KSP_x64_Data/sharedassets1.assets.resS");
-        List<Segment> copies = [..output.Recipes[0].Segments!.Where(s => s.Kind == SegmentKind.COPY)];
+        List<Segment> copies = [..output.Recipes[0].Segments!.Where(s => s.Kind == SegmentKind.Copy)];
         Assert.Equal(550_000, copies.Sum(s => s.Length));
         Assert.Equal(["KSP_x64_Data/sharedassets1.assets.resS", "KSP_x64_Data/sharedassets2.assets.resS"],
             copies.Select(s => m.Sources[s.File!.Value].Path).Distinct().Order());

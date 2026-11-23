@@ -690,7 +690,7 @@ public static partial class PatchBuilder
         Recipe recipe = new() { Segments = [] };
         foreach ((Segment segment, _, FileEntry? fileEntry, _, _) in plan.segments)
         {
-            if (segment.Kind is SegmentKind.COPY) segment.File = sourceIndex(fileEntry!);
+            if (segment.Kind is SegmentKind.Copy) segment.File = sourceIndex(fileEntry!);
             foreach (Extent extent in segment.Refs ?? [])
             {
                 extent.File = sourceIndex(fileEntry!);
@@ -734,7 +734,7 @@ public static partial class PatchBuilder
 
     private static void WriteBlobs(PlannedOutput plan, Stream archive, byte[] buffer)
     {
-        using FileStream? target = plan.segments.Any(s => s.Segment.Kind == SegmentKind.LITERAL) ? File.OpenRead(plan.target.full) : null;
+        using FileStream? target = plan.segments.Any(s => s.Segment.Kind == SegmentKind.Literal) ? File.OpenRead(plan.target.full) : null;
         foreach (PlannedSegment planned in plan.segments)
         {
             if (planned.Spool is not null)
@@ -742,7 +742,7 @@ public static partial class PatchBuilder
                 using FileStream spool = File.OpenRead(planned.Spool);
                 spool.CopyTo(archive);
             }
-            else if (planned.Segment.Kind is SegmentKind.LITERAL)
+            else if (planned.Segment.Kind is SegmentKind.Literal)
             {
                 target!.Position = planned.TargetOffset;
                 for (long left = planned.Segment.Length; left > 0;)
@@ -762,9 +762,9 @@ public static partial class PatchBuilder
 
         List<PlannedOutput> same = [..outputs.Where(p => p.same is not null)];
         List<PlannedSegment> segments = [..outputs.SelectMany(p => p.segments)];
-        List<PlannedSegment> copies = [..segments.Where(s => s.Segment.Kind == SegmentKind.COPY)];
-        List<PlannedSegment> diffs = [..segments.Where(s => s.Segment.Kind == SegmentKind.BS_DIFF)];
-        List<PlannedSegment> literals = [..segments.Where(s => s.Segment.Kind == SegmentKind.LITERAL)];
+        List<PlannedSegment> copies = [..segments.Where(s => s.Segment.Kind == SegmentKind.Copy)];
+        List<PlannedSegment> diffs = [..segments.Where(s => s.Segment.Kind == SegmentKind.BsDiff)];
+        List<PlannedSegment> literals = [..segments.Where(s => s.Segment.Kind == SegmentKind.Literal)];
 
         report.AppendLine($"== {source}: {outputs.Count} outputs planned");
         report.AppendLine($"  unchanged  {same.Count,7} files {Mb(same.Sum(p => p.target.size))}");
@@ -776,7 +776,7 @@ public static partial class PatchBuilder
         foreach (PlannedOutput plan in outputs.Where(p => p.same is null).OrderByDescending(p => p.segments.Sum(s => s.Estimate)).Take(40))
         {
             long bytes = plan.segments.Sum(s => s.Estimate);
-            long copied = plan.segments.Where(s => s.Segment.Kind == SegmentKind.COPY).Sum(s => s.Segment.Length);
+            long copied = plan.segments.Where(s => s.Segment.Kind == SegmentKind.Copy).Sum(s => s.Segment.Length);
             string kind = plan.reference is null ? "new" : "diff";
             report.AppendLine($"    {Mb(bytes)} / {Mb(copied)} / {Mb(plan.target.size)}  {kind,-4} {plan.target.relative}");
         }
