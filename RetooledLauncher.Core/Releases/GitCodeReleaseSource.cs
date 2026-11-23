@@ -38,8 +38,10 @@ public sealed class GitCodeReleaseSource(HttpClient http, string channel, string
             await using Stream body = await response
                                            .Content.ReadAsStreamAsync(cancellation)
                                            .ConfigureAwait(false);
+
             List<GitCodeRelease> items = await JsonSerializer.DeserializeAsync(body, GitCodeJson.Default.ListGitCodeRelease, cancellation)
                                                              .ConfigureAwait(false) ?? [];
+
             releases.AddRange(items.Select(r => Convert(r) with { Channel = channel }));
             if (response.Headers.TryGetValues("total_page", out IEnumerable<string>? values)
              && int.TryParse(values.FirstOrDefault(), out int total))
@@ -47,6 +49,7 @@ public sealed class GitCodeReleaseSource(HttpClient http, string channel, string
                 pages = total;
             }
         }
+
         return releases;
     }
 
@@ -89,7 +92,7 @@ public sealed class GitCodeReleaseSource(HttpClient http, string channel, string
                                                a.Size ?? 0,
                                                a.BrowserDownloadUrl,
                                                a.BrowserDownloadUrl,
-                                               GitHubReleaseSource.Sha256(a.Digest))),
+                                               GitHubReleaseSource.Sha256(a.Digest)))
             ]
            );
 }

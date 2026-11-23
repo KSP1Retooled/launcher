@@ -19,7 +19,8 @@ public sealed class LauncherSettings
     public string? Repository { get; set; }
 
     /// <summary>
-    /// The channels the user added; <see cref="LauncherInfo.DEFAULT_REPOSITORY"/>, <see cref="LauncherInfo.DEBUG_CHANNEL"/>
+    /// The channels the user added; <see cref="LauncherInfo.DEFAULT_REPOSITORY"/>,
+    /// <see cref="LauncherInfo.DEBUG_CHANNEL"/>
     /// and <see cref="LauncherInfo.EXPERIMENTAL_CHANNEL"/> are always offered too.
     /// </summary>
     public List<string> Channels { get; set; } = [];
@@ -36,7 +37,8 @@ public sealed class LauncherSettings
     public string? LaunchArguments { get; set; }
 
     /// <summary>
-    /// Every channel to offer, the built-in ones first, including a <see cref="Repository"/> that is not in <see cref="Channels"/>.
+    /// Every channel to offer, the built-in ones first, including a <see cref="Repository"/> that is not in
+    /// <see cref="Channels"/>.
     /// </summary>
     [JsonIgnore]
     public IReadOnlyList<string> AllChannels =>
@@ -44,7 +46,7 @@ public sealed class LauncherSettings
         ..new[] { LauncherInfo.DEFAULT_REPOSITORY, LauncherInfo.DEBUG_CHANNEL, LauncherInfo.EXPERIMENTAL_CHANNEL }
          .Concat(this.Channels)
          .Concat(this.Repository is { } selected ? [selected] : [])
-         .Distinct(StringComparer.OrdinalIgnoreCase),
+         .Distinct(StringComparer.OrdinalIgnoreCase)
     ];
 
     public static string DefaultFile => Path.Combine(LauncherInfo.DataDirectory, "settings.json");
@@ -63,6 +65,7 @@ public sealed class LauncherSettings
             }
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException) { }
+
         return new LauncherSettings();
     }
 
@@ -71,7 +74,7 @@ public sealed class LauncherSettings
         file ??= DefaultFile;
         Directory.CreateDirectory(Path.GetDirectoryName(file)!);
         File.WriteAllBytes($"{file}.tmp", JsonSerializer.SerializeToUtf8Bytes(this, SettingsJson.Default.LauncherSettings));
-        File.Move(file + ".tmp", file, overwrite: true);
+        File.Move(file + ".tmp", file, true);
     }
 }
 
@@ -84,10 +87,9 @@ public enum ReleaseMirror
     // TODO csavard: proper json converter for these enums
     // ReSharper disable InconsistentNaming
     GitHub,
-    GitCode,
+    GitCode
     // ReSharper restore InconsistentNaming
 }
 
-[JsonSerializable(typeof(LauncherSettings))]
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
+[JsonSerializable(typeof(LauncherSettings)), JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
 internal sealed partial class SettingsJson : JsonSerializerContext;

@@ -18,8 +18,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 {
     public SettingsViewModel(LauncherSettings settings)
     {
-        this.SelectedMirror = this.Mirrors.First(m => m.Value == settings.PreferredMirror);
-        this.LaunchArguments   = settings.LaunchArguments ?? string.Empty;
+        this.SelectedMirror  = this.Mirrors.First(m => m.Value == settings.PreferredMirror);
+        this.LaunchArguments = settings.LaunchArguments ?? string.Empty;
     }
 
     public static string LaunchArgumentsDescription => "Command line arguments passed to the game when you press Play, separated by spaces. Put double quotes "
@@ -34,7 +34,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<MirrorOption> Mirrors { get; } =
     [
         new(ReleaseMirror.GitHub, $"GitHub (github.com/{LauncherInfo.DEFAULT_REPOSITORY})"),
-        new(ReleaseMirror.GitCode, $"GitCode (gitcode.com/{LauncherInfo.DEFAULT_MIRROR})"),
+        new(ReleaseMirror.GitCode, $"GitCode (gitcode.com/{LauncherInfo.DEFAULT_MIRROR})")
     ];
 
     [ObservableProperty]
@@ -48,6 +48,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         string? arguments = !string.IsNullOrWhiteSpace(this.LaunchArguments)
                                 ? this.LaunchArguments.Trim()
                                 : null;
+
         if (settings.PreferredMirror == this.SelectedMirror.Value
          && settings.LaunchArguments == arguments)
         {

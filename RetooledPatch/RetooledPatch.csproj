@@ -1,20 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>KSP.Retooled.Patch</RootNamespace>
-    <AssemblyName>RetooledPatch</AssemblyName>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <PackageId>KSP1Retooled.Patch</PackageId>
-    <Description>Builds, applies and reverts KSP Retooled patch files.</Description>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>KSP.Retooled.Patch</RootNamespace>
+        <AssemblyName>RetooledPatch</AssemblyName>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <PackageId>KSP1Retooled.Patch</PackageId>
+        <Description>Builds, applies and reverts KSP Retooled patch files.</Description>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="TxFileManager" Version="1.5.0.1" />
-    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
-    <InternalsVisibleTo Include="RetooledPatch.Tests" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="TxFileManager" Version="1.5.0.1"/>
+        <PackageReference Include="ZstdSharp.Port" Version="0.8.8"/>
+        <InternalsVisibleTo Include="RetooledPatch.Tests"/>
+    </ItemGroup>
 
 </Project>

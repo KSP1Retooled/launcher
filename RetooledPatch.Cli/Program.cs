@@ -23,11 +23,13 @@ public static class Program
             {
                 Console.Error.WriteLine(error.Message);
             }
+
             Command command = parse.CommandResult.Command;
             string name = command.Parents.Any() ? $"retooled-patch {command.Name}" : "retooled-patch";
             Console.Error.WriteLine($"To see the options, run '{name} --help'.");
             return USAGE_ERROR;
         }
+
         try
         {
             return result.Run();

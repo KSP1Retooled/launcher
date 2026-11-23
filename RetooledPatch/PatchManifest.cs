@@ -20,10 +20,12 @@ public sealed class PatchManifest
     public const int OLDEST_VERSION = 2;
 
     public int Version { get; set; } = CURRENT_VERSION;
+
     /// <summary>
     /// <c>windows</c>, <c>linux</c> or <c>macos</c>: the player layout of the target build.
     /// </summary>
     public string Platform { get; set; } = string.Empty;
+
     /// <summary>
     /// Install-relative files and directories the patch knows nothing about: nothing in them is checked, read, replaced or
     /// removed, and a side-by-side apply copies them across whole, because the install's copy is the only one.
@@ -49,11 +51,9 @@ public sealed class PatchManifest
                                                                   ?? throw new InvalidDataException("empty manifest");
 }
 
-[JsonSerializable(typeof(PatchManifest))]
-[JsonSerializable(typeof(InstallJournal))]
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-                             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                             UseStringEnumConverter = true)]
+[JsonSerializable(typeof(PatchManifest)), JsonSerializable(typeof(InstallJournal)), JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+                                                                                                                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                                                                                                                UseStringEnumConverter = true)]
 internal sealed partial class ManifestJson : JsonSerializerContext;
 
 /// <summary>
@@ -69,7 +69,8 @@ public sealed class SourceFile
 }
 
 /// <summary>
-/// One source install the patch was built from, e.g. <c>steam-03190</c>, and the <see cref="PatchManifest.Sources"/> it has.
+/// One source install the patch was built from, e.g. <c>steam-03190</c>, and the <see cref="PatchManifest.Sources"/>
+/// it has.
 /// </summary>
 public sealed class Variant
 {
@@ -102,7 +103,8 @@ public sealed class Component
 }
 
 /// <summary>
-/// One independent zstd frame of the patch file holding raw blobs: <see cref="Offset"/> and <see cref="Length"/> locate
+/// One independent zstd frame of the patch file holding raw blobs: <see cref="Offset"/> and <see cref="Length"/>
+/// locate
 /// it in the file, <see cref="Size"/> is its decompressed length.
 /// </summary>
 public sealed class Section
@@ -151,15 +153,15 @@ public sealed class Recipe
 
     public List<Segment>? Segments { get; set; }
 
+    [JsonIgnore]
+    public long ArchiveBytes => this.Segments?.Sum(s => s.ArchiveBytes) ?? 0;
+
     /// <summary>
     /// The <see cref="PatchManifest.Sources"/> this recipe reads.
     /// </summary>
     public IEnumerable<int> Inputs() => this.Same is { } same
                                             ? [same]
                                             : (this.Segments ?? []).SelectMany(s => s.Refs?.Select(r => r.File) ?? (s.File is { } f ? [f] : []));
-
-    [JsonIgnore]
-    public long ArchiveBytes => this.Segments?.Sum(s => s.ArchiveBytes) ?? 0;
 }
 
 public enum SegmentKind
@@ -192,6 +194,17 @@ public sealed class Segment
 
     public long? Blob { get; set; }
 
+    /// <summary>
+    /// Bytes this segment consumes from its section.
+    /// </summary>
+    [JsonIgnore]
+    public long ArchiveBytes => this.Kind switch
+    {
+        SegmentKind.BsDiff  => this.Blob ?? 0,
+        SegmentKind.Literal => this.Length,
+        _                   => 0
+    };
+
     public static Segment Copy(int file, long offset, long length) => new()
     {
         Kind   = SegmentKind.Copy,
@@ -202,44 +215,33 @@ public sealed class Segment
 
     public static Segment Diff(List<Extent> refs, long length, long blob) => new()
     {
-        Kind = SegmentKind.BsDiff,
-        Refs = refs,
+        Kind   = SegmentKind.BsDiff,
+        Refs   = refs,
         Length = length,
-        Blob = blob
+        Blob   = blob
     };
 
     public static Segment Literal(long length) => new()
     {
-        Kind = SegmentKind.Literal,
+        Kind   = SegmentKind.Literal,
         Length = length
-    };
-
-    /// <summary>
-    /// Bytes this segment consumes from its section.
-    /// </summary>
-    [JsonIgnore]
-    public long ArchiveBytes => this.Kind switch
-    {
-        SegmentKind.BsDiff  => this.Blob ?? 0,
-        SegmentKind.Literal => this.Length,
-        _                   => 0,
     };
 }
 
 public sealed class Extent
 {
-    public int File { get; set; }
-
-    public long Offset { get; set; }
-
-    public long Length { get; set; }
-
     public Extent() { }
 
     public Extent(int file, long offset, long length)
     {
         this.File   = file;
         this.Offset = offset;
-        this.Length    = length;
+        this.Length = length;
     }
+
+    public int File { get; set; }
+
+    public long Offset { get; set; }
+
+    public long Length { get; set; }
 }

@@ -56,7 +56,7 @@ public sealed class GitHubMetadataCache(string? directory = null, TimeProvider? 
         {
             Directory.CreateDirectory(directory);
             File.WriteAllText(partial, JsonSerializer.Serialize(metadata, GitHubJson.Default.Metadata));
-            File.Move(partial, path, overwrite: true);
+            File.Move(partial, path, true);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         finally

@@ -21,7 +21,7 @@ public enum InstallAction
     /// <summary>
     /// The installed release's patches were replaced by a new build since it was installed.
     /// </summary>
-    UPDATE,
+    UPDATE
 }
 
 /// <summary>
@@ -30,12 +30,14 @@ public enum InstallAction
 /// install never shows a version the launcher pretends not to know.
 /// </summary>
 /// <param name="versioned">
-/// Whether each release replaces the ones before it. When false, as for <see cref="LauncherInfo.EXPERIMENTAL_CHANNEL"/>,
-/// the releases are separate builds: none is an upgrade of another, and only a new build of the installed one is offered.
+/// Whether each release replaces the ones before it. When false, as for
+/// <see cref="LauncherInfo.EXPERIMENTAL_CHANNEL"/>,
+/// the releases are separate builds: none is an upgrade of another, and only a new build of the installed one is
+/// offered.
 /// </param>
 public sealed class ReleaseCatalog(IEnumerable<Release> releases, bool versioned = true)
 {
-    public IReadOnlyList<Release> All { get; } = [.. releases.OrderByDescending(r => r.Created)];
+    public IReadOnlyList<Release> All { get; } = [..releases.OrderByDescending(r => r.Created)];
 
     private bool Versioned { get; } = versioned;
 
@@ -55,11 +57,12 @@ public sealed class ReleaseCatalog(IEnumerable<Release> releases, bool versioned
     public IReadOnlyList<Release> Visible(bool includePrereleases, string? installedTag = null) => [..this.All.Where(r => Offers(r, includePrereleases) || r.Tag == installedTag)];
 
     /// <summary>
-    /// The newest offered release with a patch for <paramref name="platform"/>; null when the releases are not <see cref="Versioned"/>.
+    /// The newest offered release with a patch for <paramref name="platform"/>; null when the releases are not
+    /// <see cref="Versioned"/>.
     /// </summary>
     public Release? Latest(string platform, bool includePrereleases) => this.Versioned
-            ? this.All.FirstOrDefault(r => Offers(r, includePrereleases) && r.PatchFor(platform) is not null)
-            : null;
+                                                                            ? this.All.FirstOrDefault(r => Offers(r, includePrereleases) && r.PatchFor(platform) is not null)
+                                                                            : null;
 
     /// <summary>
     /// The newest offered release that is newer than the installed one, or else the installed release if it has a new
@@ -75,15 +78,15 @@ public sealed class ReleaseCatalog(IEnumerable<Release> releases, bool versioned
                                string? installedSha256 = null)
     {
         Release? latest = Latest(platform, includePrereleases);
-        if (installedTag is null || latest is not null && ActionFor(latest, installedTag) == InstallAction.UPGRADE)
+        if (installedTag is null || (latest is not null && ActionFor(latest, installedTag) == InstallAction.UPGRADE))
         {
             return latest;
         }
 
         Release? installed = Find(installedTag);
         return installed?.PatchFor(platform) is not null && IsRebuilt(installed, installedSha256)
-            ? installed
-            : null;
+                   ? installed
+                   : null;
     }
 
     /// <summary>
@@ -126,9 +129,9 @@ public sealed class ReleaseCatalog(IEnumerable<Release> releases, bool versioned
         }
 
         int c = Compare(target, installedTag);
-        return c > 0 ? InstallAction.UPGRADE
-            : c < 0 ? InstallAction.DOWNGRADE
-            : InstallAction.REPLACE;
+        return c > 0   ? InstallAction.UPGRADE
+               : c < 0 ? InstallAction.DOWNGRADE
+                         : InstallAction.REPLACE;
     }
 
     /// <summary>

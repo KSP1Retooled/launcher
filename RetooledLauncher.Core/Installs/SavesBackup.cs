@@ -35,7 +35,7 @@ public sealed class SavesBackupRecord
             : new SavesBackupRecord
             {
                 Version = info.Release?.Tag ?? string.Empty,
-                Channel = info.Release?.Channel,
+                Channel = info.Release?.Channel
             };
 }
 
@@ -45,7 +45,8 @@ public sealed class SavesBackupRecord
 public sealed record SavesBackupInfo(string Path, SavesBackupRecord Record);
 
 /// <summary>
-/// Zips an install's <c>saves</c> folder to <c>saves-backup/&lt;date&gt;.zip</c> before the launcher installs a release.
+/// Zips an install's <c>saves</c> folder to <c>saves-backup/&lt;date&gt;.zip</c> before the launcher installs a
+/// release.
 /// Saves made with one Retooled release may not load in another, so the backup is how a player gets their game back.
 /// The zip holds the folder as <c>saves/</c>, so extracting it into the install restores it, and a
 /// <see cref="RECORD_ENTRY"/> naming the version the saves were made with.
@@ -87,6 +88,7 @@ public static class SavesBackup
              .EnumerateFiles(saves, "*", SearchOption.AllDirectories)
              .Select(f => new FileInfo(f))
         ];
+
         if (files.Count is 0)
         {
             return null;
@@ -121,6 +123,7 @@ public static class SavesBackup
                     zip.CreateEntryFromFile(file.FullName,
                                             EntryName(saves, file.FullName),
                                             CompressionLevel.Optimal);
+
                     done += file.Length;
                     progress?.Report(new LauncherProgress("Backing up saves", done, total));
                 }
@@ -135,6 +138,7 @@ public static class SavesBackup
                 File.Delete(partial);
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+
             throw;
         }
 
@@ -162,7 +166,8 @@ public static class SavesBackup
                 list.Add(new SavesBackupInfo(file, record));
             }
         }
-        return [.. list.OrderByDescending(b => b.Record.Created)];
+
+        return [..list.OrderByDescending(b => b.Record.Created)];
     }
 
     /// <summary>
@@ -184,6 +189,7 @@ public static class SavesBackup
             File.Delete(backup.Path);
             deleted.Add(backup.Path);
         }
+
         return deleted;
     }
 
@@ -194,13 +200,13 @@ public static class SavesBackup
             using ZipArchive zip = ZipFile.OpenRead(file);
             using Stream? stream = zip.GetEntry(RECORD_ENTRY)?.Open();
             return stream is not null
-                ? JsonSerializer.Deserialize(stream, InstallJson.Default.SavesBackupRecord)
-                : null;
+                       ? JsonSerializer.Deserialize(stream, InstallJson.Default.SavesBackupRecord)
+                       : null;
         }
         catch (Exception e) when (e is IOException
-                                   or InvalidDataException
-                                   or JsonException
-                                   or UnauthorizedAccessException)
+                                    or InvalidDataException
+                                    or JsonException
+                                    or UnauthorizedAccessException)
         {
             return null;
         }
@@ -213,10 +219,7 @@ public static class SavesBackup
               .Where(d => !Directory.EnumerateFileSystemEntries(d).Any());
     }
 
-    private static string EntryName(string saves, string path)
-    {
-        return SAVES_FOLDER + "/" + Path.GetRelativePath(saves, path).Replace('\\', '/');
-    }
+    private static string EntryName(string saves, string path) => SAVES_FOLDER + "/" + Path.GetRelativePath(saves, path).Replace('\\', '/');
 
     private static string FreeName(string backups, string name)
     {

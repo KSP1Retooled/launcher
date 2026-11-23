@@ -18,8 +18,8 @@ public sealed partial class MainWindow : Window, IDialogs
         AvaloniaXamlLoader.Load(this);
         this.FindControl<MarkdownScrollViewer>("NotesView")!.Plugins = new MdAvPlugins
         {
-            PathResolver = new NoImages(),
-            HyperlinkCommand = new AsyncRelayCommand<string>(url => Release.IsWebLink(url) ? OpenUrlAsync(url!) : Task.CompletedTask),
+            PathResolver     = new NoImages(),
+            HyperlinkCommand = new AsyncRelayCommand<string>(url => Release.IsWebLink(url) ? OpenUrlAsync(url!) : Task.CompletedTask)
         };
     }
 
@@ -32,28 +32,30 @@ public sealed partial class MainWindow : Window, IDialogs
     public async Task<string?> PickPlayerAsync(string title, IReadOnlyList<string> players)
     {
         IReadOnlyList<IStorageFile> files = await this.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-                                                                                           {
-                                                                                               Title = title,
-                                                                                               AllowMultiple = false,
-                                                                                               FileTypeFilter = [new FilePickerFileType("KSP game") { Patterns = players }],
-                                                                                           });
+        {
+            Title          = title,
+            AllowMultiple  = false,
+            FileTypeFilter = [new FilePickerFileType("KSP game") { Patterns = players }]
+        });
+
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
     public async Task<string?> PickPatchFileAsync(string title)
     {
         IReadOnlyList<IStorageFile> files = await this.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-                                                                                           {
-                                                                                               Title = title,
-                                                                                               AllowMultiple = false,
-                                                                                               FileTypeFilter =
-                                                                                               [
-                                                                                                   new FilePickerFileType("KSP Retooled patch")
-                                                                                                   {
-                                                                                                       Patterns = [$"*{PatchFile.EXTENSION}"],
-                                                                                                   },
-                                                                                               ],
-                                                                                           });
+        {
+            Title         = title,
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("KSP Retooled patch")
+                {
+                    Patterns = [$"*{PatchFile.EXTENSION}"]
+                }
+            ]
+        });
+
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
@@ -75,7 +77,8 @@ public sealed partial class MainWindow : Window, IDialogs
     public async Task<bool> ShowSettingsAsync(SettingsViewModel settings) => await new SettingsWindow { DataContext = settings }.ShowDialog<bool>(this);
 
     /// <summary>
-    /// A small modal message box, with <paramref name="input"/> under the message: true when <paramref name="accept"/> is pressed.
+    /// A small modal message box, with <paramref name="input"/> under the message: true when <paramref name="accept"/>
+    /// is pressed.
     /// </summary>
     private async Task<bool> ShowAsync(string title,
                                        string message,
@@ -85,24 +88,27 @@ public sealed partial class MainWindow : Window, IDialogs
     {
         Window dialog = new()
         {
-            Title = title,
-            Width = 460,
-            SizeToContent = SizeToContent.Height,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Title                 = title,
+            Width                 = 460,
+            SizeToContent         = SizeToContent.Height,
+            CanResize             = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
+
         StackPanel buttons = new()
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            Orientation         = Orientation.Horizontal,
+            Spacing             = 8,
+            HorizontalAlignment = HorizontalAlignment.Right
         };
+
         Button ok = new()
         {
-            Content = accept,
+            Content   = accept,
             IsDefault = true,
-            Classes = { "accent" },
+            Classes   = { "accent" }
         };
+
         ok.Click += (_, _) => dialog.Close(true);
         if (decline is not null)
         {
@@ -110,21 +116,23 @@ public sealed partial class MainWindow : Window, IDialogs
             cancel.Click += (_, _) => dialog.Close(false);
             buttons.Children.Add(cancel);
         }
+
         buttons.Children.Add(ok);
         StackPanel content = new()
         {
-            Margin = new Thickness(20),
+            Margin  = new Thickness(20),
             Spacing = 16,
             Children =
             {
                 new SelectableTextBlock
                 {
-                    Text = message,
-                    TextWrapping = TextWrapping.Wrap,
+                    Text         = message,
+                    TextWrapping = TextWrapping.Wrap
                 },
-                buttons,
-            },
+                buttons
+            }
         };
+
         if (input is not null)
         {
             content.Children.Insert(1, input);

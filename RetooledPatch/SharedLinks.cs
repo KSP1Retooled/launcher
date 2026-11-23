@@ -22,9 +22,12 @@ internal static class SharedLinks
             {
                 current = Path.Combine(current, part);
                 if (!seen.Add(current)) continue;
+
                 DirectoryInfo info = new(current);
                 if (!info.Exists) break;
+
                 if (info.LinkTarget is null) continue;
+
                 string target = Materialize(info);
                 log.WriteLine($"unshared {Path.GetRelativePath(install, current).Replace('\\', '/')}: copied it from {target}, which it was linked to");
             }
@@ -36,12 +39,13 @@ internal static class SharedLinks
     /// </summary>
     private static string Materialize(DirectoryInfo link)
     {
-        string target = link.ResolveLinkTarget(returnFinalTarget: true)?.FullName
+        string target = link.ResolveLinkTarget(true)?.FullName
                      ?? throw new PatchException($"{link.FullName} is a link to {link.LinkTarget}, which does not exist");
+
         string copy = link.FullName + ".retooled-unshare";
         if (Directory.Exists(copy))
         {
-            Directory.Delete(copy, recursive: true);
+            Directory.Delete(copy, true);
         }
 
         try
@@ -50,7 +54,7 @@ internal static class SharedLinks
         }
         catch
         {
-            if (Directory.Exists(copy)) Directory.Delete(copy, recursive: true);
+            if (Directory.Exists(copy)) Directory.Delete(copy, true);
             throw;
         }
 

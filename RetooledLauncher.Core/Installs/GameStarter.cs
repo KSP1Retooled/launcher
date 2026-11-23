@@ -37,10 +37,11 @@ public static class GameStarter
         // open takes the app's own arguments after --args
         ProcessStartInfo start =
             platform is "macos"
-                ? new ProcessStartInfo("open", ["-a", player, .. args is [] ? [] : args.Prepend("--args")])
+                ? new ProcessStartInfo("open", ["-a", player, ..args is [] ? [] : args.Prepend("--args")])
                 : new ProcessStartInfo(player, args);
+
         start.WorkingDirectory = install;
-        start.UseShellExecute = false;
+        start.UseShellExecute  = false;
         return start;
     }
 
@@ -58,7 +59,7 @@ public static class GameStarter
         {
             if (c is '"')
             {
-                quoted = !quoted;
+                quoted  = !quoted;
                 started = true;
             }
             else if (char.IsWhiteSpace(c) && !quoted)
@@ -77,6 +78,7 @@ public static class GameStarter
                 started = true;
             }
         }
+
         if (started)
         {
             arguments.Add(current.ToString());

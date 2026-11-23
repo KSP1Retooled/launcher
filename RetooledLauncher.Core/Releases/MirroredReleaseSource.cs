@@ -17,26 +17,6 @@ public sealed class MirroredReleaseSource(GitHubReleaseSource github,
     /// </summary>
     private TimeSpan PreferredTimeout { get; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>
-    /// The source for <paramref name="channel"/>: a mirrored one when its repository has a GitCode copy, otherwise
-    /// GitHub alone.
-    /// </summary>
-    public static IReleaseSource For(HttpClient http,
-                                     string channel,
-                                     string? token = null,
-                                     ReleaseMirror preferred = ReleaseMirror.GitHub,
-                                     Action<string>? log = null,
-                                     GitHubMetadataCache? cache = null)
-    {
-        GitHubReleaseSource github = new(http, channel, token, cache);
-        return LauncherInfo.MirrorOf(github.Repository) is { } repository
-            ? new MirroredReleaseSource(github,
-                                        new GitCodeReleaseSource(http, channel, repository),
-                                        preferred,
-                                        log)
-            : github;
-    }
-
     private bool GitCodeFirst => preferred is ReleaseMirror.GitCode;
 
     private IReleaseSource First => this.GitCodeFirst ? gitcode : github;
@@ -66,9 +46,11 @@ public sealed class MirroredReleaseSource(GitHubReleaseSource github,
                 failure = e;
             }
         }
+
         string reason = failure is OperationCanceledException
-            ? $"{this.FirstName} timed out"
-            : failure.Message;
+                            ? $"{this.FirstName} timed out"
+                            : failure.Message;
+
         log?.Invoke($"listing releases from {this.FirstName} failed ({reason}); trying {this.SecondName}");
         try
         {
@@ -86,12 +68,14 @@ public sealed class MirroredReleaseSource(GitHubReleaseSource github,
         IEnumerable<HttpRequestMessage> onGitHub = fromGitCode
                                                        ? Copy(github, github.DownloadUrl(release.Tag, asset.Name))
                                                        : github.AssetRequests(release, asset);
+
         IEnumerable<HttpRequestMessage> onGitCode = fromGitCode
                                                         ? gitcode.AssetRequests(release, asset)
                                                         : Copy(gitcode, gitcode.DownloadUrl(release.Tag, asset.Name));
+
         return this.GitCodeFirst
-            ? onGitCode.Concat(Fallback(onGitHub))
-            : onGitHub.Concat(Fallback(onGitCode));
+                   ? onGitCode.Concat(Fallback(onGitHub))
+                   : onGitHub.Concat(Fallback(onGitCode));
 
         // built lazily, so that the second host is only named once the first has failed
         IEnumerable<HttpRequestMessage> Copy(IReleaseSource host, string url) =>
@@ -105,6 +89,26 @@ public sealed class MirroredReleaseSource(GitHubReleaseSource github,
                 yield return request;
             }
         }
+    }
+
+    /// <summary>
+    /// The source for <paramref name="channel"/>: a mirrored one when its repository has a GitCode copy, otherwise
+    /// GitHub alone.
+    /// </summary>
+    public static IReleaseSource For(HttpClient http,
+                                     string channel,
+                                     string? token = null,
+                                     ReleaseMirror preferred = ReleaseMirror.GitHub,
+                                     Action<string>? log = null,
+                                     GitHubMetadataCache? cache = null)
+    {
+        GitHubReleaseSource github = new(http, channel, token, cache);
+        return LauncherInfo.MirrorOf(github.Repository) is { } repository
+                   ? new MirroredReleaseSource(github,
+                                               new GitCodeReleaseSource(http, channel, repository),
+                                               preferred,
+                                               log)
+                   : github;
     }
 
     /// <summary>

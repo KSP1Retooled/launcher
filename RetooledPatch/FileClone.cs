@@ -28,6 +28,7 @@ internal static class FileClone
         }
         catch (EntryPointNotFoundException) { }
         catch (DllNotFoundException) { }
+
         return false;
     }
 

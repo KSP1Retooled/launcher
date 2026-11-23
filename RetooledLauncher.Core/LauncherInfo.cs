@@ -21,39 +21,16 @@ public static class LauncherInfo
     public const string DEBUG_CHANNEL = DEFAULT_REPOSITORY + DEBUG_SUFFIX;
 
     /// <summary>
-    /// Builds of pull requests for players to try, one release per pull request (<c>pr-&lt;number&gt;</c>); always offered.
+    /// Builds of pull requests for players to try, one release per pull request (<c>pr-&lt;number&gt;</c>); always
+    /// offered.
     /// A release's patches are replaced in place when its pull request is built again.
     /// </summary>
     public const string EXPERIMENTAL_CHANNEL = "KSP1Retooled/experimental";
-
-    public static bool IsBuiltInChannel(string channel) =>
-        channel.Equals(DEFAULT_REPOSITORY, StringComparison.OrdinalIgnoreCase)
-        || channel.Equals(DEBUG_CHANNEL, StringComparison.OrdinalIgnoreCase)
-        || channel.Equals(EXPERIMENTAL_CHANNEL, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Whether the channel's releases are versions, each replacing the ones before it, rather than separate builds.
-    /// </summary>
-    public static bool IsVersionedChannel(string channel) => !RepositoryOf(channel).Equals(EXPERIMENTAL_CHANNEL, StringComparison.OrdinalIgnoreCase);
-
-    public static bool IsDebugChannel(string channel) => channel.EndsWith(DEBUG_SUFFIX, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// The GitHub repository behind a channel.
-    /// </summary>
-    public static string RepositoryOf(string channel) => IsDebugChannel(channel) ? channel[..^DEBUG_SUFFIX.Length] : channel;
 
     /// <summary>
     /// The GitCode (gitcode.com) copy of <see cref="DEFAULT_REPOSITORY"/>, for when GitHub cannot be reached.
     /// </summary>
     public const string DEFAULT_MIRROR = "ksp1retooled/retooled";
-
-    /// <summary>
-    /// The GitCode repository that mirrors a GitHub one, if any.
-    /// </summary>
-    public static string? MirrorOf(string repository) => repository.Equals(DEFAULT_REPOSITORY, StringComparison.OrdinalIgnoreCase)
-                                                             ? DEFAULT_MIRROR
-                                                             : null;
 
     /// <summary>
     /// Where the launcher itself is released.
@@ -77,7 +54,7 @@ public static class LauncherInfo
         OperatingSystem.IsWindows() ? "windows"
         : OperatingSystem.IsMacOS() ? "macos"
         : OperatingSystem.IsLinux() ? "linux"
-        : RuntimeInformation.OSDescription;
+                                      : RuntimeInformation.OSDescription;
 
     /// <summary>
     /// Per-user data: <c>%LOCALAPPDATA%</c>, <c>~/Library/Application Support</c> or <c>~/.local/share</c>.
@@ -87,7 +64,31 @@ public static class LauncherInfo
                                                Environment.SpecialFolderOption.Create),
                      "KSPRetooled",
                      "Launcher"
-        );
+                    );
+
+    public static bool IsBuiltInChannel(string channel) =>
+        channel.Equals(DEFAULT_REPOSITORY, StringComparison.OrdinalIgnoreCase)
+     || channel.Equals(DEBUG_CHANNEL, StringComparison.OrdinalIgnoreCase)
+     || channel.Equals(EXPERIMENTAL_CHANNEL, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the channel's releases are versions, each replacing the ones before it, rather than separate builds.
+    /// </summary>
+    public static bool IsVersionedChannel(string channel) => !RepositoryOf(channel).Equals(EXPERIMENTAL_CHANNEL, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsDebugChannel(string channel) => channel.EndsWith(DEBUG_SUFFIX, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The GitHub repository behind a channel.
+    /// </summary>
+    public static string RepositoryOf(string channel) => IsDebugChannel(channel) ? channel[..^DEBUG_SUFFIX.Length] : channel;
+
+    /// <summary>
+    /// The GitCode repository that mirrors a GitHub one, if any.
+    /// </summary>
+    public static string? MirrorOf(string repository) => repository.Equals(DEFAULT_REPOSITORY, StringComparison.OrdinalIgnoreCase)
+                                                             ? DEFAULT_MIRROR
+                                                             : null;
 }
 
 /// <summary>

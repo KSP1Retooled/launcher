@@ -5,19 +5,7 @@ namespace KSP.Retooled.Launcher.Tests;
 
 public sealed class ReleaseLinkTests
 {
-    [Theory]
-    [InlineData("https://github.com/KSP1Retooled/launcher/pull/9", true)]
-    [InlineData("http://example.com/", true)]
-    [InlineData("HTTPS://EXAMPLE.COM/", true)]
-    [InlineData("file:///C:/Windows/System32/calc.exe", false)]
-    [InlineData(@"C:\Windows\System32\calc.exe", false)]
-    [InlineData(@"\\host\share\run.exe", false)]
-    [InlineData("/usr/bin/xcalc", false)]
-    [InlineData("ms-settings:", false)]
-    [InlineData("javascript:alert(1)", false)]
-    [InlineData("relative/page", false)]
-    [InlineData("", false)]
-    [InlineData(null, false)]
+    [Theory, InlineData("https://github.com/KSP1Retooled/launcher/pull/9", true), InlineData("http://example.com/", true), InlineData("HTTPS://EXAMPLE.COM/", true), InlineData("file:///C:/Windows/System32/calc.exe", false), InlineData(@"C:\Windows\System32\calc.exe", false), InlineData(@"\\host\share\run.exe", false), InlineData("/usr/bin/xcalc", false), InlineData("ms-settings:", false), InlineData("javascript:alert(1)", false), InlineData("relative/page", false), InlineData("", false), InlineData(null, false)]
     public void OpensOnlyWebLinks(string? url, bool expected) => Assert.Equal(expected, Release.IsWebLink(url));
 }
 
@@ -26,36 +14,11 @@ public sealed class ReleaseNotesTests
     private const string URL = "https://github.com/KSP1Retooled/launcher/pull/9";
     private const string LINKED = $"[{URL}]({URL})";
 
-    [Theory]
-    [InlineData($"* Fix it by @someone in {URL}", $"* Fix it by @someone in {LINKED}")]
-    [InlineData($"{URL}\r\nnext", $"{LINKED}\r\nnext")]
-    [InlineData($"<{URL}>", LINKED)]
-    [InlineData($"See {URL}.", $"See {LINKED}.")]
-    [InlineData($"See {URL}, then", $"See {LINKED}, then")]
-    [InlineData($"(see {URL})", $"(see {LINKED})")]
-    [InlineData($"**{URL}**", $"**{LINKED}**")]
-    [InlineData("**Full Changelog**: https://github.com/a/b/compare/v0.1.3...v0.1.4",
-                "**Full Changelog**: [https://github.com/a/b/compare/v0.1.3...v0.1.4](https://github.com/a/b/compare/v0.1.3...v0.1.4)")]
-    [InlineData("https://a.example/x_(y)", @"[https://a.example/x\_(y)](https://a.example/x_(y))")]
-    [InlineData("https://a.example/a*b~c", @"[https://a.example/a\*b\~c](https://a.example/a*b~c)")]
+    [Theory, InlineData($"* Fix it by @someone in {URL}", $"* Fix it by @someone in {LINKED}"), InlineData($"{URL}\r\nnext", $"{LINKED}\r\nnext"), InlineData($"<{URL}>", LINKED), InlineData($"See {URL}.", $"See {LINKED}."), InlineData($"See {URL}, then", $"See {LINKED}, then"), InlineData($"(see {URL})", $"(see {LINKED})"), InlineData($"**{URL}**", $"**{LINKED}**"), InlineData("**Full Changelog**: https://github.com/a/b/compare/v0.1.3...v0.1.4",
+                                                                                                                                                                                                                                                                                                                                                                                            "**Full Changelog**: [https://github.com/a/b/compare/v0.1.3...v0.1.4](https://github.com/a/b/compare/v0.1.3...v0.1.4)"), InlineData("https://a.example/x_(y)", @"[https://a.example/x\_(y)](https://a.example/x_(y))"), InlineData("https://a.example/a*b~c", @"[https://a.example/a\*b\~c](https://a.example/a*b~c)")]
     public void LinksUrls(string notes, string expected) => Assert.Equal(expected, ReleaseNotes.LinkUrls(notes));
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("no links here")]
-    [InlineData(LINKED)]
-    [InlineData($"[the pull request]({URL})")]
-    [InlineData($"![screenshot]({URL}.png)")]
-    [InlineData($"[![badge]({URL}.svg)]({URL})")]
-    [InlineData($"[ref]: {URL}")]
-    [InlineData($"`{URL}`")]
-    [InlineData($"``a ` {URL}``")]
-    [InlineData($"```\n{URL}\n```")]
-    [InlineData($"~~~sh\r\ncurl {URL}\r\n~~~\r\n")]
-    [InlineData($"```\n{URL}")]
-    [InlineData($"    {URL}")]
-    [InlineData("ftp://example.com/file")]
-    [InlineData("https://.")]
+    [Theory, InlineData(""), InlineData("no links here"), InlineData(LINKED), InlineData($"[the pull request]({URL})"), InlineData($"![screenshot]({URL}.png)"), InlineData($"[![badge]({URL}.svg)]({URL})"), InlineData($"[ref]: {URL}"), InlineData($"`{URL}`"), InlineData($"``a ` {URL}``"), InlineData($"```\n{URL}\n```"), InlineData($"~~~sh\r\ncurl {URL}\r\n~~~\r\n"), InlineData($"```\n{URL}"), InlineData($"    {URL}"), InlineData("ftp://example.com/file"), InlineData("https://.")]
     public void LeavesOtherTextAlone(string notes) => Assert.Equal(notes, ReleaseNotes.LinkUrls(notes));
 
     [Fact]
@@ -85,13 +48,15 @@ public sealed class ReleaseVersionTests
             "v1.0.0",
             "1.0.1",
             "1.2",
-            "1.10.0",
+            "1.10.0"
         ];
+
         List<ReleaseVersion> parsed =
         [
             ..ascending
                .Select(t => ReleaseVersion.TryParse(t, out ReleaseVersion v) ? v : throw new Exception(t))
         ];
+
         for (int i = 1; i < parsed.Count; i++)
         {
             Assert.True(parsed[i - 1].CompareTo(parsed[i]) < 0,
@@ -107,13 +72,7 @@ public sealed class ReleaseVersionTests
         Assert.Equal(0, a.CompareTo(b));
     }
 
-    [Theory]
-    [InlineData("nightly")]
-    [InlineData("1")]
-    [InlineData("1.2.3.4")]
-    [InlineData("1.x.0")]
-    [InlineData("1.0.0-")]
-    [InlineData("")]
+    [Theory, InlineData("nightly"), InlineData("1"), InlineData("1.2.3.4"), InlineData("1.x.0"), InlineData("1.0.0-"), InlineData("")]
     public void RejectsTagsThatAreNotVersions(string tag) =>
         Assert.False(ReleaseVersion.TryParse(tag, out _));
 }
@@ -140,27 +99,25 @@ public sealed class ReleaseCatalogTests
                                                                                 10,
                                                                                 $"https://example/{tag}/{p}",
                                                                                 $"https://api/{tag}/{p}",
-                                                                                null)),
+                                                                                null))
                            ]);
     }
 
-    [Theory]
-    [InlineData("0.9.0", "v1.0.0")] // the newest stable one, not the pre-release above it
-    [InlineData("1.0.0", null)]
-    [InlineData("1.0.1", null)] // a build newer than anything published
-    [InlineData("1.1.0-beta.1", "v1.1.0-beta.2")] // already on a pre-release, so offered the next
-    [InlineData("1.1.0-beta.2", null)]
-    [InlineData("0.9.0-beta.1", "v1.1.0-beta.2")] // need not be a listed release
-    [InlineData("not-a-version", null)]
+    [Theory, InlineData("0.9.0", "v1.0.0"), InlineData("1.0.0", null), InlineData("1.0.1", null), InlineData("1.1.0-beta.1", "v1.1.0-beta.2"), InlineData("1.1.0-beta.2", null), InlineData("0.9.0-beta.1", "v1.1.0-beta.2"), InlineData("not-a-version", null)]
+    // the newest stable one, not the pre-release above it
+    // a build newer than anything published
+    // already on a pre-release, so offered the next
+    // need not be a listed release
     public void NewerThanLooksPastPrereleasesUnlessOnOne(string version, string? expected)
     {
         ReleaseCatalog catalog = new([
             Make("v0.9.0", day: 0),
             Make("v1.0.0", day: 1),
-            Make("v1.1.0-beta.1", prerelease: true, day: 2),
-            Make("v1.1.0-beta.2", prerelease: true, day: 3),
-            Make("nightly", day: 9),
+            Make("v1.1.0-beta.1", true, 2),
+            Make("v1.1.0-beta.2", true, 3),
+            Make("nightly", day: 9)
         ]);
+
         Assert.Equal(expected, catalog.NewerThan(version)?.Tag);
     }
 
@@ -168,8 +125,8 @@ public sealed class ReleaseCatalogTests
     private static ReleaseCatalog Catalog() =>
         new([
             Make("v0.9.0", day: 0),
-            Make("v1.1.0-beta.1", prerelease: true, day: 20),
-            Make("v1.0.0", day: 10),
+            Make("v1.1.0-beta.1", true, 20),
+            Make("v1.0.0", day: 10)
         ]);
 
     [Fact]
@@ -180,29 +137,30 @@ public sealed class ReleaseCatalogTests
     public void HidesPrereleasesUnlessOptedIn()
     {
         Assert.Equal(
-            ["v1.0.0", "v0.9.0"],
-            Catalog().Visible(includePrereleases: false).Select(r => r.Tag)
-        );
+                     ["v1.0.0", "v0.9.0"],
+                     Catalog().Visible(false).Select(r => r.Tag)
+                    );
+
         Assert.Equal(
-            ["v1.1.0-beta.1", "v1.0.0", "v0.9.0"],
-            Catalog().Visible(includePrereleases: true).Select(r => r.Tag)
-        );
+                     ["v1.1.0-beta.1", "v1.0.0", "v0.9.0"],
+                     Catalog().Visible(true).Select(r => r.Tag)
+                    );
     }
 
     [Fact]
     public void AnInstalledPrereleaseStaysListed() =>
         Assert.Contains(
-            "v1.1.0-beta.1",
-            Catalog()
-                .Visible(includePrereleases: false, installedTag: "v1.1.0-beta.1")
-                .Select(r => r.Tag)
-        );
+                        "v1.1.0-beta.1",
+                        Catalog()
+                           .Visible(false, "v1.1.0-beta.1")
+                           .Select(r => r.Tag)
+                       );
 
     [Fact]
     public void LatestHonoursTheOptIn()
     {
-        Assert.Equal("v1.0.0", Catalog().Latest("windows", includePrereleases: false)?.Tag);
-        Assert.Equal("v1.1.0-beta.1", Catalog().Latest("windows", includePrereleases: true)?.Tag);
+        Assert.Equal("v1.0.0", Catalog().Latest("windows", false)?.Tag);
+        Assert.Equal("v1.1.0-beta.1", Catalog().Latest("windows", true)?.Tag);
     }
 
     [Fact]
@@ -210,8 +168,9 @@ public sealed class ReleaseCatalogTests
     {
         ReleaseCatalog catalog = new([
             Make("v1.0.0"),
-            Make("v1.1.0", day: 1, platforms: "windows"),
+            Make("v1.1.0", day: 1, platforms: "windows")
         ]);
+
         Assert.Equal("v1.1.0", catalog.Latest("windows", false)?.Tag);
         Assert.Equal("v1.0.0", catalog.Latest("linux", false)?.Tag);
     }
@@ -219,30 +178,33 @@ public sealed class ReleaseCatalogTests
     [Fact]
     public void StableUsersAreNotOfferedPrereleaseUpgrades()
     {
-        Assert.Null(Catalog().UpgradeFor("v1.0.0", "windows", includePrereleases: false));
+        Assert.Null(Catalog().UpgradeFor("v1.0.0", "windows", false));
         Assert.Equal(
-            "v1.1.0-beta.1",
-            Catalog().UpgradeFor("v1.0.0", "windows", includePrereleases: true)?.Tag
-        );
+                     "v1.1.0-beta.1",
+                     Catalog().UpgradeFor("v1.0.0", "windows", true)?.Tag
+                    );
     }
 
     [Fact]
     public void OffersPrereleasesWhenThereIsNothingElse()
     {
         ReleaseCatalog catalog = new([
-            Make("v1.0.0-beta.1", prerelease: true),
-            Make("v1.0.0-beta.2", prerelease: true, day: 1),
+            Make("v1.0.0-beta.1", true),
+            Make("v1.0.0-beta.2", true, 1)
         ]);
+
         Assert.True(catalog.OnlyPrereleases);
         Assert.Equal(
-            ["v1.0.0-beta.2", "v1.0.0-beta.1"],
-            catalog.Visible(includePrereleases: false).Select(r => r.Tag)
-        );
-        Assert.Equal("v1.0.0-beta.2", catalog.Latest("windows", includePrereleases: false)?.Tag);
+                     ["v1.0.0-beta.2", "v1.0.0-beta.1"],
+                     catalog.Visible(false).Select(r => r.Tag)
+                    );
+
+        Assert.Equal("v1.0.0-beta.2", catalog.Latest("windows", false)?.Tag);
         Assert.Equal(
-            "v1.0.0-beta.2",
-            catalog.UpgradeFor("v1.0.0-beta.1", "windows", includePrereleases: false)?.Tag
-        );
+                     "v1.0.0-beta.2",
+                     catalog.UpgradeFor("v1.0.0-beta.1", "windows", false)?.Tag
+                    );
+
         Assert.False(Catalog().OnlyPrereleases);
         Assert.False(ReleaseCatalog.Empty.OnlyPrereleases);
     }
@@ -251,13 +213,14 @@ public sealed class ReleaseCatalogTests
     public void APrereleaseUserIsOfferedTheStableReleaseThatSupersedesIt()
     {
         ReleaseCatalog catalog = new([
-            Make("v1.1.0-beta.1", prerelease: true),
-            Make("v1.1.0", day: 5),
+            Make("v1.1.0-beta.1", true),
+            Make("v1.1.0", day: 5)
         ]);
+
         Assert.Equal(
-            "v1.1.0",
-            catalog.UpgradeFor("v1.1.0-beta.1", "windows", includePrereleases: false)?.Tag
-        );
+                     "v1.1.0",
+                     catalog.UpgradeFor("v1.1.0-beta.1", "windows", false)?.Tag
+                    );
     }
 
     [Fact]
@@ -265,7 +228,7 @@ public sealed class ReleaseCatalogTests
     {
         ReleaseCatalog catalog = Catalog();
         Release stable = catalog.Find("v1.0.0")!;
-        Assert.Equal(InstallAction.INSTALL, catalog.ActionFor(stable, installedTag: null));
+        Assert.Equal(InstallAction.INSTALL, catalog.ActionFor(stable, null));
         Assert.Equal(InstallAction.UPGRADE, catalog.ActionFor(stable, "v0.9.0"));
         Assert.Equal(InstallAction.DOWNGRADE, catalog.ActionFor(stable, "v1.1.0-beta.1"));
         Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(stable, "v1.0.0"));
@@ -282,8 +245,9 @@ public sealed class ReleaseCatalogTests
             Make("v2.0.0", day: 10),
             Make("v1.9.1", day: 12),
             Make("old-build", day: 1),
-            Make("v1.0.0", day: 0),
+            Make("v1.0.0", day: 0)
         ]);
+
         Assert.Equal(["v1.9.1", "v2.0.0", "old-build", "v1.0.0"], catalog.All.Select(r => r.Tag));
     }
 
@@ -293,49 +257,50 @@ public sealed class ReleaseCatalogTests
         // v1.1.0 was drafted first and published after v1.0.1
         ReleaseCatalog catalog = new([
             Make("v1.1.0", day: 9) with { Created = Day0.AddDays(1) },
-            Make("v1.0.1", day: 5),
+            Make("v1.0.1", day: 5)
         ]);
+
         Assert.Equal(["v1.0.1", "v1.1.0"], catalog.All.Select(r => r.Tag));
     }
 
     private static Release Built(string tag, string sha256, int day = 0)
     {
-        Release release = Make(tag, prerelease: true, day: day);
-        return release with { Assets = [.. release.Assets.Select(a => a with { Sha256 = sha256 })] };
+        Release release = Make(tag, true, day);
+        return release with { Assets = [..release.Assets.Select(a => a with { Sha256 = sha256 })] };
     }
 
     [Fact]
     public void SeparateBuildsAreNotVersionsOfEachOther()
     {
-        ReleaseCatalog catalog = new([Built("pr-1", "aa"), Built("pr-2", "bb", day: 1)], versioned: false);
+        ReleaseCatalog catalog = new([Built("pr-1", "aa"), Built("pr-2", "bb", 1)], false);
         Assert.Equal(InstallAction.REPLACE, catalog.ActionFor(catalog.Find("pr-2")!, "pr-1", "aa"));
         Assert.Equal(InstallAction.REPLACE, catalog.ActionFor(catalog.Find("pr-1")!, "pr-2", "bb"));
-        Assert.Null(catalog.Latest("windows", includePrereleases: false));
-        Assert.Null(catalog.UpgradeFor("pr-1", "windows", includePrereleases: false, "aa"));
-        Assert.Null(catalog.UpgradeFor(null, "windows", includePrereleases: false));
+        Assert.Null(catalog.Latest("windows", false));
+        Assert.Null(catalog.UpgradeFor("pr-1", "windows", false, "aa"));
+        Assert.Null(catalog.UpgradeFor(null, "windows", false));
     }
 
     [Fact]
     public void ANewBuildOfTheInstalledReleaseIsAnUpdate()
     {
-        ReleaseCatalog catalog = new([Built("pr-1", "bb"), Built("pr-2", "cc", day: 1)], versioned: false);
+        ReleaseCatalog catalog = new([Built("pr-1", "bb"), Built("pr-2", "cc", 1)], false);
         Release installed = catalog.Find("pr-1")!;
         Assert.Equal(InstallAction.UPDATE, catalog.ActionFor(installed, "pr-1", "aa"));
-        Assert.Same(installed, catalog.UpgradeFor("pr-1", "windows", includePrereleases: false, "aa"));
+        Assert.Same(installed, catalog.UpgradeFor("pr-1", "windows", false, "aa"));
         Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(installed, "pr-1", "BB"));
-        Assert.Null(catalog.UpgradeFor("pr-1", "windows", includePrereleases: false, "bb"));
+        Assert.Null(catalog.UpgradeFor("pr-1", "windows", false, "bb"));
         // installed by an older launcher, or from a release that published no digests
-        Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(installed, "pr-1", installedSha256: null));
+        Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(installed, "pr-1"));
         Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(Make("pr-1"), "pr-1", "aa"));
     }
 
     [Fact]
     public void ANewerVersionComesBeforeANewBuildOfTheInstalledOne()
     {
-        ReleaseCatalog catalog = new([Built("v1.0.0", "bb"), Built("v1.1.0", "cc", day: 1)]);
-        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.0.0", "windows", includePrereleases: true, "aa")?.Tag);
-        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.1.0", "windows", includePrereleases: true, "aa")?.Tag);
-        Assert.Null(catalog.UpgradeFor("v1.1.0", "windows", includePrereleases: true, "cc"));
+        ReleaseCatalog catalog = new([Built("v1.0.0", "bb"), Built("v1.1.0", "cc", 1)]);
+        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.0.0", "windows", true, "aa")?.Tag);
+        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.1.0", "windows", true, "aa")?.Tag);
+        Assert.Null(catalog.UpgradeFor("v1.1.0", "windows", true, "cc"));
     }
 
     [Fact]
@@ -353,12 +318,13 @@ public sealed class ReleaseCatalogTests
         ReleaseCatalog catalog = new([
             Make("nightly-b", day: 2),
             Make("v1.0.0", day: 1),
-            Make("nightly-c", day: 3),
+            Make("nightly-c", day: 3)
         ]);
+
         Assert.Equal(["nightly-c", "nightly-b", "v1.0.0"], catalog.All.Select(r => r.Tag));
         Assert.Equal(
-            InstallAction.UPGRADE,
-            catalog.ActionFor(catalog.Find("nightly-c")!, "nightly-b")
-        );
+                     InstallAction.UPGRADE,
+                     catalog.ActionFor(catalog.Find("nightly-c")!, "nightly-b")
+                    );
     }
 }

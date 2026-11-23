@@ -17,12 +17,13 @@ public static class BsPatch
     public static void Apply(ReadOnlySpan<byte> old, ReadOnlySpan<byte> patch, Stream output)
     {
         if (patch.Length < HEADER_SIZE) throw new InvalidDataException("bsdiff patch shorter than its header");
+
         long controlCount = BinaryPrimitives.ReadInt64LittleEndian(patch);
         long diffLength = BinaryPrimitives.ReadInt64LittleEndian(patch[8..]);
         long extraLength = BinaryPrimitives.ReadInt64LittleEndian(patch[16..]);
         long newSize = BinaryPrimitives.ReadInt64LittleEndian(patch[24..]);
         if (controlCount < 0 || diffLength < 0 || extraLength < 0 || newSize < 0
-         || HEADER_SIZE + controlCount * 24 + diffLength + extraLength != patch.Length)
+         || HEADER_SIZE + (controlCount * 24) + diffLength + extraLength != patch.Length)
         {
             throw new InvalidDataException("bsdiff patch header does not match its length");
         }
@@ -38,8 +39,8 @@ public static class BsPatch
             for (int c = 0; c < controlCount; c++)
             {
                 long add = BinaryPrimitives.ReadInt64LittleEndian(control[(c * 24)..]);
-                long copy = BinaryPrimitives.ReadInt64LittleEndian(control[(c * 24 + 8)..]);
-                long seek = BinaryPrimitives.ReadInt64LittleEndian(control[(c * 24 + 16)..]);
+                long copy = BinaryPrimitives.ReadInt64LittleEndian(control[((c * 24) + 8)..]);
+                long seek = BinaryPrimitives.ReadInt64LittleEndian(control[((c * 24) + 16)..]);
                 if (add < 0 || copy < 0 || newPos + add + copy > newSize || add > diff.Length || copy > extra.Length)
                 {
                     throw new InvalidDataException("corrupt bsdiff control stream");
@@ -53,12 +54,12 @@ public static class BsPatch
                     done += n;
                 }
 
-                diff = diff[(int)add..];
+                diff   =  diff[(int)add..];
                 oldPos += add;
                 newPos += add;
 
                 output.Write(extra[..(int)copy]);
-                extra = extra[(int)copy..];
+                extra  =  extra[(int)copy..];
                 newPos += copy;
                 oldPos += seek;
             }
@@ -77,6 +78,7 @@ public static class BsPatch
         diff.CopyTo(destination);
         long start = Math.Max(oldPos, 0), end = Math.Min(oldPos + diff.Length, old.Length);
         if (start >= end) return;
+
         Span<byte> target = destination[(int)(start - oldPos)..(int)(end - oldPos)];
         ReadOnlySpan<byte> source = old[(int)start..(int)end];
         int i = 0;
@@ -87,6 +89,7 @@ public static class BsPatch
                 (new Vector<byte>(target[i..]) + new Vector<byte>(source[i..])).CopyTo(target[i..]);
             }
         }
+
         for (; i < target.Length; i++)
         {
             target[i] += source[i];

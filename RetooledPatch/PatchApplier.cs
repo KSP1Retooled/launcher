@@ -34,6 +34,10 @@ public sealed class ApplyOptions
 /// </summary>
 public sealed class InstallCheck
 {
+    internal Recipe?[] chosen = [];
+
+    internal Dictionary<string, string?> hashes = [];
+
     /// <summary>
     /// The source whose files the chosen recipes read, or null for a mix of sources.
     /// </summary>
@@ -49,19 +53,17 @@ public sealed class InstallCheck
     public IReadOnlyList<string> SkippedComponents { get; init; } = [];
 
     public bool CanApply => !this.AlreadyPatched && this.Problems.Count is 0;
-
-    internal Recipe?[] chosen = [];
-
-    internal Dictionary<string, string?> hashes = [];
 }
 
 /// <summary>
 /// Applies a patch file to a stock install. Each output uses the first recipe whose stock files are all present with
 /// the recorded content, and every such file is hash-checked before anything is written. An output the patch leaves
 /// as stock reads nothing, so the install's copy stays as it is, whatever it holds, and may be missing. Side-by-side
-/// writes the retooled install to a new directory. In-place builds every output in <c>.retooled/staging</c> first, then records
+/// writes the retooled install to a new directory. In-place builds every output in <c>.retooled/staging</c> first,
+/// then records
 /// the plan in the <see cref="InstallJournal"/>, moves each stock file it replaces or removes into
-/// <c>.retooled/original</c> and the new file into place, so <see cref="PatchReverter"/> can restore the stock install.
+/// <c>.retooled/original</c> and the new file into place, so <see cref="PatchReverter"/> can restore the stock
+/// install.
 /// An in-place apply that throws leaves the install as it found it, unless undoing it failed too: the journal then
 /// stays, for a revert to finish.
 /// </summary>
@@ -82,6 +84,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
             applicable[c] = component.Requires is null || Directory.Exists(Path.Combine(this.install, component.Requires));
             if (!applicable[c]) skipped.Add(component.Name);
         }
+
         if (InstallJournal.Exists(this.install))
         {
             return new InstallCheck { AlreadyPatched = true, SkippedComponents = skipped, Problems = ["already patched; revert it first"] };
@@ -90,6 +93,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
         List<int> outputs = [..Enumerable.Range(0, this.manifest.Outputs.Count).Where(i => applicable[this.manifest.Outputs[i].Component])];
         IEnumerable<int> changed = outputs.Where(i => !IsUnchanged(this.manifest.Outputs[i]));
         Dictionary<string, string?> hashes = HashInputs(changed.SelectMany(i => this.manifest.Outputs[i].Recipes.SelectMany(r => r.Inputs())), options);
+
         bool Matches(int source) => hashes[this.manifest.Sources[source].Path] == this.manifest.Sources[source].Sha256;
 
         Recipe?[] chosen = new Recipe?[this.manifest.Outputs.Count];
@@ -102,8 +106,10 @@ public sealed class PatchApplier(PatchFile patch, string install)
                 if (File.Exists(Path.Combine(this.install, this.manifest.Outputs[i].Path))) chosen[i] = recipes[0];
                 continue;
             }
+
             chosen[i] = recipes.FirstOrDefault(r => r.Inputs().All(Matches));
             if (chosen[i] is not null) continue;
+
             Recipe? closest = recipes.MinBy(r => r.Inputs().Distinct().Count(s => !Matches(s)));
             foreach (int s in closest?.Inputs().Where(s => !Matches(s)) ?? [])
             {
@@ -114,7 +120,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
 
         HashSet<int> used = [..outputs.SelectMany(i => chosen[i]?.Inputs() ?? [])];
         string? variant = this.manifest.Variants.FirstOrDefault(v => used.IsSubsetOf(v.Files))?.Id;
-        return new InstallCheck { Variant = variant, Problems = [.. problems], SkippedComponents = skipped, chosen = chosen, hashes = hashes };
+        return new InstallCheck { Variant = variant, Problems = [..problems], SkippedComponents = skipped, chosen = chosen, hashes = hashes };
     }
 
     /// <summary>
@@ -133,6 +139,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
                                                          .Select(s => this.manifest.Sources[s])
                                                          .GroupBy(s => s.Path, StringComparer.Ordinal)
                                                          .ToDictionary(g => g.Key, g => g.Select(s => s.Size).ToHashSet(), StringComparer.Ordinal);
+
         ConcurrentDictionary<string, string?> hashes = new(StringComparer.Ordinal);
         List<(string Path, long Size)> work = [];
         foreach ((string path, HashSet<long> candidates) in sizes)
@@ -150,11 +157,12 @@ public sealed class PatchApplier(PatchFile patch, string install)
 
         long total = work.Sum(w => w.Size), done = 0;
         Parallel.ForEach(work.OrderByDescending(w => w.Size),
-            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = options.Cancellation }, w =>
-            {
-                hashes[w.Path] = Sha256Hex(Path.Combine(this.install, w.Path));
-                options.Progress?.Report(new PatchProgress("verify", Interlocked.Add(ref done, w.Size), total));
-            });
+                         new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = options.Cancellation }, w =>
+                         {
+                             hashes[w.Path] = Sha256Hex(Path.Combine(this.install, w.Path));
+                             options.Progress?.Report(new PatchProgress("verify", Interlocked.Add(ref done, w.Size), total));
+                         });
+
         options.Log.WriteLine($"hashed {work.Count} stock files ({total / 1048576.0:F0} MB)");
         return new Dictionary<string, string?>(hashes, StringComparer.Ordinal);
     }
@@ -164,6 +172,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
     {
         InstallCheck check = Check(options);
         if (check.AlreadyPatched) throw new PatchException($"{this.install} is already patched; revert it first");
+
         if (check.Problems.Count > 0)
         {
             throw new PatchException($"{this.install} does not match any stock KSP install this patch was built from ({PatchFile.Describe(this.manifest)}); "
@@ -179,7 +188,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
         string root = inPlace ? Path.Combine(this.install, InstallJournal.STAGING_DIRECTORY) : PrepareOutput(options.OutputDirectory!);
         // there's no journal, or Check would have refused, so whatever an earlier apply left here is scratch
         string scratch = Path.Combine(this.install, InstallJournal.DIRECTORY);
-        if (inPlace && Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true);
+        if (inPlace && Directory.Exists(scratch)) Directory.Delete(scratch, true);
 
         List<OutputFile> staged;
         try
@@ -191,6 +200,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
             InstallJournal.DeleteScratch(this.install);
             throw;
         }
+
         List<Component> components = [..this.manifest.Components.Where(c => !check.SkippedComponents.Contains(c.Name))];
         if (inPlace)
         {
@@ -199,8 +209,9 @@ public sealed class PatchApplier(PatchFile patch, string install)
                 Platform = this.manifest.Platform,
                 Variant  = check.Variant,
                 Patch    = Path.GetFileName(patch.FilePath),
-                Applied  = DateTime.UtcNow,
+                Applied  = DateTime.UtcNow
             };
+
             new InstallCommit(this.install, journal, check.hashes, options.Log, options.BeforeMove).Run(root, staged,
                                                                                                         components.SelectMany(c => c.Remove), components.SelectMany(c => c.Directories), language);
         }
@@ -216,6 +227,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
                 CopyFromInstall(path, root);
             }
         }
+
         options.Log.WriteLine(inPlace ? $"patched {this.install} in place" : $"wrote {root}");
         return check;
     }
@@ -224,7 +236,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
     {
         string full = Path.GetFullPath(directory);
         string relative = Path.GetRelativePath(this.install, full);
-        if (relative is "." || !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative))
+        if (relative is "." || (!relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative)))
         {
             throw new PatchException($"output {full} must be outside the install {this.install}");
         }
@@ -260,7 +272,8 @@ public sealed class PatchApplier(PatchFile patch, string install)
     }
 
     /// <summary>
-    /// Writes every chosen output under <paramref name="root"/>; returns the staged outputs (in-place skips unchanged same-path files).
+    /// Writes every chosen output under <paramref name="root"/>; returns the staged outputs (in-place skips unchanged
+    /// same-path files).
     /// </summary>
     // ReSharper disable once CognitiveComplexity
     private List<OutputFile> WriteOutputs(InstallCheck check, string root, bool inPlace, ApplyOptions options)
@@ -285,6 +298,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
             for (int i = 0; i < this.manifest.Outputs.Count; i++)
             {
                 if (check.chosen[i] is not { } recipe) continue;
+
                 options.Cancellation.ThrowIfCancellationRequested();
                 OutputFile output = this.manifest.Outputs[i];
                 if (recipe.Same is { } same)
@@ -304,6 +318,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
 
                         if (inPlace) staged.Add(output);
                     }
+
                     linked++;
                 }
                 else
@@ -329,12 +344,15 @@ public sealed class PatchApplier(PatchFile patch, string install)
                             throw new PatchException($"{output.Path}: patched content does not match the manifest hash");
                         }
                     }
+
                     if (output.Executable) MarkExecutable(destination);
                     if (inPlace) staged.Add(output);
                     written++;
                 }
+
                 options.Progress?.Report(new PatchProgress("write", done += output.Size, total));
             }
+
             options.Log.WriteLine($"{written} files patched, {linked} unchanged");
             return staged;
         }
@@ -348,6 +366,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
     private static void WriteSegment(Segment segment, SectionReader? section, Func<int, SafeFileHandle> handle, Stream output)
     {
         if (segment.ArchiveBytes > 0 && section is null) throw new InvalidDataException("a recipe with blobs has no section");
+
         switch (segment.Kind)
         {
             case SegmentKind.Copy:
@@ -363,6 +382,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
                     output.Write(buffer, 0, n);
                     left -= n;
                 }
+
                 break;
 
             case SegmentKind.BsDiff:
@@ -404,6 +424,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
         {
             int n = RandomAccess.Read(source, buffer.AsSpan(0, (int)Math.Min(buffer.Length, length)), offset);
             if (n is 0) throw new EndOfStreamException("stock file is shorter than its manifest entry");
+
             output.Write(buffer, 0, n);
             offset += n;
             length -= n;
@@ -413,6 +434,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
     private static void MarkExecutable(string path)
     {
         if (OperatingSystem.IsWindows()) return;
+
         File.SetUnixFileMode(path, File.GetUnixFileMode(path)
                                  | UnixFileMode.UserExecute
                                  | UnixFileMode.GroupExecute
@@ -436,6 +458,21 @@ internal sealed class HashingStream(Stream inner) : Stream
     private readonly IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
     private long length;
 
+    public override bool CanRead => false;
+
+    public override bool CanSeek => false;
+
+    public override bool CanWrite => true;
+
+    // ReSharper disable once ConvertToAutoPropertyWhenPossible
+    public override long Length => this.length;
+
+    public override long Position
+    {
+        get => this.length;
+        set => throw new NotSupportedException();
+    }
+
     public byte[] Hash() => this.hash.GetHashAndReset();
 
     public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
@@ -446,17 +483,6 @@ internal sealed class HashingStream(Stream inner) : Stream
         inner.Write(buffer);
         this.length += buffer.Length;
     }
-
-    public override bool CanRead => false;
-
-    public override bool CanSeek => false;
-
-    public override bool CanWrite => true;
-
-    // ReSharper disable once ConvertToAutoPropertyWhenPossible
-    public override long Length => this.length;
-
-    public override long Position { get => this.length; set => throw new NotSupportedException(); }
 
     public override void Flush() => inner.Flush();
 

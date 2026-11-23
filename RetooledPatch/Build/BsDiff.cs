@@ -4,13 +4,15 @@ namespace KSP.Retooled.Patch.Build;
 
 /// <summary>
 /// bsdiff (Colin Percival, BSD-2-Clause; see THIRD_PARTY_NOTICES.md) producing the raw stream layout
-/// <see cref="BsPatch"/> reads. Memory is about 7× the reference length while sorting and 5× after it, so callers keep
+/// <see cref="BsPatch"/> reads. Memory is about 7× the reference length while sorting and 5× after it, so callers
+/// keep
 /// references to a bounded window.
 /// </summary>
 public static class BsDiff
 {
     /// <summary>
-    /// How many entries <see cref="PrefixIndex(ReadOnlySpan{byte}, int[])"/> fills: one per three-byte prefix, and an end.
+    /// How many entries <see cref="PrefixIndex(ReadOnlySpan{byte}, int[])"/> fills: one per three-byte prefix, and an
+    /// end.
     /// </summary>
     internal const int PREFIX_INDEX_LENGTH = (1 << 24) + 1;
 
@@ -22,7 +24,8 @@ public static class BsDiff
     public static byte[] Diff(ReadOnlySpan<byte> old, int[] suffixes, ReadOnlySpan<byte> @new) => Diff(old, suffixes, PrefixIndex(old), @new);
 
     /// <summary>
-    /// The same, with <paramref name="prefixes"/> from <see cref="PrefixIndex(System.ReadOnlySpan{System.Byte})"/>, also reusable across calls.
+    /// The same, with <paramref name="prefixes"/> from <see cref="PrefixIndex(System.ReadOnlySpan{System.Byte})"/>, also
+    /// reusable across calls.
     /// </summary>
     // ReSharper disable once CognitiveComplexity
     internal static byte[] Diff(ReadOnlySpan<byte> old, int[] suffixes, int[] prefixes, ReadOnlySpan<byte> @new)
@@ -46,6 +49,7 @@ public static class BsDiff
                 }
 
                 if ((len == oldScore && len is not 0) || len > oldScore + 8) break;
+
                 if (scan + lastOffset >= 0 && scan + lastOffset < oldSize && old[scan + lastOffset] == @new[scan]) oldScore--;
             }
 
@@ -57,7 +61,11 @@ public static class BsDiff
             {
                 if (old[lastPos + i] == @new[lastScan + i]) s++;
                 i++;
-                if (s * 2 - i > bestForward * 2 - lenForward) { bestForward = s; lenForward = i; }
+                if ((s * 2) - i > (bestForward * 2) - lenForward)
+                {
+                    bestForward = s;
+                    lenForward  = i;
+                }
             }
 
             int lenBack = 0;
@@ -68,23 +76,32 @@ public static class BsDiff
                 for (int i = 1; scan >= lastScan + i && pos >= i; i++)
                 {
                     if (old[pos - i] == @new[scan - i]) s++;
-                    if (s * 2 - i > bestBack * 2 - lenBack) { bestBack = s; lenBack = i; }
+                    if ((s * 2) - i > (bestBack * 2) - lenBack)
+                    {
+                        bestBack = s;
+                        lenBack  = i;
+                    }
                 }
             }
 
             if (lastScan + lenForward > scan - lenBack)
             {
-                int overlap = lastScan + lenForward - (scan - lenBack);
+                int overlap = (lastScan + lenForward) - (scan - lenBack);
                 s = 0;
                 int bestSplit = 0, lenSplit = 0;
                 for (int i = 0; i < overlap; i++)
                 {
-                    if (@new[lastScan + lenForward - overlap + i] == old[lastPos + lenForward - overlap + i]) s++;
-                    if (@new[scan - lenBack + i] == old[pos - lenBack + i]) s--;
-                    if (s > bestSplit) { bestSplit = s; lenSplit = i + 1; }
+                    if (@new[((lastScan + lenForward) - overlap) + i] == old[((lastPos + lenForward) - overlap) + i]) s++;
+                    if (@new[(scan - lenBack) + i] == old[(pos - lenBack) + i]) s--;
+                    if (s > bestSplit)
+                    {
+                        bestSplit = s;
+                        lenSplit  = i + 1;
+                    }
                 }
+
                 lenForward += lenSplit - overlap;
-                lenBack -= lenSplit;
+                lenBack    -= lenSplit;
             }
 
             for (int i = 0; i < lenForward; i++)
@@ -94,16 +111,16 @@ public static class BsDiff
 
             int extraRun = scan - lenBack - (lastScan + lenForward);
             @new.Slice(lastScan + lenForward, extraRun).CopyTo(extra.AsSpan(extraLength));
-            diffLength += lenForward;
+            diffLength  += lenForward;
             extraLength += extraRun;
             control.Add((lenForward, extraRun, pos - lenBack - (lastPos + lenForward)));
 
-            lastScan = scan - lenBack;
-            lastPos = pos - lenBack;
+            lastScan   = scan - lenBack;
+            lastPos    = pos - lenBack;
             lastOffset = pos - scan;
         }
 
-        byte[] patch = new byte[BsPatch.HEADER_SIZE + control.Count * 24 + diffLength + extraLength];
+        byte[] patch = new byte[BsPatch.HEADER_SIZE + (control.Count * 24) + diffLength + extraLength];
         Span<byte> span = patch.AsSpan();
         BinaryPrimitives.WriteInt64LittleEndian(span, control.Count);
         BinaryPrimitives.WriteInt64LittleEndian(span[8..], diffLength);
@@ -117,6 +134,7 @@ public static class BsDiff
             BinaryPrimitives.WriteInt64LittleEndian(span[(at + 16)..], seek);
             at += 24;
         }
+
         diff.AsSpan(0, diffLength).CopyTo(span[at..]);
         extra.AsSpan(0, extraLength).CopyTo(span[(at + diffLength)..]);
         return patch;
@@ -131,16 +149,16 @@ public static class BsDiff
         int start = 0, end = old.Length;
         if (target.Length >= 3)
         {
-            int prefix = target[0] << 16 | target[1] << 8 | target[2];
+            int prefix = (target[0] << 16) | (target[1] << 8) | target[2];
             start = Math.Max(prefixes[prefix] - 1, 0);
-            end = Math.Min(prefixes[prefix + 1], end);
+            end   = Math.Min(prefixes[prefix + 1], end);
         }
 
         bool hasKey = target.Length >= sizeof(ulong);
         ulong targetKey = hasKey ? BinaryPrimitives.ReadUInt64BigEndian(target) : 0;
         while (end - start >= 2)
         {
-            int middle = start + (end - start) / 2;
+            int middle = start + ((end - start) / 2);
             int suffix = suffixes[middle];
             bool less;
             ulong key = hasKey && old.Length - suffix >= sizeof(ulong) ? BinaryPrimitives.ReadUInt64BigEndian(old[suffix..]) : targetKey;
@@ -163,6 +181,7 @@ public static class BsDiff
                 end = middle;
             }
         }
+
         int x = old[suffixes[start]..].CommonPrefixLength(target);
         int y = old[suffixes[end]..].CommonPrefixLength(target);
         pos = x > y ? suffixes[start] : suffixes[end];
@@ -196,12 +215,12 @@ public static class BsDiff
         Array.Clear(index);
         for (int i = 0; i + 2 < old.Length; i++)
         {
-            index[old[i] << 16 | old[i + 1] << 8 | old[i + 2]]++;
+            index[(old[i] << 16) | (old[i + 1] << 8) | old[i + 2]]++;
         }
 
         if (old.Length >= 2)
         {
-            index[old[^2] << 16 | old[^1] << 8]++;
+            index[(old[^2] << 16) | (old[^1] << 8)]++;
         }
 
         if (old.Length >= 1)

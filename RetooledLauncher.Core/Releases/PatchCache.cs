@@ -30,10 +30,15 @@ public interface IPatchProvider
 }
 
 /// <summary>
-/// Downloads patch files into <c>&lt;cache&gt;/&lt;channel&gt;@&lt;tag&gt;@&lt;sha256 prefix&gt;/</c> and keeps them, so the
-/// installed release's patch is at hand to roll back to if an upgrade fails. The digest is part of the folder because a
-/// release's patches can be replaced in place, and the new build must not overwrite the installed one; it is left out when
-/// the release publishes none. A file is reused only when its size (and the published digest, if any) match. Each of the source's requests for a file is tried in turn until one is answered. Local patch files are copied into <c>&lt;cache&gt;/local@&lt;sha256&gt;/</c>: by content, because a rebuilt
+/// Downloads patch files into <c>&lt;cache&gt;/&lt;channel&gt;@&lt;tag&gt;@&lt;sha256 prefix&gt;/</c> and keeps them,
+/// so the
+/// installed release's patch is at hand to roll back to if an upgrade fails. The digest is part of the folder because
+/// a
+/// release's patches can be replaced in place, and the new build must not overwrite the installed one; it is left out
+/// when
+/// the release publishes none. A file is reused only when its size (and the published digest, if any) match. Each of
+/// the source's requests for a file is tried in turn until one is answered. Local patch files are copied into
+/// <c>&lt;cache&gt;/local@&lt;sha256&gt;/</c>: by content, because a rebuilt
 /// file of the same name must not overwrite the copy of the installed one.
 /// </summary>
 public sealed class PatchCache(HttpClient http, IReleaseSource source, string directory)
@@ -48,6 +53,7 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
     {
         ReleaseAsset asset = release.PatchFor(platform)
                           ?? throw new LauncherException($"{release.Tag} has no {platform} build ({release.PatchNameFor(platform)})");
+
         string build = asset.Sha256 is { Length: 64 } sha256 ? $"{release.Tag}@{sha256[..16]}" : release.Tag;
         string path = Path.Combine(EntryFor(release.Channel, build), Path.GetFileName(asset.Name));
         if (File.Exists(path) && await IsIntactAsync(path, asset, cancellation).ConfigureAwait(false))
@@ -62,15 +68,17 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
             long total = response.Content.Headers.ContentLength ?? asset.Size;
             await using Stream body = await response.Content.ReadAsStreamAsync(cancellation)
                                                     .ConfigureAwait(false);
+
             await using FileStream file = new(partial,
                                               FileMode.Create,
                                               FileAccess.Write,
                                               FileShare.None,
                                               1 << 16,
-                                              useAsync: true);
+                                              true);
+
             byte[] buffer = new byte[1 << 16];
             long done = 0;
-            for (int n; (n = await body.ReadAsync(buffer, cancellation).ConfigureAwait(false)) > 0; )
+            for (int n; (n = await body.ReadAsync(buffer, cancellation).ConfigureAwait(false)) > 0;)
             {
                 await file.WriteAsync(buffer.AsMemory(0, n), cancellation).ConfigureAwait(false);
                 done += n;
@@ -83,53 +91,9 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
             File.Delete(partial);
             throw new LauncherException($"the download of {asset.Name} for {release.Tag} is corrupt; try again");
         }
-        File.Move(partial, path, overwrite: true);
+
+        File.Move(partial, path, true);
         return path;
-    }
-
-    /// <summary>
-    /// The first successful response to the source's requests for <paramref name="asset"/>.
-    /// </summary>
-    private async Task<HttpResponseMessage> OpenAsync(Release release,
-                                                      ReleaseAsset asset,
-                                                      CancellationToken cancellation)
-    {
-        Exception? first = null;
-        foreach (HttpRequestMessage request in source.AssetRequests(release, asset))
-        {
-            using (request)
-            {
-                HttpResponseMessage response;
-                try
-                {
-                    response = await http.SendAsync(
-                            request,
-                            HttpCompletionOption.ResponseHeadersRead,
-                            cancellation
-                        )
-                        .ConfigureAwait(false);
-                }
-                catch (Exception e)
-                    when (MirroredReleaseSource.IsUnreachable(e, cancellation))
-                {
-                    first ??= new LauncherException(
-                        $"downloading {asset.Name} of {release.Tag} failed: {e.Message}",
-                        e
-                    );
-                    continue;
-                }
-                if (response.IsSuccessStatusCode)
-                {
-                    return response;
-                }
-
-                first ??= new LauncherException(
-                                                $"downloading {asset.Name} of {release.Tag} failed: {(int)response.StatusCode} {response.ReasonPhrase}"
-                                               );
-                response.Dispose();
-            }
-        }
-        throw first ?? new LauncherException($"{asset.Name} of {release.Tag} has nowhere to be downloaded from");
     }
 
     public async Task<string> ImportAsync(string file,
@@ -153,12 +117,12 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
                                              FileAccess.Write,
                                              FileShare.None,
                                              1 << 20,
-                                             useAsync: true))
+                                             true))
         {
             await input.CopyToAsync(output, cancellation).ConfigureAwait(false);
         }
 
-        File.Move(partial, path, overwrite: true);
+        File.Move(partial, path, true);
         return path;
     }
 
@@ -171,17 +135,67 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
 
         HashSet<string?> kept = keep.Select(p => Path.GetFileName(Path.GetDirectoryName(p)))
                                     .ToHashSet(StringComparer.Ordinal);
+
         foreach (string dir in System.IO.Directory.EnumerateDirectories(this.Directory))
         {
             if (kept.Contains(Path.GetFileName(dir))) continue;
 
             try
             {
-                System.IO.Directory.Delete(dir, recursive: true);
+                System.IO.Directory.Delete(dir, true);
             }
             catch (IOException) { } // in use or locked: try again next time
             catch (UnauthorizedAccessException) { }
         }
+    }
+
+    /// <summary>
+    /// The first successful response to the source's requests for <paramref name="asset"/>.
+    /// </summary>
+    private async Task<HttpResponseMessage> OpenAsync(Release release,
+                                                      ReleaseAsset asset,
+                                                      CancellationToken cancellation)
+    {
+        Exception? first = null;
+        foreach (HttpRequestMessage request in source.AssetRequests(release, asset))
+        {
+            using (request)
+            {
+                HttpResponseMessage response;
+                try
+                {
+                    response = await http.SendAsync(
+                                                    request,
+                                                    HttpCompletionOption.ResponseHeadersRead,
+                                                    cancellation
+                                                   )
+                                         .ConfigureAwait(false);
+                }
+                catch (Exception e)
+                    when (MirroredReleaseSource.IsUnreachable(e, cancellation))
+                {
+                    first ??= new LauncherException(
+                                                    $"downloading {asset.Name} of {release.Tag} failed: {e.Message}",
+                                                    e
+                                                   );
+
+                    continue;
+                }
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return response;
+                }
+
+                first ??= new LauncherException(
+                                                $"downloading {asset.Name} of {release.Tag} failed: {(int)response.StatusCode} {response.ReasonPhrase}"
+                                               );
+
+                response.Dispose();
+            }
+        }
+
+        throw first ?? new LauncherException($"{asset.Name} of {release.Tag} has nowhere to be downloaded from");
     }
 
     private string EntryFor(string channel, string tag) => Path.Combine(this.Directory, SafeName($"{channel}@{tag}"));
@@ -210,5 +224,5 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
         return Convert.ToHexStringLower(hash);
     }
 
-    private static FileStream OpenRead(string path) => new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, useAsync: true);
+    private static FileStream OpenRead(string path) => new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, true);
 }

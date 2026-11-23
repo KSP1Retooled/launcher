@@ -16,12 +16,22 @@ public static partial class InstallLocator
     /// </summary>
     private const string GOG_ID = "1429864849";
 
+    private static string Home => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    /// <summary>
+    /// <c>$XDG_CONFIG_HOME</c>, or <c>~/.config</c> when it is unset.
+    /// </summary>
+    private static string XdgConfig => Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } config
+                                           ? config
+                                           : Path.Combine(Home, ".config");
+
     public static IReadOnlyList<InstallInfo> Find()
     {
         List<InstallInfo> found = [];
         HashSet<string> seen = new(
                                    OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase
                                   );
+
         foreach (string candidate in Candidates())
         {
             InstallInfo info = KspInstall.Inspect(candidate);
@@ -35,6 +45,7 @@ public static partial class InstallLocator
                 found.Add(info);
             }
         }
+
         return found;
     }
 
@@ -53,6 +64,7 @@ public static partial class InstallLocator
             yield return gog;
             yield return Path.Combine(gog, "game");
         }
+
         // The Windows version installed with Windows Steam or GOG inside Wine, CrossOver, Bottles, Whisky or a Proton
         // prefix. Steam's own KSP running under Proton stays in the native library above.
         foreach (string prefix in WinePrefixes(libraries))
@@ -81,7 +93,7 @@ public static partial class InstallLocator
     private static IEnumerable<string> WindowsSteamRoots(string root) =>
     [
         Path.Combine(root, "Program Files (x86)", "Steam"),
-        Path.Combine(root, "Program Files", "Steam"),
+        Path.Combine(root, "Program Files", "Steam")
     ];
 
     /// <summary>
@@ -90,7 +102,7 @@ public static partial class InstallLocator
     private static IEnumerable<string> WindowsGogFolders(string root) =>
     [
         Path.Combine(root, "GOG Games", GAME_FOLDER),
-        Path.Combine(root, "Program Files (x86)", "GOG Galaxy", "Games", GAME_FOLDER),
+        Path.Combine(root, "Program Files (x86)", "GOG Galaxy", "Games", GAME_FOLDER)
     ];
 
     /// <summary>
@@ -122,11 +134,13 @@ public static partial class InstallLocator
             // Lutris makes a prefix per game in ~/Games
             parents.Add(Path.Combine(Home, "Games"));
         }
+
         prefixes.AddRange(parents.SelectMany(Subfolders));
         // Proton keeps a prefix per app in compatdata/<app id>/pfx
         prefixes.AddRange(libraries
                          .SelectMany(library => Subfolders(Path.Combine(library, "steamapps", "compatdata")))
                          .Select(app => Path.Combine(app, "pfx")));
+
         return prefixes.Where(prefix => Directory.Exists(Path.Combine(prefix, "drive_c")));
     }
 
@@ -158,34 +172,27 @@ public static partial class InstallLocator
         char drive = char.ToLowerInvariant(match.Groups[1].Value[0]);
         string[] parts = match.Groups[2]
                               .Value.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+
         string root = drive switch
         {
             'c' => Path.Combine(prefix, "drive_c"),
             'z' => "/",
-            _   => Path.Combine(prefix, "dosdevices", drive + ":"),
+            _   => Path.Combine(prefix, "dosdevices", drive + ":")
         };
-        return Path.Combine([root, .. parts]);
+
+        return Path.Combine([root, ..parts]);
     }
-
-    private static string Home => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-    /// <summary>
-    /// <c>$XDG_CONFIG_HOME</c>, or <c>~/.config</c> when it is unset.
-    /// </summary>
-    private static string XdgConfig => Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } config
-                                           ? config
-                                           : Path.Combine(Home, ".config");
 
     private static IEnumerable<string> SteamRoots()
     {
         if (OperatingSystem.IsWindows())
         {
             foreach ((string key, string value) in new[]
-                {
-                    (@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath"),
-                    (@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
-                    (@"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam", "InstallPath"),
-                })
+                     {
+                         (@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath"),
+                         (@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
+                         (@"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam", "InstallPath")
+                     })
             {
                 if (Registry.GetValue(key, value, null) is string path)
                 {
@@ -216,6 +223,7 @@ public static partial class InstallLocator
     private static IEnumerable<string> SteamLibraries(string steam, string? prefix)
     {
         yield return steam;
+
         if (ReadText(Path.Combine(steam, "steamapps", "libraryfolders.vdf")) is not { } text)
         {
             yield break;
@@ -250,10 +258,10 @@ public static partial class InstallLocator
         if (OperatingSystem.IsWindows())
         {
             foreach (string key in new[]
-                {
-                    $@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\GOG.com\Games\{GOG_ID}",
-                    $@"HKEY_LOCAL_MACHINE\SOFTWARE\GOG.com\Games\{GOG_ID}",
-                })
+                     {
+                         $@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\GOG.com\Games\{GOG_ID}",
+                         $@"HKEY_LOCAL_MACHINE\SOFTWARE\GOG.com\Games\{GOG_ID}"
+                     })
             {
                 if (Registry.GetValue(key, "path", null) is string path)
                 {
@@ -275,6 +283,7 @@ public static partial class InstallLocator
         {
             yield return Path.Combine(Home, "GOG Games", GAME_FOLDER);
             yield return Path.Combine(Home, "Games", GAME_FOLDER);
+
             // Lutris's default for its GOG installer
             yield return Path.Combine(Home, "Games", "kerbal-space-program");
         }
@@ -322,9 +331,10 @@ public static partial class InstallLocator
                 yield return Path.Combine(folder, GAME_FOLDER);
             }
         }
+
         yield return OperatingSystem.IsMacOS()
-            ? Path.Combine(Home, "Applications", "Heroic", GAME_FOLDER)
-            : Path.Combine(Home, "Games", "Heroic", GAME_FOLDER);
+                         ? Path.Combine(Home, "Applications", "Heroic", GAME_FOLDER)
+                         : Path.Combine(Home, "Games", "Heroic", GAME_FOLDER);
     }
 
     /// <summary>
@@ -355,6 +365,7 @@ public static partial class InstallLocator
             }
         }
         catch (JsonException) { }
+
         return paths;
     }
 
@@ -375,6 +386,7 @@ public static partial class InstallLocator
             }
         }
         catch (JsonException) { }
+
         return null;
     }
 
@@ -388,10 +400,11 @@ public static partial class InstallLocator
             yield break;
         }
 
-        foreach (string config in new[] {
-                Path.Combine(XdgConfig, "minigalaxy", "config.json"),
-                Path.Combine(Home, ".var", "app", "io.github.sharkwouter.Minigalaxy", "config", "minigalaxy", "config.json"),
-            })
+        foreach (string config in new[]
+                 {
+                     Path.Combine(XdgConfig, "minigalaxy", "config.json"),
+                     Path.Combine(Home, ".var", "app", "io.github.sharkwouter.Minigalaxy", "config", "minigalaxy", "config.json")
+                 })
         {
             if (ReadText(config) is { } json && ParseMinigalaxyInstallFolder(json) is { } folder)
             {
@@ -415,15 +428,13 @@ public static partial class InstallLocator
             }
         }
         catch (JsonException) { }
+
         return null;
     }
 
-    private static string? GetString(JsonElement obj, string name)
-    {
-        return obj.TryGetProperty(name, out JsonElement value) && value.ValueKind is JsonValueKind.String
-                   ? value.GetString()
-                   : null;
-    }
+    private static string? GetString(JsonElement obj, string name) => obj.TryGetProperty(name, out JsonElement value) && value.ValueKind is JsonValueKind.String
+                                                                          ? value.GetString()
+                                                                          : null;
 
     private static string? ReadText(string path)
     {

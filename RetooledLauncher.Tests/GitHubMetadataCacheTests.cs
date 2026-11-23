@@ -11,6 +11,11 @@ public sealed class GitHubMetadataCacheTests : IDisposable
     private const string PAGE2 = PAGE1 + "&page=2";
     private readonly string directory = Path.Combine(Path.GetTempPath(), "retooled-metadata-" + Guid.NewGuid());
 
+    public void Dispose()
+    {
+        if (Directory.Exists(this.directory)) Directory.Delete(this.directory, true);
+    }
+
     [Fact]
     public async Task FreshMetadataIsSharedAcrossRegularAndDebugChannels()
     {
@@ -85,9 +90,7 @@ public sealed class GitHubMetadataCacheTests : IDisposable
         Assert.Empty(http.requests[2].Headers.IfNoneMatch);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task CooldownAppliesAcrossRepositoriesAndExpires(bool useReset)
     {
         ManualClock clock = new();
@@ -107,6 +110,7 @@ public sealed class GitHubMetadataCacheTests : IDisposable
 
             return response;
         };
+
         HttpClient client = new(http);
         GitHubMetadataCache cache = new(clock: clock);
         await Assert.ThrowsAsync<LauncherException>(() => new GitHubReleaseSource(client, "o/r", cache: cache).GetReleasesAsync());
@@ -132,6 +136,7 @@ public sealed class GitHubMetadataCacheTests : IDisposable
             await finish.Task.WaitAsync(cancellation);
             return Page("v1", "shared");
         }));
+
         Task<IReadOnlyList<Release>> first = new GitHubReleaseSource(client, "o/r").GetReleasesAsync();
         await started.Task;
         using CancellationTokenSource cancel = new();
@@ -158,8 +163,10 @@ public sealed class GitHubMetadataCacheTests : IDisposable
                 started.SetResult();
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellation);
             }
+
             return Page("v1", "retry");
         }));
+
         using CancellationTokenSource cancel = new();
         Task<IReadOnlyList<Release>> first = new GitHubReleaseSource(client, "o/r").GetReleasesAsync(cancel.Token);
         await started.Task;
@@ -201,6 +208,7 @@ public sealed class GitHubMetadataCacheTests : IDisposable
             await File.WriteAllTextAsync(path, corrupt);
             Assert.Single(await new GitHubReleaseSource(client, "o/r", cache: new GitHubMetadataCache(this.directory)).GetReleasesAsync());
         }
+
         Assert.Equal(4, http.requests.Count);
     }
 
@@ -242,8 +250,9 @@ public sealed class GitHubMetadataCacheTests : IDisposable
     {
         HttpResponseMessage response = new(HttpStatusCode.OK)
         {
-            Content = new StringContent("[{\"tag_name\":\"" + tag + "\"}]"),
+            Content = new StringContent("[{\"tag_name\":\"" + tag + "\"}]")
         };
+
         response.Headers.ETag = new EntityTagHeaderValue("\"" + etag + "\"");
         if (next is not null) response.Headers.Add("Link", "<" + next + ">; rel=\"next\"");
         return response;
@@ -252,16 +261,12 @@ public sealed class GitHubMetadataCacheTests : IDisposable
     private sealed class ManualClock : TimeProvider
     {
         public DateTimeOffset now = new(2026, 11, 17, 0, 0, 0, TimeSpan.Zero);
+
         public override DateTimeOffset GetUtcNow() => this.now;
     }
 
     private sealed class AsyncHttp(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
-    }
-
-    public void Dispose()
-    {
-        if (Directory.Exists(this.directory)) Directory.Delete(this.directory, recursive: true);
     }
 }

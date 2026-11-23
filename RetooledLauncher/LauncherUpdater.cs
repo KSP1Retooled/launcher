@@ -7,7 +7,8 @@ namespace KSP.Retooled.Launcher.App;
 
 /// <summary>
 /// Replaces the installed launcher with a newer release, from the update files that release carries. A downloaded
-/// update goes in on <see cref="Restart"/>. On Windows it otherwise goes in the next time the launcher starts; elsewhere
+/// update goes in on <see cref="Restart"/>. On Windows it otherwise goes in the next time the launcher starts;
+/// elsewhere
 /// it is kept, and offered again.
 /// </summary>
 public sealed class LauncherUpdater(string? token)

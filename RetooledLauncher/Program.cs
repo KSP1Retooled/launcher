@@ -34,7 +34,7 @@ internal static class Program
         {
             if (Directory.Exists(LauncherInfo.DataDirectory))
             {
-                Directory.Delete(LauncherInfo.DataDirectory, recursive: true);
+                Directory.Delete(LauncherInfo.DataDirectory, true);
             }
 
             string? parent = Path.GetDirectoryName(LauncherInfo.DataDirectory);

@@ -49,6 +49,7 @@ nothing to revert. The journal covers what a transaction can't: if the process d
 stays, and `revert` finishes restoring stock.
 
 An in-place apply also sets LANGUAGE in an
-existing settings.cfg to the stock buildID's language, which the build's buildID64.txt (buildID.txt on macOS and Linux) replaces.
+existing settings.cfg to the stock buildID's language, which the build's buildID64.txt (buildID.txt on macOS and Linux)
+replaces.
 
 The design is in forum thread #241.

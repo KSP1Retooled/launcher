@@ -10,6 +10,7 @@ All rights reserved
 Redistribution and use in source and binary forms, with or without
 modification, are permitted providing that the following conditions
 are met:
+
 1. Redistributions of source code must retain the above copyright
    notice, this list of conditions and the following disclaimer.
 2. Redistributions in binary form must reproduce the above copyright
@@ -19,7 +20,7 @@ are met:
 THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
 IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
 OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
@@ -45,10 +46,12 @@ https://github.com/whistyun/Markdown.Avalonia), which is licensed under the MIT 
 
 # DotMake.CommandLine
 
-RetooledPatch.Cli uses DotMake.CommandLine (NuGet package `DotMake.CommandLine`, https://github.com/dotmake-build/command-line),
+RetooledPatch.Cli uses DotMake.CommandLine (NuGet package
+`DotMake.CommandLine`, https://github.com/dotmake-build/command-line),
 which is licensed under the MIT License.
 
 # System.CommandLine
 
-RetooledPatch.Cli uses System.CommandLine, through DotMake.CommandLine (NuGet package `System.CommandLine`, https://github.com/dotnet/command-line-api),
+RetooledPatch.Cli uses System.CommandLine, through DotMake.CommandLine (NuGet package
+`System.CommandLine`, https://github.com/dotnet/command-line-api),
 which is licensed under the MIT License.

@@ -22,8 +22,8 @@ internal sealed class FakePatches : IPatchProvider
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellation
     ) => this.files.TryGetValue(release.Tag, out string? path)
-            ? Task.FromResult(path)
-            : throw new LauncherException($"no patch for {release.Tag}");
+             ? Task.FromResult(path)
+             : throw new LauncherException($"no patch for {release.Tag}");
 
     public Task<string> ImportAsync(
         string file,
@@ -45,20 +45,18 @@ internal sealed class FakePatches : IPatchProvider
 public sealed class LauncherServiceTests : IDisposable
 {
     private const string PLATFORM = "windows";
+    private readonly ReleaseCatalog catalog;
+    private readonly FakePatches patches = new();
     private readonly string root = Path.Combine(
                                                 Path.GetTempPath(),
                                                 "retooled-launcher-" + Guid.NewGuid().ToString("N")
                                                );
-    private readonly FakePatches patches = new();
     private readonly Dictionary<string, string> stockTree;
-    private readonly ReleaseCatalog catalog;
-
-    private string Install => Path.Combine(this.root, "ksp");
-    private string Stock => Path.Combine(this.root, "stock");
 
     public LauncherServiceTests()
     {
         Random rng = new(7);
+
         byte[] Bytes(int n)
         {
             byte[] b = new byte[n];
@@ -67,7 +65,8 @@ public sealed class LauncherServiceTests : IDisposable
         }
 
         byte[] data = Bytes(200_000),
-            part = Bytes(30_000);
+               part = Bytes(30_000);
+
         Write(this.Stock, "KSP_x64.exe", Bytes(3000));
         Write(this.Stock, "KSP_x64_Data/level0", data);
         Write(this.Stock, "KSP_x64_Data/old.assets", Bytes(5000));
@@ -75,27 +74,28 @@ public sealed class LauncherServiceTests : IDisposable
         Write(this.Stock, "buildID64.txt", [.."build id = 03190\n"u8]);
 
         Build(
-            "v1.0.0",
-            (dir, edit) =>
-            {
-                Write(dir, "KSP_x64.exe", Bytes(3000));
-                Write(dir, "KSP_x64_Data/level0", edit(data, 10));
-                Write(dir, "GameData/Squad/part.cfg", part);
-                Write(dir, "GameData/Retooled/v1.dll", Bytes(4000));
-                Write(dir, "buildID64.txt", [.."build id = 03190\n"u8]);
-            }
-        );
+              "v1.0.0",
+              (dir, edit) =>
+              {
+                  Write(dir, "KSP_x64.exe", Bytes(3000));
+                  Write(dir, "KSP_x64_Data/level0", edit(data, 10));
+                  Write(dir, "GameData/Squad/part.cfg", part);
+                  Write(dir, "GameData/Retooled/v1.dll", Bytes(4000));
+                  Write(dir, "buildID64.txt", [.."build id = 03190\n"u8]);
+              }
+             );
+
         Build(
-            "v1.1.0",
-            (dir, edit) =>
-            {
-                Write(dir, "KSP_x64.exe", Bytes(3000));
-                Write(dir, "KSP_x64_Data/level0", edit(data, 20));
-                Write(dir, "GameData/Squad/part.cfg", edit(part, 5));
-                Write(dir, "GameData/Retooled/v2.dll", Bytes(4000));
-                Write(dir, "buildID64.txt", [.."build id = 03190\n"u8]);
-            }
-        );
+              "v1.1.0",
+              (dir, edit) =>
+              {
+                  Write(dir, "KSP_x64.exe", Bytes(3000));
+                  Write(dir, "KSP_x64_Data/level0", edit(data, 20));
+                  Write(dir, "GameData/Squad/part.cfg", edit(part, 5));
+                  Write(dir, "GameData/Retooled/v2.dll", Bytes(4000));
+                  Write(dir, "buildID64.txt", [.."build id = 03190\n"u8]);
+              }
+             );
 
         // a release that patches a file of a different stock install, so it cannot apply to this one
         string other = Path.Combine(this.root, "other-stock");
@@ -103,33 +103,39 @@ public sealed class LauncherServiceTests : IDisposable
         byte[] otherData = Bytes(200_000);
         Write(other, "KSP_x64_Data/level0", otherData);
         BuildFrom(
-            other,
-            "v2.0.0",
-            dir =>
-            {
-                byte[] edited = (byte[])otherData.Clone();
-                edited[30] ^= 0xFF;
-                Write(dir, "KSP_x64_Data/level0", edited);
-                Write(dir, "GameData/Retooled/v3.dll", Bytes(100));
-            }
-        );
+                  other,
+                  "v2.0.0",
+                  dir =>
+                  {
+                      byte[] edited = (byte[])otherData.Clone();
+                      edited[30] ^= 0xFF;
+                      Write(dir, "KSP_x64_Data/level0", edited);
+                      Write(dir, "GameData/Retooled/v3.dll", Bytes(100));
+                  }
+                 );
 
         this.catalog = new ReleaseCatalog(
                                           new[] { "v1.0.0", "v1.1.0", "v2.0.0" }.Select(t =>
                                                                                             ReleaseCatalogTests.Make(t, platforms: PLATFORM)
                                                                                        )
                                          );
+
         CopyTree(this.Stock, this.Install);
         Write(this.Install, "saves/default/persistent.sfs", Bytes(100));
         Write(this.Install, "GameData/SomeMod/mod.dll", Bytes(100));
         this.stockTree = Tree(this.Install);
     }
 
+    private string Install => Path.Combine(this.root, "ksp");
+    private string Stock => Path.Combine(this.root, "stock");
+
+    private string BackupFolder => Path.Combine(this.Install, SavesBackup.BACKUP_FOLDER);
+
     public void Dispose()
     {
         if (Directory.Exists(this.root))
         {
-            Directory.Delete(this.root, recursive: true);
+            Directory.Delete(this.root, true);
         }
     }
 
@@ -139,18 +145,18 @@ public sealed class LauncherServiceTests : IDisposable
 
     private void Build(string tag, Action<string, Func<byte[], int, byte[]>> write) =>
         BuildFrom(this.Stock,
-            tag,
-            dir =>
-                write(
-                    dir,
-                    (bytes, at) =>
-                    {
-                        byte[] copy = (byte[])bytes.Clone();
-                        copy[at] ^= 0xFF;
-                        return copy;
-                    }
-                )
-        );
+                  tag,
+                  dir =>
+                      write(
+                            dir,
+                            (bytes, at) =>
+                            {
+                                byte[] copy = (byte[])bytes.Clone();
+                                copy[at] ^= 0xFF;
+                                return copy;
+                            }
+                           )
+                 );
 
     private void BuildFrom(string stock, string tag, Action<string> write)
     {
@@ -159,16 +165,16 @@ public sealed class LauncherServiceTests : IDisposable
         write(dir);
         string patch = Path.Combine(this.root, tag + PatchFile.EXTENSION);
         PatchBuilder.Build(
-            new BuildOptions
-            {
-                Sources = [new BuildSource { Name = "steam-03190", Roots = [stock] }],
-                Target = dir,
-                Output = patch,
-                Platform = PLATFORM,
-                Level = 3,
-                Jobs = 1,
-            }
-        );
+                           new BuildOptions
+                           {
+                               Sources  = [new BuildSource { Name = "steam-03190", Roots = [stock] }],
+                               Target   = dir,
+                               Output   = patch,
+                               Platform = PLATFORM,
+                               Level    = 3,
+                               Jobs     = 1
+                           }
+                          );
 
         this.patches.files[tag] = patch;
     }
@@ -178,13 +184,11 @@ public sealed class LauncherServiceTests : IDisposable
     /// </summary>
     private Dictionary<string, string> Installed() =>
         Tree(this.Install)
-            .Where(p =>
-                !p.Key.StartsWith(InstallJournal.DIRECTORY + "/")
-                && !p.Key.StartsWith(SavesBackup.BACKUP_FOLDER + "/")
-            )
-            .ToDictionary();
-
-    private string BackupFolder => Path.Combine(this.Install, SavesBackup.BACKUP_FOLDER);
+           .Where(p =>
+                      !p.Key.StartsWith(InstallJournal.DIRECTORY + "/")
+                   && !p.Key.StartsWith(SavesBackup.BACKUP_FOLDER + "/")
+                 )
+           .ToDictionary();
 
     /// <summary>
     /// The names of every file in the backup folder, in order.
@@ -193,10 +197,10 @@ public sealed class LauncherServiceTests : IDisposable
         Directory.Exists(this.BackupFolder)
             ?
             [
-                .. Directory
-                    .EnumerateFiles(this.BackupFolder)
-                    .Select(Path.GetFileName)
-                    .Order(StringComparer.Ordinal)!,
+                ..Directory
+                 .EnumerateFiles(this.BackupFolder)
+                 .Select(Path.GetFileName)
+                 .Order(StringComparer.Ordinal)!
             ]
             : [];
 
@@ -204,8 +208,8 @@ public sealed class LauncherServiceTests : IDisposable
         new()
         {
             Version = version,
-            Stock = stock,
-            Created = created,
+            Stock   = stock,
+            Created = created
         };
 
     [Fact]
@@ -272,8 +276,8 @@ public sealed class LauncherServiceTests : IDisposable
     public void PruneKeepsTheNewestBackupsAndTheNewestStockOne()
     {
         DateTime start = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
-        SavesBackup.Create(this.Install, Record("1.12.5", start, stock: true));
-        string newestStock = SavesBackup.Create(this.Install, Record("1.12.5", start.AddDays(1), stock: true))!;
+        SavesBackup.Create(this.Install, Record("1.12.5", start, true));
+        string newestStock = SavesBackup.Create(this.Install, Record("1.12.5", start.AddDays(1), true))!;
         for (int i = 0; i < SavesBackup.KEEP; i++)
         {
             SavesBackup.Create(this.Install, Record($"v1.{i}.0", start.AddDays(2 + i)));
@@ -296,7 +300,7 @@ public sealed class LauncherServiceTests : IDisposable
         DateTime start = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         for (int i = 0; i < SavesBackup.KEEP + 3; i++)
         {
-            SavesBackup.Create(this.Install, Record($"v1.{i}.0", start.AddDays(i), stock: i == SavesBackup.KEEP + 2));
+            SavesBackup.Create(this.Install, Record($"v1.{i}.0", start.AddDays(i), i == SavesBackup.KEEP + 2));
         }
 
         SavesBackup.Prune(this.Install);
@@ -310,7 +314,7 @@ public sealed class LauncherServiceTests : IDisposable
     [Fact]
     public void NoSavesMeansNoBackup()
     {
-        Directory.Delete(Path.Combine(this.Install, SavesBackup.SAVES_FOLDER), recursive: true);
+        Directory.Delete(Path.Combine(this.Install, SavesBackup.SAVES_FOLDER), true);
 
         Assert.Null(SavesBackup.Create(this.Install, Record("v1.0.0", DateTime.UtcNow)));
         Assert.Empty(Backups());
@@ -323,8 +327,8 @@ public sealed class LauncherServiceTests : IDisposable
         await cancel.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            Service().InstallAsync(this.Install, Get("v1.0.0"), this.catalog, cancellation: cancel.Token)
-        );
+                                                                    Service().InstallAsync(this.Install, Get("v1.0.0"), this.catalog, cancellation: cancel.Token)
+                                                               );
 
         Assert.Equal(InstallStatus.STOCK, KspInstall.Inspect(this.Install).Status);
         Assert.Empty(Backups());
@@ -357,7 +361,7 @@ public sealed class LauncherServiceTests : IDisposable
     public async Task RecordsTheDigestOfTheInstalledPatch()
     {
         Release release = Get("v1.0.0");
-        release = release with { Assets = [.. release.Assets.Select(a => a with { Sha256 = "ab12" })] };
+        release = release with { Assets = [..release.Assets.Select(a => a with { Sha256 = "ab12" })] };
 
         InstallInfo info = await Service().InstallAsync(this.Install, release, this.catalog);
 
@@ -383,10 +387,10 @@ public sealed class LauncherServiceTests : IDisposable
         this.patches.files.Remove("v1.0.0");
 
         await Assert.ThrowsAsync<LauncherException>(() =>
-            new LauncherService(this.patches, PLATFORM, log).InstallAsync(this.Install,
-                                                                          Get("v1.0.0"), this.catalog
-                                                                         )
-        );
+                                                        new LauncherService(this.patches, PLATFORM, log).InstallAsync(this.Install,
+                                                                                                                      Get("v1.0.0"), this.catalog
+                                                                                                                     )
+                                                   );
 
         Assert.Contains("installing KSP Retooled v1.0.0", log.ToString());
     }
@@ -460,8 +464,8 @@ public sealed class LauncherServiceTests : IDisposable
         Dictionary<string, string> before = Tree(this.Install);
 
         await Assert.ThrowsAsync<LauncherException>(() =>
-            new LauncherService(this.patches, "linux").InstallAsync(this.Install, Get("v1.1.0"), this.catalog)
-        );
+                                                        new LauncherService(this.patches, "linux").InstallAsync(this.Install, Get("v1.1.0"), this.catalog)
+                                                   );
 
         AssertTree(before, Tree(this.Install));
     }
@@ -489,8 +493,8 @@ public sealed class LauncherServiceTests : IDisposable
         await File.WriteAllBytesAsync(file, new byte[100]);
 
         await Assert.ThrowsAsync<LauncherException>(() =>
-            Service().InstallFileAsync(this.Install, file, this.catalog)
-        );
+                                                        Service().InstallFileAsync(this.Install, file, this.catalog)
+                                                   );
 
         AssertTree(before, Tree(this.Install));
     }
@@ -527,7 +531,7 @@ public sealed class LauncherServiceTests : IDisposable
     public async Task AFailedUpgradePutsBackAReleaseOfAnotherChannel()
     {
         await Service()
-            .InstallAsync(this.Install, Get("v1.0.0") with { Channel = "other/repo" }, this.catalog);
+           .InstallAsync(this.Install, Get("v1.0.0") with { Channel = "other/repo" }, this.catalog);
 
         LauncherException error = await Assert.ThrowsAsync<LauncherException>(() =>
                                                                                   Service().InstallAsync(this.Install, Get("v2.0.0"), ReleaseCatalog.Empty)
@@ -542,7 +546,8 @@ public sealed class LauncherServiceTests : IDisposable
     public async Task RollbackIsNotFooledByTheSameTagInAnotherChannel()
     {
         await Service()
-            .InstallAsync(this.Install, Get("v1.0.0") with { Channel = "other/repo" }, this.catalog);
+           .InstallAsync(this.Install, Get("v1.0.0") with { Channel = "other/repo" }, this.catalog);
+
         File.Delete(this.patches.files["v1.0.0"]); // the cached patch is gone, so only the catalog could help
 
         LauncherException error = await Assert.ThrowsAsync<LauncherException>(() =>
@@ -559,7 +564,7 @@ public sealed class LauncherServiceTests : IDisposable
         await Service().InstallAsync(this.Install, Get("v1.0.0"), this.catalog);
         InstalledRelease marker = KspInstall.ReadMarker(this.Install)!;
         marker.Channel = null;
-        marker.Patch = null; // as an older launcher wrote it
+        marker.Patch   = null; // as an older launcher wrote it
         KspInstall.WriteMarker(this.Install, marker);
 
         LauncherException error = await Assert.ThrowsAsync<LauncherException>(() =>
@@ -590,8 +595,8 @@ public sealed class LauncherServiceTests : IDisposable
         journal.Save(this.Install);
         Assert.Equal(InstallStatus.INTERRUPTED, KspInstall.Inspect(this.Install).Status);
         await Assert.ThrowsAsync<LauncherException>(() =>
-            Service().InstallAsync(this.Install, Get("v1.1.0"), this.catalog)
-        );
+                                                        Service().InstallAsync(this.Install, Get("v1.1.0"), this.catalog)
+                                                   );
 
         InstallInfo info = await Service().UninstallAsync(this.Install);
 
@@ -605,9 +610,9 @@ public sealed class LauncherServiceTests : IDisposable
         Directory.CreateDirectory(Path.Combine(this.root, "empty"));
         Assert.Equal(InstallStatus.NOT_KSP, KspInstall.Inspect(Path.Combine(this.root, "empty")).Status);
         Assert.Equal(
-            InstallStatus.MISSING,
-            KspInstall.Inspect(Path.Combine(this.root, "nowhere")).Status
-        );
+                     InstallStatus.MISSING,
+                     KspInstall.Inspect(Path.Combine(this.root, "nowhere")).Status
+                    );
     }
 
     [Fact]
@@ -680,10 +685,11 @@ public sealed class LauncherServiceTests : IDisposable
         string inspected = KspInstall.Inspect(path.ToLowerInvariant()).Path;
         Assert.Equal(KspInstall.Inspect(path).Path, inspected);
         Assert.StartsWith(
-            Path.GetPathRoot(path)!.ToUpperInvariant(),
-            inspected,
-            StringComparison.Ordinal
-        );
+                          Path.GetPathRoot(path)!.ToUpperInvariant(),
+                          inspected,
+                          StringComparison.Ordinal
+                         );
+
         Assert.EndsWith(@"\Kerbal Space Program", inspected, StringComparison.Ordinal);
     }
 
@@ -692,9 +698,9 @@ public sealed class LauncherServiceTests : IDisposable
         Dictionary<string, string> actual
     ) =>
         Assert.Equal(
-            expected.OrderBy(p => p.Key, StringComparer.Ordinal),
-            actual.OrderBy(p => p.Key, StringComparer.Ordinal)
-        );
+                     expected.OrderBy(p => p.Key, StringComparer.Ordinal),
+                     actual.OrderBy(p => p.Key, StringComparer.Ordinal)
+                    );
 
     private static void Write(string dir, string relative, byte[] bytes)
     {
@@ -715,10 +721,10 @@ public sealed class LauncherServiceTests : IDisposable
 
     private static Dictionary<string, string> Tree(string dir) =>
         Directory
-            .EnumerateFiles(dir, "*", SearchOption.AllDirectories)
-            .ToDictionary(
-                f => Path.GetRelativePath(dir, f).Replace('\\', '/'),
-                PatchApplier.Sha256Hex,
-                StringComparer.Ordinal
-            );
+           .EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+           .ToDictionary(
+                         f => Path.GetRelativePath(dir, f).Replace('\\', '/'),
+                         PatchApplier.Sha256Hex,
+                         StringComparer.Ordinal
+                        );
 }

@@ -10,7 +10,8 @@ using ZstdSharp;
 namespace KSP.Retooled.Patch.Build;
 
 /// <summary>
-/// A stock install the patch must apply to; later <see cref="Roots"/> overlay earlier ones (e.g. the game and DLC depots).
+/// A stock install the patch must apply to; later <see cref="Roots"/> overlay earlier ones (e.g. the game and DLC
+/// depots).
 /// </summary>
 public sealed class BuildSource
 {
@@ -78,6 +79,20 @@ public sealed record BuildResult(PatchManifest Manifest, string Report);
 public static partial class PatchBuilder
 {
     /// <summary>
+    /// Target window diffed against one reference window (at most 1.5× this), sharing one suffix sort.
+    /// </summary>
+    private const int CHUNK_SIZE = 64 << 20;
+    /// <summary>
+    /// What a worker can hold at its largest: a reference window, its suffix array and the sort's symbols.
+    /// </summary>
+    private const long JOB_MEMORY = 1L << 30;
+
+    /// <summary>
+    /// Gaps shorter than this, or windows with fewer gap bytes than <see cref="MIN_DIFF_WINDOW"/>, stay literal.
+    /// </summary>
+    private const int MIN_DIFF_GAP = 4 << 10;
+    private const int MIN_DIFF_WINDOW = 256 << 10;
+    /// <summary>
     /// Never part of a stock base or a shipped build: user data, logs, Unity's backup folders, the part icon / craft
     /// caches KSP writes at runtime (absent from a fresh install, different in every played one), the folder metadata
     /// Finder and Explorer write, and a patched install's journal. Debug symbols are shipped when the build has them:
@@ -108,7 +123,7 @@ public static partial class PatchBuilder
         "desktop.ini",
         "*/desktop.ini",
         "*_BackUpThisFolder_ButDontShipItWithYourGame/*",
-        $"{InstallJournal.DIRECTORY}/*",
+        $"{InstallJournal.DIRECTORY}/*"
     ];
 
     /// <summary>
@@ -123,67 +138,14 @@ public static partial class PatchBuilder
     [
         ("makinghistory", "GameData/SquadExpansion/MakingHistory"),
         ("serenity", "GameData/SquadExpansion/Serenity"),
-        ("core", null),
+        ("core", null)
     ];
-
-    /// <summary>
-    /// Target window diffed against one reference window (at most 1.5× this), sharing one suffix sort.
-    /// </summary>
-    private const int CHUNK_SIZE = 64 << 20;
-    /// <summary>
-    /// What a worker can hold at its largest: a reference window, its suffix array and the sort's symbols.
-    /// </summary>
-    private const long JOB_MEMORY = 1L << 30;
 
     /// <summary>
     /// One job per logical core, unless that would need more memory than this machine or container has.
     /// </summary>
     internal static int DefaultJobs => (int)Math.Clamp(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / JOB_MEMORY,
                                                        1, Environment.ProcessorCount);
-
-    /// <summary>
-    /// Gaps shorter than this, or windows with fewer gap bytes than <see cref="MIN_DIFF_WINDOW"/>, stay literal.
-    /// </summary>
-    private const int MIN_DIFF_GAP = 4 << 10;
-    private const int MIN_DIFF_WINDOW = 256 << 10;
-
-    private sealed class FileEntry(string relative, string full, long size, int component)
-    {
-        public readonly string relative = relative, full = full;
-        public readonly long size = size;
-        public readonly int component = component;
-        private readonly Lazy<string> hash = new(() => PatchApplier.Sha256Hex(full));
-        public string Hash => this.hash.Value;
-    }
-
-    private sealed record SourceInstall(string Id, List<FileEntry> Files);
-
-    /// <summary>
-    /// A segment plus where its bytes come from: <see cref="Source"/> is the stock file a copy or bsdiff reads; literal
-    /// bytes are read from the target file at the segment's position and bsdiff blobs from a spool file.
-    /// </summary>
-    private sealed record PlannedSegment(Segment Segment, long TargetOffset, FileEntry? Source = null, string? Spool = null, long Estimate = 0);
-
-    private sealed class PlannedOutput(FileEntry target)
-    {
-        public readonly FileEntry target = target;
-        public FileEntry? same;
-        public FileEntry? reference;
-        public PlannedSegment[] segments = [];
-    }
-
-    /// <summary>
-    /// The gaps of one target window, each filling slot <c>Slot</c> of the output's segments.
-    /// </summary>
-    private sealed record DiffJob(PlannedOutput Output, List<(int Slot, long Offset, int Length)> Gaps, long RefOffset, int RefLength)
-    {
-        public long GapBytes => this.Gaps.Sum(g => (long)g.Length);
-    }
-
-    /// <summary>
-    /// A recipe and the plan whose blobs it writes into section <see cref="SectionName"/>.
-    /// </summary>
-    private sealed record PlannedRecipe(Recipe Recipe, PlannedOutput PlannedOutput, string SectionName);
 
     public static BuildResult Build(BuildOptions o)
     {
@@ -211,10 +173,12 @@ public static partial class PatchBuilder
         Parallel.ForEach(sources.SelectMany(s => s.Files).Concat(targetFiles),
                          new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
                          f => _ = f.Hash);
+
         log.WriteLine($"hashed in {clock.Elapsed.TotalSeconds:F0}s");
 
         PatchManifest manifest = new() { Platform = platform, CopiedPaths = copied };
         Dictionary<(string, string), int> sourceIndex = new();
+
         int SourceIndex(FileEntry stock)
         {
             if (sourceIndex.TryGetValue((stock.relative, stock.Hash), out int index)) return index;
@@ -235,7 +199,7 @@ public static partial class PatchBuilder
         string spool = outPath + ".spool";
         if (Directory.Exists(spool))
         {
-            Directory.Delete(spool, recursive: true);
+            Directory.Delete(spool, true);
         }
 
         Directory.CreateDirectory(spool);
@@ -263,7 +227,7 @@ public static partial class PatchBuilder
             manifest.Outputs.Add(new OutputFile
             {
                 Path       = target.relative, Size         = target.size, Sha256 = target.Hash, Component = target.component,
-                Executable = IsExecutable(target), Recipes = [..recipes[target].Select(r => r.Recipe)],
+                Executable = IsExecutable(target), Recipes = [..recipes[target].Select(r => r.Recipe)]
             });
         }
 
@@ -274,13 +238,13 @@ public static partial class PatchBuilder
                 Name        = c.Name,
                 Requires    = c.Requires,
                 Remove      = RemovedStockFiles(sources, targetFiles, i),
-                Directories = [..emptyDirectories.Where(d => ComponentOf(d + "/") == i)],
+                Directories = [..emptyDirectories.Where(d => ComponentOf(d + "/") == i)]
             })
         ];
 
-        GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+        GC.Collect(2, GCCollectionMode.Forced, true, true);
         WriteFile(outPath, manifest, [..ordered.SelectMany(t => recipes[t])], o, report);
-        Directory.Delete(spool, recursive: true);
+        Directory.Delete(spool, true);
         log.WriteLine($"wrote {outPath} ({new FileInfo(outPath).Length / 1048576.0:F1} MB) at {clock.Elapsed.TotalSeconds:F0}s");
         return new BuildResult(manifest, report.ToString());
     }
@@ -290,6 +254,7 @@ public static partial class PatchBuilder
         if (File.Exists(Path.Combine(target, "KSP_x64.exe"))) return "windows";
         if (File.Exists(Path.Combine(target, "KSP.x86_64"))) return "linux";
         if (Directory.Exists(Path.Combine(target, "KSP.app"))) return "macos";
+
         throw new PatchException($"{target} has no KSP player (KSP_x64.exe, KSP.x86_64 or KSP.app); pass the platform explicitly");
     }
 
@@ -299,6 +264,7 @@ public static partial class PatchBuilder
         foreach (BuildSource source in sources)
         {
             if (source.Roots.Count is 0) throw new PatchException("a source has no directories");
+
             Dictionary<string, FileEntry> files = new(StringComparer.OrdinalIgnoreCase);
             foreach (string root in source.Roots)
             {
@@ -317,6 +283,7 @@ public static partial class PatchBuilder
 
             loaded.Add(new SourceInstall(id, [..files.Values.OrderBy(f => f.relative, StringComparer.OrdinalIgnoreCase)]));
         }
+
         return loaded;
     }
 
@@ -331,8 +298,10 @@ public static partial class PatchBuilder
             {
                 string path = Path.Combine(root, name);
                 if (!File.Exists(path)) continue;
+
                 string? build = BuildIdFile.Value(path, "build id");
                 if (build is null) continue;
+
                 string distribution = (BuildIdFile.Value(path, "distribution name") ?? "ksp").ToLowerInvariant().Replace(' ', '-');
                 return $"{distribution}-{build}";
             }
@@ -341,15 +310,17 @@ public static partial class PatchBuilder
         return null;
     }
 
-    private static bool Excluded(string relative, string[] excludes) => excludes.Any(e => FileSystemName.MatchesSimpleExpression(e, relative, ignoreCase: true))
-                                                                     && !StockSaves.Any(e => FileSystemName.MatchesSimpleExpression(e, relative, ignoreCase: true));
+    private static bool Excluded(string relative, string[] excludes) => excludes.Any(e => FileSystemName.MatchesSimpleExpression(e, relative))
+                                                                     && !StockSaves.Any(e => FileSystemName.MatchesSimpleExpression(e, relative));
 
     /// <summary>
-    /// The files under <paramref name="root"/>; <paramref name="emptyDirectories"/> collects the directories with no entries.
+    /// The files under <paramref name="root"/>; <paramref name="emptyDirectories"/> collects the directories with no
+    /// entries.
     /// </summary>
     private static List<FileEntry> Walk(string root, string[] excludes, List<string>? emptyDirectories = null)
     {
         if (!Directory.Exists(root)) throw new PatchException($"{root} does not exist");
+
         List<FileEntry> files = [];
         Stack<string> pending = new([root]);
         while (pending.Count > 0)
@@ -373,12 +344,14 @@ public static partial class PatchBuilder
             {
                 string relative = Path.GetRelativePath(root, full).Replace('\\', '/');
                 if (Excluded(relative, excludes)) continue;
+
                 // dev GameData is largely symlinks into a stock install; a link's own FileInfo has the link's length
                 FileInfo info = new(full);
-                long size = info.LinkTarget is null ? info.Length : ((FileInfo)info.ResolveLinkTarget(returnFinalTarget: true)!).Length;
+                long size = info.LinkTarget is null ? info.Length : ((FileInfo)info.ResolveLinkTarget(true)!).Length;
                 files.Add(new FileEntry(relative, full, size, ComponentOf(relative)));
             }
         }
+
         return files;
     }
 
@@ -414,6 +387,7 @@ public static partial class PatchBuilder
                     .Where(n => !shipped.Contains(n) && !(coreClr && n.Equals("MonoBleedingEdge", StringComparison.OrdinalIgnoreCase)))
                     .Order(StringComparer.OrdinalIgnoreCase)
         ];
+
         if (missing.Count > 0)
         {
             throw new PatchException($"{targetPath} has none of {source.Id}'s {string.Join(", ", missing)}: patch a release build (Builder.Build -retooledRelease), which has stock's layout");
@@ -426,11 +400,12 @@ public static partial class PatchBuilder
     private static bool IsExecutable(FileEntry file)
     {
         if (file.size < 4) return false;
+
         Span<byte> magic = stackalloc byte[4];
         using (FileStream stream = File.OpenRead(file.full)) stream.ReadExactly(magic);
         uint word = BinaryPrimitives.ReadUInt32BigEndian(magic);
         return word is 0x7F454C46 or 0xFEEDFACE or 0xFEEDFACF or 0xCEFAEDFE or 0xCFFAEDFE or 0xCAFEBABE
-            || magic[0] == '#' && magic[1] == '!';
+            || (magic[0] == '#' && magic[1] == '!');
     }
 
     /// <summary>
@@ -467,6 +442,7 @@ public static partial class PatchBuilder
             plan.same = candidates.FirstOrDefault(b => b.Hash == target.Hash);
             if (plan.same is null && samePath is { size: > 0 }) plan.reference = samePath;
         });
+
         return plans;
     }
 
@@ -479,11 +455,13 @@ public static partial class PatchBuilder
     {
         List<PlannedOutput> changed = [..plans.Where(p => p.same is null)];
         if (changed.Count is 0) return [];
+
         List<FileEntry> stock =
         [
             ..baseFiles.Where(Indexable)
                        .OrderBy(f => IsCore(f) ? 0 : 1).ThenBy(f => f.relative, StringComparer.OrdinalIgnoreCase)
         ];
+
         using CopyMatcher matcher = new(stock);
         log.WriteLine($"  indexed {matcher.Count} chunks of {stock.Count} stock files");
 
@@ -496,6 +474,7 @@ public static partial class PatchBuilder
 
             List<PlannedSegment?> slots = [];
             Dictionary<long, List<(int, long, int)>> windows = new();
+
             void Gap(long start, long end)
             {
                 // split at window boundaries so each piece belongs to exactly one target window
@@ -517,6 +496,7 @@ public static partial class PatchBuilder
                 slots.Add(new PlannedSegment(Segment.Copy(-1, run.SourceOffset, run.Length), run.Start, run.Source));
                 at = run.End;
             }
+
             Gap(at, target.size);
             if (at > target.size || runs.Zip(runs.Skip(1)).Any(p => p.First.End > p.Second.Start))
             {
@@ -531,6 +511,7 @@ public static partial class PatchBuilder
                 work.Add(ReferenceWindow(plan, windowIndex, gaps));
             }
         });
+
         return [..work];
     }
 
@@ -540,13 +521,14 @@ public static partial class PatchBuilder
     private static DiffJob ReferenceWindow(PlannedOutput plan, long windowIndex, List<(int, long, int)> gaps)
     {
         if (plan.reference is null) return new DiffJob(plan, gaps, 0, 0);
+
         long newSize = plan.target.size, refSize = plan.reference.size;
         long newOffset = windowIndex * CHUNK_SIZE, newEnd = Math.Min(newSize, newOffset + CHUNK_SIZE);
         double scale = (double)refSize / newSize;
-        long refStart = Math.Max(0, (long)(newOffset * scale) - CHUNK_SIZE / 4);
-        long refEnd = Math.Min(refSize, (long)(newEnd * scale) + CHUNK_SIZE / 4);
-        if (refSize <= CHUNK_SIZE * 3L / 2) (refStart, refEnd) = (0, refSize);
-        refEnd = Math.Min(refEnd, refStart + CHUNK_SIZE * 3L / 2);
+        long refStart = Math.Max(0, (long)(newOffset * scale) - (CHUNK_SIZE / 4));
+        long refEnd = Math.Min(refSize, (long)(newEnd * scale) + (CHUNK_SIZE / 4));
+        if (refSize <= (CHUNK_SIZE * 3L) / 2) (refStart, refEnd) = (0, refSize);
+        refEnd = Math.Min(refEnd, refStart + ((CHUNK_SIZE * 3L) / 2));
         return new DiffJob(plan, gaps, refStart, (int)(refEnd - refStart));
     }
 
@@ -605,9 +587,11 @@ public static partial class PatchBuilder
                         segment = SpoolDiff(output, offset, spool, reference, job.RefOffset, newBytes, patch, patchEstimate);
                     }
                 }
+
                 output.segments[slot] = segment;
                 Interlocked.Add(ref estimate, segment.Estimate);
             });
+
             workspaces.Add(workspace);
 
             int n = Interlocked.Increment(ref done);
@@ -617,17 +601,6 @@ public static partial class PatchBuilder
                             + $"~{estimate / 1048576.0:F2} MB ({clock.Elapsed.TotalSeconds:F1}s)");
             }
         });
-    }
-
-    /// <summary>
-    /// One worker's buffers for a reference window of up to the given length.
-    /// </summary>
-    private sealed class DiffWorkspace(int capacity)
-    {
-        public readonly byte[] reference = GC.AllocateUninitializedArray<byte>(capacity);
-        public readonly int[] suffixes = GC.AllocateUninitializedArray<int>(capacity + 1);
-        public readonly ushort[] symbols = GC.AllocateUninitializedArray<ushort>(capacity + 1);
-        public readonly int[] prefixes = GC.AllocateUninitializedArray<int>(BsDiff.PREFIX_INDEX_LENGTH);
     }
 
     private static PlannedSegment SpoolDiff(PlannedOutput output, long offset, string spool, ReadOnlySpan<byte> reference, long refOffset,
@@ -664,6 +637,7 @@ public static partial class PatchBuilder
         {
             int n = RandomAccess.Read(handle, bytes[at..], offset + at);
             if (n is 0) throw new EndOfStreamException(path);
+
             at += n;
         }
     }
@@ -687,6 +661,7 @@ public static partial class PatchBuilder
     private static Recipe ToRecipe(PlannedOutput plan, Func<FileEntry, int> sourceIndex)
     {
         if (plan.same is not null) return new Recipe { Same = sourceIndex(plan.same) };
+
         Recipe recipe = new() { Segments = [] };
         foreach ((Segment segment, _, FileEntry? fileEntry, _, _) in plan.segments)
         {
@@ -698,6 +673,7 @@ public static partial class PatchBuilder
 
             recipe.Segments.Add(segment);
         }
+
         return recipe;
     }
 
@@ -722,13 +698,15 @@ public static partial class PatchBuilder
             foreach (PlannedRecipe planned in recipes.Where(r => r.SectionName == name && r.Recipe.ArchiveBytes > 0))
             {
                 planned.Recipe.Section = index;
-                planned.Recipe.Offset = stream.Position;
+                planned.Recipe.Offset  = stream.Position;
                 WriteBlobs(planned.PlannedOutput, stream, buffer);
             }
+
             Section section = writer.EndSection();
             manifest.Sections.Add(section);
             report.AppendLine(CultureInfo.InvariantCulture, $"section {name,-32} {section.Size / 1048576.0,10:F1} MB -> {section.Length / 1048576.0,8:F1} MB");
         }
+
         writer.Finish(manifest);
     }
 
@@ -749,6 +727,7 @@ public static partial class PatchBuilder
                 {
                     int n = target.Read(buffer, 0, (int)Math.Min(buffer.Length, left));
                     if (n is 0) throw new EndOfStreamException(plan.target.full);
+
                     archive.Write(buffer, 0, n);
                     left -= n;
                 }
@@ -780,5 +759,54 @@ public static partial class PatchBuilder
             string kind = plan.reference is null ? "new" : "diff";
             report.AppendLine($"    {Mb(bytes)} / {Mb(copied)} / {Mb(plan.target.size)}  {kind,-4} {plan.target.relative}");
         }
+    }
+
+    private sealed class FileEntry(string relative, string full, long size, int component)
+    {
+        public readonly int component = component;
+        private readonly Lazy<string> hash = new(() => PatchApplier.Sha256Hex(full));
+        public readonly string relative = relative, full = full;
+        public readonly long size = size;
+        public string Hash => this.hash.Value;
+    }
+
+    private sealed record SourceInstall(string Id, List<FileEntry> Files);
+
+    /// <summary>
+    /// A segment plus where its bytes come from: <see cref="Source"/> is the stock file a copy or bsdiff reads; literal
+    /// bytes are read from the target file at the segment's position and bsdiff blobs from a spool file.
+    /// </summary>
+    private sealed record PlannedSegment(Segment Segment, long TargetOffset, FileEntry? Source = null, string? Spool = null, long Estimate = 0);
+
+    private sealed class PlannedOutput(FileEntry target)
+    {
+        public readonly FileEntry target = target;
+        public FileEntry? reference;
+        public FileEntry? same;
+        public PlannedSegment[] segments = [];
+    }
+
+    /// <summary>
+    /// The gaps of one target window, each filling slot <c>Slot</c> of the output's segments.
+    /// </summary>
+    private sealed record DiffJob(PlannedOutput Output, List<(int Slot, long Offset, int Length)> Gaps, long RefOffset, int RefLength)
+    {
+        public long GapBytes => this.Gaps.Sum(g => (long)g.Length);
+    }
+
+    /// <summary>
+    /// A recipe and the plan whose blobs it writes into section <see cref="SectionName"/>.
+    /// </summary>
+    private sealed record PlannedRecipe(Recipe Recipe, PlannedOutput PlannedOutput, string SectionName);
+
+    /// <summary>
+    /// One worker's buffers for a reference window of up to the given length.
+    /// </summary>
+    private sealed class DiffWorkspace(int capacity)
+    {
+        public readonly int[] prefixes = GC.AllocateUninitializedArray<int>(BsDiff.PREFIX_INDEX_LENGTH);
+        public readonly byte[] reference = GC.AllocateUninitializedArray<byte>(capacity);
+        public readonly int[] suffixes = GC.AllocateUninitializedArray<int>(capacity + 1);
+        public readonly ushort[] symbols = GC.AllocateUninitializedArray<ushort>(capacity + 1);
     }
 }

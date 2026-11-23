@@ -6,7 +6,8 @@ namespace KSP.Retooled.Patch.Build;
 public static partial class PatchBuilder
 {
     /// <summary>
-    /// A run of target bytes identical to <see cref="Length"/> bytes of <see cref="Source"/> at <see cref="SourceOffset"/>.
+    /// A run of target bytes identical to <see cref="Length"/> bytes of <see cref="Source"/> at
+    /// <see cref="SourceOffset"/>.
     /// </summary>
     private readonly record struct CopyRun(long Start, long Length, FileEntry Source, long SourceOffset)
     {
@@ -28,9 +29,9 @@ public static partial class PatchBuilder
         private const int MIN_RUN = 1 << 10;
 
         private static readonly ulong[] Gear = MakeGear();
+        private readonly ConcurrentDictionary<FileEntry, Lazy<MappedFile>> contents = new();
 
         private readonly Dictionary<(UInt128 Hash, int Length), (FileEntry File, long Offset)> index = new();
-        private readonly ConcurrentDictionary<FileEntry, Lazy<MappedFile>> contents = new();
 
         /// <summary>
         /// Indexes stock files in order; on duplicate content the earlier file wins, so pass core files first.
@@ -44,6 +45,7 @@ public static partial class PatchBuilder
                 List<(UInt128, int, long)> list = chunks[i] = [];
                 foreach ((int offset, int length) in Chunks(bytes)) list.Add((Hash(bytes.Slice(offset, length)), length, offset));
             });
+
             for (int i = 0; i < stock.Count; i++)
             {
                 foreach ((UInt128 hash, int length, long offset) in chunks[i])
@@ -70,6 +72,7 @@ public static partial class PatchBuilder
             {
                 if (offset + length <= coveredTo) continue;
                 if (!this.index.TryGetValue((Hash(target.Slice(offset, length)), length), out (FileEntry File, long Offset) hit) || !inScope(hit.File)) continue;
+
                 ReadOnlySpan<byte> source = Contents(hit.File).Span;
                 int sourceOffset = (int)hit.Offset;
                 if (!target.Slice(offset, length).SequenceEqual(source.Slice(sourceOffset, length))) continue;
@@ -81,12 +84,14 @@ public static partial class PatchBuilder
                     start--;
                     sourceStart--;
                 }
+
                 int end = offset + length;
                 end += target[end..].CommonPrefixLength(source[(sourceOffset + length)..]);
 
                 if (end - start >= MIN_RUN) runs.Add(new CopyRun(start, end - start, hit.File, sourceStart));
                 coveredTo = end;
             }
+
             return runs;
         }
 
@@ -101,20 +106,21 @@ public static partial class PatchBuilder
 
         private static List<(int Offset, int Length)> Chunks(ReadOnlySpan<byte> data)
         {
-            List<(int, int)> chunks = new(data.Length / (16 << 10) + 1);
+            List<(int, int)> chunks = new((data.Length / (16 << 10)) + 1);
             int start = 0;
             ulong h = 0;
             for (int i = 0; i < data.Length; i++)
             {
                 h = (h << 1) + Gear[data[i]];
-                int length = i - start + 1;
+                int length = (i - start) + 1;
                 if ((length >= MIN_CHUNK && (h & CUT_MASK) is 0) || length >= MAX_CHUNK)
                 {
                     chunks.Add((start, length));
                     start = i + 1;
-                    h = 0;
+                    h     = 0;
                 }
             }
+
             if (start < data.Length) chunks.Add((start, data.Length - start));
             return chunks;
         }

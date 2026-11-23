@@ -8,6 +8,22 @@ namespace KSP.Retooled.Patch.Tests;
 
 public sealed class SuffixSortTests
 {
+    public static TheoryData<byte[]> Texts =>
+    [
+        [],
+        [0],
+        [255],
+        [.."\0\0\0\0\0\0"u8],
+        [255, 255, 255, 255],
+        [1, 2, 1, 2, 1, 2, 1, 2],
+        [2, 1, 2, 1, 2, 1, 2, 1, 2],
+        [255, 0, 255, 0, 1, 255],
+        [.."mississippi"u8],
+        [..Enumerable.Range(0, 256).Select(i => (byte)i)],
+        [..Enumerable.Range(0, 256).Select(i => (byte)(255 - i))],
+        [..Enumerable.Repeat<byte>(7, 5000)]
+    ];
+
     private static int[] BruteForce(byte[] text)
     {
         int[] suffixes = [..Enumerable.Range(0, text.Length + 1)];
@@ -31,40 +47,19 @@ public sealed class SuffixSortTests
                 bytes.Add((byte)rng.Next(alphabet));
             }
         }
-        return [.. bytes.Take(length)];
+
+        return [..bytes.Take(length)];
     }
 
-    public static TheoryData<byte[]> Texts =>
-    [
-        [],
-        [0],
-        [255],
-        [.."\0\0\0\0\0\0"u8],
-        [255, 255, 255, 255],
-        [1, 2, 1, 2, 1, 2, 1, 2],
-        [2, 1, 2, 1, 2, 1, 2, 1, 2],
-        [255, 0, 255, 0, 1, 255],
-        [.."mississippi"u8],
-        [..Enumerable.Range(0, 256).Select(i => (byte)i)],
-        [..Enumerable.Range(0, 256).Select(i => (byte)(255 - i))],
-        [..Enumerable.Repeat<byte>(7, 5000)]
-    ];
-
-    [Theory]
-    [MemberData(nameof(Texts))]
+    [Theory, MemberData(nameof(Texts))]
     public void SortsSmallAndDegenerateTexts(byte[] text) => Assert.Equal(BruteForce(text), BsDiff.SuffixSort(text));
 
-    [Theory]
-    [InlineData(1, 2)]
-    [InlineData(2, 3)]
-    [InlineData(3, 4)]
-    [InlineData(4, 16)]
-    [InlineData(5, 256)]
+    [Theory, InlineData(1, 2), InlineData(2, 3), InlineData(3, 4), InlineData(4, 16), InlineData(5, 256)]
     public void SortsRepetitiveTexts(int seed, int alphabet)
     {
         for (int length = 1; length < 400; length++)
         {
-            byte[] text = Repeats(seed * 1000 + length, length, alphabet);
+            byte[] text = Repeats((seed * 1000) + length, length, alphabet);
             Assert.Equal(BruteForce(text), BsDiff.SuffixSort(text));
         }
 
@@ -98,10 +93,7 @@ public sealed class SuffixSortTests
         return key;
     }
 
-    [Theory]
-    [InlineData(1, 2)]
-    [InlineData(2, 4)]
-    [InlineData(3, 256)]
+    [Theory, InlineData(1, 2), InlineData(2, 4), InlineData(3, 256)]
     // ReSharper disable once CognitiveComplexity
     public void TheIndexPointsAtEachPrefixInTheSuffixArray(int seed, int alphabet)
     {
@@ -114,7 +106,7 @@ public sealed class SuffixSortTests
             {
                 for (int c = 0; c < Math.Min(alphabet, 8); c++)
                 {
-                    int prefix = a << 16 | b << 8 | c;
+                    int prefix = (a << 16) | (b << 8) | c;
                     byte[] target = [(byte)a, (byte)b, (byte)c];
                     int lower = Math.Max(index[prefix] - 1, 0), upper = Math.Min(index[prefix + 1], old.Length);
 
@@ -126,14 +118,12 @@ public sealed class SuffixSortTests
         }
     }
 
-    [Theory]
-    [InlineData(1, 2)]
-    [InlineData(2, 256)]
+    [Theory, InlineData(1, 2), InlineData(2, 256)]
     public void DiffingAgainstShortReferencesRoundTrips(int seed, int alphabet)
     {
         for (int length = 0; length < 40; length++)
         {
-            byte[] old = Repeats(seed + length, length, alphabet), @new = Repeats(seed * 7 + length, 300, alphabet);
+            byte[] old = Repeats(seed + length, length, alphabet), @new = Repeats((seed * 7) + length, 300, alphabet);
             using MemoryStream output = new();
             BsPatch.Apply(old, BsDiff.Diff(old, @new), output);
             Assert.Equal(@new, output.ToArray());
@@ -174,12 +164,7 @@ public sealed class BsDiffTests
         Assert.True(compressed < 5_000, $"patch {compressed} bytes compressed");
     }
 
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(0, 1000)]
-    [InlineData(1000, 0)]
-    [InlineData(5000, 5000)]
-    [InlineData(1, 70_000)]
+    [Theory, InlineData(0, 0), InlineData(0, 1000), InlineData(1000, 0), InlineData(5000, 5000), InlineData(1, 70_000)]
     public void UnrelatedAndEmptyInputs(int oldLength, int newLength) =>
         RoundTrip(Random(oldLength, oldLength), Random(newLength + 7, newLength));
 
@@ -199,23 +184,22 @@ public sealed class BsDiffTests
 /// </summary>
 public sealed class PatchRoundTripTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), "retooled-patch-" + Guid.NewGuid().ToString("N"));
-    private string Steam => Path.Combine(this.root, "steam");
-    private string Gog => Path.Combine(this.root, "gog");
-    private string Build => Path.Combine(this.root, "build");
-    private string PatchPath => Path.Combine(this.root, "retooled-windows.rtpatch");
+    private const string UNCHANGED_FILE = "saves/scenarios/Mun Orbit.sfs";
 
     private readonly Dictionary<string, string> gogTree;
+    private readonly string root = Path.Combine(Path.GetTempPath(), "retooled-patch-" + Guid.NewGuid().ToString("N"));
 
     public PatchRoundTripTests()
     {
         Random rng = new(42);
+
         byte[] Bytes(int n)
         {
             byte[] b = new byte[n];
             rng.NextBytes(b);
             return b;
         }
+
         void Both(string relative, byte[] bytes)
         {
             Write(this.Steam, relative, bytes);
@@ -263,13 +247,13 @@ public sealed class PatchRoundTripTests : IDisposable
         byte[] payloadA = Bytes(400_000), payloadB = Bytes(400_000);
         Both("KSP_x64_Data/sharedassets1.assets.resS", payloadA);
         Write(this.Steam, "KSP_x64_Data/sharedassets2.assets.resS", payloadB);
-        Write(this.Gog, "KSP_x64_Data/sharedassets2.assets.resS", [.. payloadB.AsSpan(0, 200_000), .. Bytes(200_000)]);
-        Write(this.Build, "KSP_x64_Data/sharedassets1.assets.resS", [.. payloadB.AsSpan(100_000, 250_000), .. Bytes(5000), .. payloadA.AsSpan(0, 300_000)]);
+        Write(this.Gog, "KSP_x64_Data/sharedassets2.assets.resS", [..payloadB.AsSpan(0, 200_000), ..Bytes(200_000)]);
+        Write(this.Build, "KSP_x64_Data/sharedassets1.assets.resS", [..payloadB.AsSpan(100_000, 250_000), ..Bytes(5000), ..payloadA.AsSpan(0, 300_000)]);
 
         // a chunk straddling the end of one copy run can match another stock file (C holds A's tail and the new data)
         byte[] tail = Bytes(150_000);
-        Both("KSP_x64_Data/sharedassets3.assets.resS", [.. payloadA.AsSpan(200_000, 100_000), .. tail]);
-        Write(this.Build, "KSP_x64_Data/sharedassets3.assets.resS", [.. payloadA.AsSpan(0, 300_000), .. tail]);
+        Both("KSP_x64_Data/sharedassets3.assets.resS", [..payloadA.AsSpan(200_000, 100_000), ..tail]);
+        Write(this.Build, "KSP_x64_Data/sharedassets3.assets.resS", [..payloadA.AsSpan(0, 300_000), ..tail]);
 
         // Finder and Explorer write these wherever a folder was browsed: neither stock files nor shipped
         Write(this.Steam, ".DS_Store", [.."Bud1 steam"u8]);
@@ -282,13 +266,23 @@ public sealed class PatchRoundTripTests : IDisposable
         PatchBuilder.Build(Options(this.PatchPath));
     }
 
+    private string Steam => Path.Combine(this.root, "steam");
+    private string Gog => Path.Combine(this.root, "gog");
+    private string Build => Path.Combine(this.root, "build");
+    private string PatchPath => Path.Combine(this.root, "retooled-windows.rtpatch");
+
+    public void Dispose()
+    {
+        if (Directory.Exists(this.root)) Directory.Delete(this.root, true);
+    }
+
     private BuildOptions Options(string output) => new()
     {
         Sources = [new BuildSource { Roots = [this.Steam] }, new BuildSource { Roots = [this.Gog] }],
         Target  = this.Build,
         Output  = output,
         Level   = 3,
-        Jobs    = 2,
+        Jobs    = 2
     };
 
     private static void Write(string dir, string relative, byte[] bytes)
@@ -300,7 +294,7 @@ public sealed class PatchRoundTripTests : IDisposable
 
     private static Dictionary<string, string> Tree(string dir) =>
         Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
-            .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'), PatchApplier.Sha256Hex, StringComparer.OrdinalIgnoreCase);
+                 .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'), PatchApplier.Sha256Hex, StringComparer.OrdinalIgnoreCase);
 
     private static List<string> Directories(string dir) =>
     [
@@ -321,9 +315,7 @@ public sealed class PatchRoundTripTests : IDisposable
 
     private PatchApplier Applier(string install) => new(PatchFile.Open(this.PatchPath), install);
 
-    [Theory]
-    [InlineData("steam")]
-    [InlineData("gog")]
+    [Theory, InlineData("steam"), InlineData("gog")]
     public void EverySourceReproducesTheBuild(string source)
     {
         string output = Path.Combine(this.root, "out");
@@ -344,7 +336,7 @@ public sealed class PatchRoundTripTests : IDisposable
             Target  = this.Steam,
             Output  = patch,
             Level   = 3,
-            Jobs    = 2,
+            Jobs    = 2
         });
 
         Assert.All(PatchFile.Open(patch).Manifest.Outputs, o => Assert.NotNull(Assert.Single(o.Recipes).Same));
@@ -359,9 +351,10 @@ public sealed class PatchRoundTripTests : IDisposable
         // the executable and buildID are literals, which read no stock file, so GOG reuses them
         List<string> withAlternatives = [..m.Outputs.Where(o => o.Recipes.Count > 1).Select(o => o.Path).Order(StringComparer.Ordinal)];
         Assert.Equal(["KSP_x64_Data/Plugins/x86_64/steam_api64.dll", "KSP_x64_Data/level0", "KSP_x64_Data/sharedassets1.assets.resS"],
-            withAlternatives);
+                     withAlternatives);
+
         Assert.Equal(["KSP_x64_Data/gone.assets", "KSP_x64_Data/Plugins/x86_64/galaxy64.dll", "KSP_x64_Data/sharedassets2.assets.resS"],
-            m.Components.Single(c => c.Name is "core").Remove);
+                     m.Components.Single(c => c.Name is "core").Remove);
     }
 
     [Fact]
@@ -372,13 +365,13 @@ public sealed class PatchRoundTripTests : IDisposable
         List<Segment> copies = [..output.Recipes[0].Segments!.Where(s => s.Kind == SegmentKind.Copy)];
         Assert.Equal(550_000, copies.Sum(s => s.Length));
         Assert.Equal(["KSP_x64_Data/sharedassets1.assets.resS", "KSP_x64_Data/sharedassets2.assets.resS"],
-            copies.Select(s => m.Sources[s.File!.Value].Path).Distinct().Order());
+                     copies.Select(s => m.Sources[s.File!.Value].Path).Distinct().Order());
     }
 
     [Fact]
     public void MixedInstallStillApplies()
     {
-        File.Copy(Path.Combine(this.Gog, "KSP_x64_Data/level0"), Path.Combine(this.Steam, "KSP_x64_Data/level0"), overwrite: true);
+        File.Copy(Path.Combine(this.Gog, "KSP_x64_Data/level0"), Path.Combine(this.Steam, "KSP_x64_Data/level0"), true);
         string output = Path.Combine(this.root, "out");
         InstallCheck check = Applier(this.Steam).Apply(new ApplyOptions { OutputDirectory = output });
         Assert.Null(check.Variant);
@@ -409,8 +402,9 @@ public sealed class PatchRoundTripTests : IDisposable
         Dictionary<string, string> expected = new(this.gogTree, StringComparer.OrdinalIgnoreCase)
         {
             ["saves/career/persistent.sfs"]  = Tree(this.Gog)["saves/career/persistent.sfs"],
-            ["saves/default/persistent.sfs"] = Tree(this.Gog)["saves/default/persistent.sfs"],
+            ["saves/default/persistent.sfs"] = Tree(this.Gog)["saves/default/persistent.sfs"]
         };
+
         Assert.Equal(expected.OrderBy(p => p.Key, StringComparer.Ordinal), Tree(this.Gog).OrderBy(p => p.Key, StringComparer.Ordinal));
         Assert.Equal(directories.Append("saves/career").Order(StringComparer.Ordinal), Directories(this.Gog));
         Assert.False(InstallJournal.Exists(this.Gog));
@@ -422,7 +416,7 @@ public sealed class PatchRoundTripTests : IDisposable
         Write(this.Gog, "settings.cfg", [.."SETTINGS_FILE_VERSION = 1.3.0\r\nLANGUAGE = en-us\r\nTUTORIALS_EDITOR_ENABLE = False\r\n"u8]);
         Applier(this.Gog).Apply(new ApplyOptions());
         Assert.Equal("SETTINGS_FILE_VERSION = 1.3.0\r\nLANGUAGE = ja\r\nTUTORIALS_EDITOR_ENABLE = False\r\n",
-            File.ReadAllText(Path.Combine(this.Gog, "settings.cfg")));
+                     File.ReadAllText(Path.Combine(this.Gog, "settings.cfg")));
     }
 
     [Fact]
@@ -463,6 +457,7 @@ public sealed class PatchRoundTripTests : IDisposable
     public void InPlaceCopiesASymlinkedDirectoryBeforeChangingIt()
     {
         if (!ShareDirectory(this.Gog, "KSP_x64_Data")) return;
+
         string shared = Path.Combine(this.root, "shared", "KSP_x64_Data");
         // Verify that the local copy preserves a nested symlink that the patch never traverses.
         Directory.CreateSymbolicLink(Path.Combine(shared, "Linked"), Path.Combine(this.Gog, "Missions"));
@@ -514,7 +509,7 @@ public sealed class PatchRoundTripTests : IDisposable
         // every move, the settings and the removed directories are done by the time the journal can't be saved
         Assert.ThrowsAny<SystemException>(() => Applier(this.Gog).Apply(new ApplyOptions
         {
-            BeforeMove = _ => Directory.CreateDirectory(Path.Combine(this.Gog, InstallJournal.DIRECTORY, "journal.json.tmp")),
+            BeforeMove = _ => Directory.CreateDirectory(Path.Combine(this.Gog, InstallJournal.DIRECTORY, "journal.json.tmp"))
         }));
 
         Assert.Equal(stock.OrderBy(p => p.Key, StringComparer.Ordinal), Tree(this.Gog).OrderBy(p => p.Key, StringComparer.Ordinal));
@@ -546,7 +541,7 @@ public sealed class PatchRoundTripTests : IDisposable
         });
 
         Assert.Throws<OperationCanceledException>(() =>
-            Applier(this.Gog).Apply(new ApplyOptions { Progress = progress, Cancellation = cancel.Token }));
+                                                      Applier(this.Gog).Apply(new ApplyOptions { Progress = progress, Cancellation = cancel.Token }));
 
         Assert.Equal(stock.OrderBy(p => p.Key, StringComparer.Ordinal), Tree(this.Gog).OrderBy(p => p.Key, StringComparer.Ordinal));
     }
@@ -576,9 +571,10 @@ public sealed class PatchRoundTripTests : IDisposable
                     Write(staging, movedIn, [1]);
                     throw new IOException("disk full");
                 }
+
                 string relative = Path.GetRelativePath(this.Gog, path);
                 if (!relative.StartsWith(InstallJournal.DIRECTORY, StringComparison.Ordinal)) movedIn = relative;
-            },
+            }
         }));
 
         Assert.Contains("disk full", error.Message);
@@ -588,11 +584,6 @@ public sealed class PatchRoundTripTests : IDisposable
 
         PatchReverter.Revert(this.Gog);
         Assert.Equal(stock.OrderBy(p => p.Key, StringComparer.Ordinal), Tree(this.Gog).OrderBy(p => p.Key, StringComparer.Ordinal));
-    }
-
-    private sealed class SyncProgress(Action<PatchProgress> report) : IProgress<PatchProgress>
-    {
-        public void Report(PatchProgress value) => report(value);
     }
 
     [Fact]
@@ -615,7 +606,7 @@ public sealed class PatchRoundTripTests : IDisposable
     [Fact]
     public void DlcIsSkippedWhenNotInstalled()
     {
-        Directory.Delete(Path.Combine(this.Gog, "GameData/SquadExpansion/Serenity"), recursive: true);
+        Directory.Delete(Path.Combine(this.Gog, "GameData/SquadExpansion/Serenity"), true);
         string output = Path.Combine(this.root, "out");
         InstallCheck check = Applier(this.Gog).Apply(new ApplyOptions { OutputDirectory = output });
         Assert.Equal(["makinghistory", "serenity"], check.SkippedComponents);
@@ -633,8 +624,6 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Contains("KSP_x64_Data/level0", error.Message);
         Assert.False(Directory.Exists(output));
     }
-
-    private const string UNCHANGED_FILE = "saves/scenarios/Mun Orbit.sfs";
 
     [Fact]
     public void EditedUnchangedFileIsCarriedAcross()
@@ -659,9 +648,7 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal(expected.OrderBy(p => p.Key, StringComparer.Ordinal), Tree(output).OrderBy(p => p.Key, StringComparer.Ordinal));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public void InPlaceLeavesUnchangedFilesAlone(bool missing)
     {
         string path = Path.Combine(this.Gog, UNCHANGED_FILE);
@@ -686,9 +673,7 @@ public sealed class PatchRoundTripTests : IDisposable
     }
 
     // same.cfg is unchanged, but moved.cfg is a copy of it
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public void UnchangedFileAnotherOutputReadsIsStillRequired(bool missing)
     {
         string path = Path.Combine(this.Gog, "GameData/Squad/same.cfg");
@@ -725,8 +710,9 @@ public sealed class PatchRoundTripTests : IDisposable
             Output      = patch,
             Level       = 3,
             Jobs        = 2,
-            CopiedPaths = ["GameData/Squad/", "Plugins", "EULA.txt"],
+            CopiedPaths = ["GameData/Squad/", "Plugins", "EULA.txt"]
         });
+
         return patch;
     }
 
@@ -738,7 +724,7 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal(PatchManifest.CURRENT_VERSION, m.Version);
         Assert.Equal(["GameData/Squad", "Plugins", "EULA.txt"], m.CopiedPaths);
         Assert.DoesNotContain(m.Sources.Select(s => s.Path).Concat(m.Outputs.Select(o => o.Path)).Concat(m.Components.SelectMany(c => c.Remove)),
-            p => p.StartsWith("GameData/Squad/", StringComparison.Ordinal) || p.StartsWith("Plugins/", StringComparison.Ordinal) || p is "EULA.txt");
+                              p => p.StartsWith("GameData/Squad/", StringComparison.Ordinal) || p.StartsWith("Plugins/", StringComparison.Ordinal) || p is "EULA.txt");
     }
 
     [Fact]
@@ -761,7 +747,7 @@ public sealed class PatchRoundTripTests : IDisposable
     public void AnInstallWithoutACopiedPathStillApplies()
     {
         string patch = BuildWithCopiedPaths();
-        Directory.Delete(Path.Combine(this.Gog, "Plugins"), recursive: true);
+        Directory.Delete(Path.Combine(this.Gog, "Plugins"), true);
         File.Delete(Path.Combine(this.Gog, "EULA.txt"));
         string output = Path.Combine(this.root, "out");
 
@@ -797,17 +783,13 @@ public sealed class PatchRoundTripTests : IDisposable
             Sources     = [new BuildSource { Roots = [this.Steam] }],
             Target      = this.Build,
             Output      = Path.Combine(this.root, "pattern.rtpatch"),
-            CopiedPaths = ["unins*"],
+            CopiedPaths = ["unins*"]
         }));
 
         Assert.Contains("unins*", error.Message);
     }
 
-    [Theory]
-    [InlineData(PatchManifest.OLDEST_VERSION, true)]
-    [InlineData(PatchManifest.CURRENT_VERSION, true)]
-    [InlineData(PatchManifest.OLDEST_VERSION - 1, false)]
-    [InlineData(PatchManifest.CURRENT_VERSION + 1, false)]
+    [Theory, InlineData(PatchManifest.OLDEST_VERSION, true), InlineData(PatchManifest.CURRENT_VERSION, true), InlineData(PatchManifest.OLDEST_VERSION - 1, false), InlineData(PatchManifest.CURRENT_VERSION + 1, false)]
     public void OnlyKnownManifestVersionsAreRead(int version, bool readable)
     {
         string patch = Path.Combine(this.root, "version.rtpatch");
@@ -829,7 +811,7 @@ public sealed class PatchRoundTripTests : IDisposable
     [Fact]
     public void BuildWithoutStockLayoutIsRejected()
     {
-        Directory.Delete(Path.Combine(this.Build, "saves"), recursive: true);
+        Directory.Delete(Path.Combine(this.Build, "saves"), true);
         PatchException error = Assert.Throws<PatchException>(() => PatchBuilder.Build(Options(Path.Combine(this.root, "other.rtpatch"))));
         Assert.Contains("saves", error.Message);
     }
@@ -896,7 +878,7 @@ public sealed class PatchRoundTripTests : IDisposable
 
         Assert.ThrowsAny<SystemException>(() => new PatchApplier(PatchFile.Open(patch), this.Gog).Apply(new ApplyOptions
         {
-            BeforeMove = _ => Directory.CreateDirectory(Path.Combine(this.Gog, InstallJournal.DIRECTORY, "journal.json.tmp")),
+            BeforeMove = _ => Directory.CreateDirectory(Path.Combine(this.Gog, InstallJournal.DIRECTORY, "journal.json.tmp"))
         }));
 
         Assert.Equal(stock.OrderBy(p => p.Key, StringComparer.Ordinal), Tree(this.Gog).OrderBy(p => p.Key, StringComparer.Ordinal));
@@ -927,7 +909,7 @@ public sealed class PatchRoundTripTests : IDisposable
     {
         Applier(this.Gog).Apply(new ApplyOptions());
         InstallJournal journal = InstallJournal.Load(this.Gog)!;
-        journal.Files = [.. journal.Files.OrderBy(f => f.Action == JournalAction.REMOVED)];
+        journal.Files = [..journal.Files.OrderBy(f => f.Action == JournalAction.REMOVED)];
         journal.Save(this.Gog);
 
         PatchReverter.Revert(this.Gog);
@@ -955,8 +937,11 @@ public sealed class PatchRoundTripTests : IDisposable
     public void CommandLineBuildsChecksAndApplies()
     {
         string patch = Path.Combine(this.root, "cli.rtpatch"), output = Path.Combine(this.root, "out");
-        Assert.Equal(0, Program.Main(["build", "--source", "steam=" + this.Steam, "--source", this.Gog, "--target", this.Build,
-                                         "--out", patch, "--level", "3"]));
+        Assert.Equal(0, Program.Main([
+            "build", "--source", "steam=" + this.Steam, "--source", this.Gog, "--target", this.Build,
+            "--out", patch, "--level", "3"
+        ]));
+
         Assert.True(File.Exists(Path.Combine(this.root, "cli.report.txt")));
         Assert.Equal(["steam", "gog-03190"], PatchFile.Open(patch).Manifest.Variants.Select(v => v.Id));
         Assert.Equal(0, Program.Main(["check", "--install", this.Gog, "--patch", patch]));
@@ -965,9 +950,9 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Equal(2, Program.Main(["apply", "--install", this.Gog, "--patch", patch]));
     }
 
-    public void Dispose()
+    private sealed class SyncProgress(Action<PatchProgress> report) : IProgress<PatchProgress>
     {
-        if (Directory.Exists(this.root)) Directory.Delete(this.root, recursive: true);
+        public void Report(PatchProgress value) => report(value);
     }
 }
 
@@ -978,11 +963,12 @@ public sealed class FileCloneTests : IDisposable
 
     public FileCloneTests() => Directory.CreateDirectory(this.root);
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(70_000)]
-    [InlineData(3 << 20)]
+    public void Dispose()
+    {
+        if (Directory.Exists(this.root)) Directory.Delete(this.root, true);
+    }
+
+    [Theory, InlineData(0), InlineData(1), InlineData(70_000), InlineData(3 << 20)]
     public void ACloneIsAFileOfItsOwnAndALinkSharesTheContent(int length)
     {
         byte[] bytes = new byte[length];
@@ -1012,10 +998,5 @@ public sealed class FileCloneTests : IDisposable
         File.WriteAllBytes(existing, [2]);
         Assert.ThrowsAny<IOException>(() => FileClone.LinkOrCopy(source, existing));
         Assert.Equal([2], File.ReadAllBytes(existing));
-    }
-
-    public void Dispose()
-    {
-        if (Directory.Exists(this.root)) Directory.Delete(this.root, recursive: true);
     }
 }

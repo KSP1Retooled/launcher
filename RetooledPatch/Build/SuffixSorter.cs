@@ -9,8 +9,10 @@ namespace KSP.Retooled.Patch.Build;
 /// Time Suffix Array Construction", 2009). Linear in the text's length whatever it holds, which matters here: game
 /// assets are full of repeats, the input the usual comparison sorts are slowest on.
 /// <para>
-/// Most of the time goes to cache misses, because induction reads the text at positions that jump all over it. So a
-/// suffix's type lives in the top bit of its symbol, where reading the symbol also fetches the type, and the induction
+/// Most of the time goes to cache misses, because induction reads the text at positions that jump all over it. So
+/// a
+/// suffix's type lives in the top bit of its symbol, where reading the symbol also fetches the type, and the
+/// induction
 /// loops prefetch the symbols they are about to read.
 /// </para>
 /// </summary>
@@ -62,9 +64,7 @@ internal static unsafe class SuffixSorter
 
         fixed (ushort* s = symbols)
         fixed (int* sa = suffixes)
-        {
             Induce(s, sa, n + 1, byte.MaxValue + 1);
-        }
     }
 
     // T is ushort for the text and int when recursing. The top bit of a symbol flags an S-type suffix: one smaller than
@@ -72,22 +72,13 @@ internal static unsafe class SuffixSorter
     // tier, rather than use generic math, which it doesn't.
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int Raw<T>(T* s, int i) where T : unmanaged
-    {
-        return sizeof(T) == sizeof(ushort) ? ((ushort*)s)[i] : ((int*)s)[i];
-    }
+    private static int Raw<T>(T* s, int i) where T : unmanaged => sizeof(T) == sizeof(ushort) ? ((ushort*)s)[i] : ((int*)s)[i];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int Symbol<T>(T* s, int i) where T : unmanaged
-    {
-        return sizeof(T) == sizeof(ushort) ? ((ushort*)s)[i] & 0x7FFF : ((int*)s)[i] & int.MaxValue;
-    }
+    private static int Symbol<T>(T* s, int i) where T : unmanaged => sizeof(T) == sizeof(ushort) ? ((ushort*)s)[i] & 0x7FFF : ((int*)s)[i] & int.MaxValue;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsS<T>(T* s, int i) where T : unmanaged
-    {
-        return sizeof(T) == sizeof(ushort) ? (((ushort*)s)[i] & 0x8000) is not 0 : ((int*)s)[i] < 0;
-    }
+    private static bool IsS<T>(T* s, int i) where T : unmanaged => sizeof(T) == sizeof(ushort) ? (((ushort*)s)[i] & 0x8000) is not 0 : ((int*)s)[i] < 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void MarkS<T>(T* s, int i) where T : unmanaged
@@ -106,10 +97,7 @@ internal static unsafe class SuffixSorter
     /// A leftmost S-type suffix: an S-type suffix right after an L-type one.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsLms<T>(T* s, int i) where T : unmanaged
-    {
-        return i > 0 && IsS(s, i) && !IsS(s, i - 1);
-    }
+    private static bool IsLms<T>(T* s, int i) where T : unmanaged => i > 0 && IsS(s, i) && !IsS(s, i - 1);
 
     /// <summary>
     /// Asks for the symbol before the suffix <paramref name="sa"/> holds at <paramref name="index"/>.
@@ -120,7 +108,7 @@ internal static unsafe class SuffixSorter
         // A prefetch never faults, so a slot that is still empty only wastes the hint.
         if (Sse.IsSupported && index >= 0 && index < n)
         {
-            Sse.Prefetch0(s + sa[index] - 1);
+            Sse.Prefetch0((s + sa[index]) - 1);
         }
     }
 
@@ -160,7 +148,7 @@ internal static unsafe class SuffixSorter
                 int lmsCount = NameLmsSubstrings(s, sa, n, out int names);
 
                 // The reduced text sits at the end of sa, and its suffix array goes at the start.
-                int* reduced = sa + n - lmsCount;
+                int* reduced = (sa + n) - lmsCount;
                 if (names < lmsCount)
                 {
                     Induce(reduced, sa, lmsCount, names - 1);
@@ -193,9 +181,10 @@ internal static unsafe class SuffixSorter
                 for (int i = lmsCount - 1; i >= 0; i--)
                 {
                     int suffix = sa[i];
-                    sa[i] = -1;
+                    sa[i]                            = -1;
                     sa[--buckets[Symbol(s, suffix)]] = suffix;
                 }
+
                 InduceFromLms(s, sa, counts, buckets, n, maxSymbol);
             }
         }
@@ -235,8 +224,8 @@ internal static unsafe class SuffixSorter
         int sum = 0;
         for (int i = 0; i <= maxSymbol; i++)
         {
-            sum += counts[i];
-            buckets[i] = sum;
+            sum        += counts[i];
+            buckets[i] =  sum;
         }
     }
 
@@ -248,8 +237,8 @@ internal static unsafe class SuffixSorter
         int sum = 0;
         for (int i = 0; i <= maxSymbol; i++)
         {
-            buckets[i] = sum;
-            sum += counts[i];
+            buckets[i] =  sum;
+            sum        += counts[i];
         }
 
         for (int i = 0; i < n; i++)
@@ -303,7 +292,7 @@ internal static unsafe class SuffixSorter
             }
 
             // LMS positions are at least two apart, so halves are distinct and fit behind the sorted list.
-            sa[lmsCount + position / 2] = names - 1;
+            sa[lmsCount + (position / 2)] = names - 1;
         }
 
         for (int i = n - 1, j = n - 1; i >= lmsCount; i--)
@@ -323,7 +312,7 @@ internal static unsafe class SuffixSorter
     /// </summary>
     private static bool SameLmsSubstring<T>(T* s, int a, int b) where T : unmanaged
     {
-        for (int d = 0; ; d++)
+        for (int d = 0;; d++)
         {
             if (Raw(s, a + d) != Raw(s, b + d))
             {

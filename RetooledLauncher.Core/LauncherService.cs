@@ -15,7 +15,8 @@ public readonly record struct LauncherProgress(string Stage, long Done = 0, long
 /// <summary>
 /// Installs, changes and removes KSP Retooled on a KSP install. Patches are built against stock, so moving between
 /// releases reverts to stock first and applies the other release's patch; if that apply fails, what was installed is
-/// put back from its cached patch, so a failed upgrade does not leave the user without a working game. A release is one
+/// put back from its cached patch, so a failed upgrade does not leave the user without a working game. A release is
+/// one
 /// of a channel's, or a local patch file, and moving between them works the same way.
 /// </summary>
 public sealed class LauncherService(IPatchProvider patches, string platform, TextWriter? log = null)
@@ -44,6 +45,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
         await this.log.WriteLineAsync($"installing KSP Retooled {target.Tag}");
         string patchPath = await patches.GetPatchAsync(target, this.Platform, progress, cancellation)
                                         .ConfigureAwait(false);
+
         return await ReplaceAsync(info,
                                   Open(patchPath, target.Tag),
                                   MarkerFor(target, patchPath),
@@ -72,23 +74,24 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
 
         string name = Path.GetFileName(file);
         await this.log.WriteLineAsync($"installing KSP Retooled from {name}"); // a patch file does not record its version
-        Open(file, name); // not worth copying if it cannot be installed
+        Open(file, name);                                                      // not worth copying if it cannot be installed
         string patchPath = await patches
-            .ImportAsync(file, progress, cancellation)
-            .ConfigureAwait(false);
+                                .ImportAsync(file, progress, cancellation)
+                                .ConfigureAwait(false);
+
         return await ReplaceAsync(info,
                                   Open(patchPath, name),
                                   new InstalledRelease
                                   {
-                                      Tag = name,
-                                      Asset = name,
+                                      Tag     = name,
+                                      Asset   = name,
                                       Channel = LauncherInfo.LOCAL_CHANNEL,
-                                      Patch = patchPath,
+                                      Patch   = patchPath
                                   },
                                   catalog,
                                   progress,
                                   cancellation)
-            .ConfigureAwait(false);
+                  .ConfigureAwait(false);
     }
 
     private async Task<InstallInfo> ReplaceAsync(InstallInfo info,
@@ -106,7 +109,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
         if (info.Status == InstallStatus.RETOOLED)
         {
             previous = await RollbackTargetAsync(info.Release, catalog, progress, cancellation)
-                .ConfigureAwait(false);
+                          .ConfigureAwait(false);
 
             await this.log.WriteLineAsync($"removing {info.Release?.Tag ?? "the installed version"}");
             await RevertAsync(install, progress).ConfigureAwait(false);
@@ -139,8 +142,10 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
                                  progress,
                                  CancellationToken.None)
                    .ConfigureAwait(false);
+
                 throw new LauncherException($"installing {target.Tag} failed, so {previous.Tag} was put back: {failure.Message}", failure);
             }
+
             if (failure is OperationCanceledException)
             {
                 throw;
@@ -177,6 +182,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
         {
             throw new LauncherException($"backing up the saves failed, so nothing was installed: {e.Message}", e);
         }
+
         if (backup is null)
         {
             return;
@@ -219,10 +225,12 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
             await this.log.WriteLineAsync("warning: the installed version is not a known release; a failed install cannot roll back");
             return null;
         }
+
         try
         {
             string path = await patches.GetPatchAsync(release, this.Platform, progress, cancellation)
                                        .ConfigureAwait(false);
+
             return MarkerFor(release, path);
         }
         catch (Exception e) when (e is LauncherException or HttpRequestException or IOException)
@@ -234,12 +242,12 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
 
     private InstalledRelease MarkerFor(Release release, string patch) => new()
     {
-        Tag = release.Tag,
-        Asset = Path.GetFileName(patch),
+        Tag        = release.Tag,
+        Asset      = Path.GetFileName(patch),
         Prerelease = release.Prerelease,
-        Channel = release.Channel,
-        Patch = patch,
-        Sha256 = release.PatchFor(this.Platform)?.Sha256,
+        Channel    = release.Channel,
+        Patch      = patch,
+        Sha256     = release.PatchFor(this.Platform)?.Sha256
     };
 
     /// <summary>
@@ -268,8 +276,9 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
                             {
                                 Log          = this.log,
                                 Progress     = Forward(progress, release.Tag),
-                                Cancellation = cancellation,
+                                Cancellation = cancellation
                             });
+
                             release.Installed = DateTime.UtcNow;
                             KspInstall.WriteMarker(install, release);
                         },
@@ -313,7 +322,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
             InstallStatus.STOCK => $"{info.Path} does not have KSP Retooled installed",
             InstallStatus.INTERRUPTED =>
                 "an earlier install or uninstall did not finish; uninstall first to restore the stock game",
-            _ => $"{info.Path} already has KSP Retooled installed",
+            _ => $"{info.Path} already has KSP Retooled installed"
         });
     }
 
@@ -325,7 +334,7 @@ public sealed class LauncherService(IPatchProvider patches, string platform, Tex
                                                                                                    "verify" => "Checking the KSP files",
                                                                                                    "write"  => $"Installing {tag}",
                                                                                                    "revert" => "Restoring the stock files",
-                                                                                                   _        => p.Stage,
+                                                                                                   _        => p.Stage
                                                                                                },
                                                                                                p.Done,
                                                                                                p.Total)))

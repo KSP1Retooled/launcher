@@ -9,10 +9,10 @@ using Xunit;
 namespace KSP.Retooled.Launcher.Tests;
 
 /// <summary>Answers requests from a map of URL to response.</summary>
-sealed class FakeHttp : HttpMessageHandler
+internal sealed class FakeHttp : HttpMessageHandler
 {
-    public readonly Dictionary<string, Func<HttpResponseMessage>> routes = [];
     public readonly List<HttpRequestMessage> requests = [];
+    public readonly Dictionary<string, Func<HttpResponseMessage>> routes = [];
 
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
@@ -21,10 +21,10 @@ sealed class FakeHttp : HttpMessageHandler
     {
         this.requests.Add(request);
         return Task.FromResult(
-            this.routes.TryGetValue(request.RequestUri!.ToString(), out Func<HttpResponseMessage>? route)
-                ? route()
-                : new HttpResponseMessage(HttpStatusCode.NotFound)
-        );
+                               this.routes.TryGetValue(request.RequestUri!.ToString(), out Func<HttpResponseMessage>? route)
+                                   ? route()
+                                   : new HttpResponseMessage(HttpStatusCode.NotFound)
+                              );
     }
 
     public void Json(string url, string json, string? next = null) =>
@@ -32,8 +32,9 @@ sealed class FakeHttp : HttpMessageHandler
         {
             HttpResponseMessage response = new(HttpStatusCode.OK)
             {
-                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
             };
+
             if (next != null)
             {
                 response.Headers.Add(
@@ -55,22 +56,20 @@ public sealed class GitHubReleaseSourceTests
     private const string PAGE1 = "https://api.github.com/repos/o/r/releases?per_page=100";
     private const string PAGE2 = "https://api.github.com/repos/o/r/releases?per_page=100&page=2";
 
-    [Theory]
-    [InlineData("o/r", "retooled-windows.rtpatch")]
-    [InlineData("o/r#debug", "retooled-windows-debug.rtpatch")]
+    [Theory, InlineData("o/r", "retooled-windows.rtpatch"), InlineData("o/r#debug", "retooled-windows-debug.rtpatch")]
     public async Task AChannelPicksItsOwnPatchFromItsRepository(string channel, string expected)
     {
         FakeHttp http = new();
         http.Json(
-            PAGE1,
-            """
-            [ { "tag_name": "v1.0.0", "prerelease": false, "draft": false, "published_at": "2026-01-01T00:00:00Z",
-                "assets": [
-                  { "name": "retooled-windows.rtpatch", "size": 1, "url": "a", "browser_download_url": "a" },
-                  { "name": "retooled-windows-debug.rtpatch", "size": 2, "url": "b", "browser_download_url": "b" }
-                ] } ]
-            """
-        );
+                  PAGE1,
+                  """
+                  [ { "tag_name": "v1.0.0", "prerelease": false, "draft": false, "published_at": "2026-01-01T00:00:00Z",
+                      "assets": [
+                        { "name": "retooled-windows.rtpatch", "size": 1, "url": "a", "browser_download_url": "a" },
+                        { "name": "retooled-windows-debug.rtpatch", "size": 2, "url": "b", "browser_download_url": "b" }
+                      ] } ]
+                  """
+                 );
 
         Release release = Assert.Single(
                                         await new GitHubReleaseSource(new HttpClient(http), channel).GetReleasesAsync()
@@ -90,12 +89,7 @@ public sealed class GitHubReleaseSourceTests
         Assert.Null((release with { Channel = "o/r#debug" }).PatchFor("windows"));
     }
 
-    [Theory]
-    [InlineData(LauncherInfo.DEFAULT_REPOSITORY, true)]
-    [InlineData(LauncherInfo.DEBUG_CHANNEL, true)]
-    [InlineData(LauncherInfo.EXPERIMENTAL_CHANNEL, true)]
-    [InlineData("o/r#debug", false)]
-    [InlineData("o/r", false)]
+    [Theory, InlineData(LauncherInfo.DEFAULT_REPOSITORY, true), InlineData(LauncherInfo.DEBUG_CHANNEL, true), InlineData(LauncherInfo.EXPERIMENTAL_CHANNEL, true), InlineData("o/r#debug", false), InlineData("o/r", false)]
     public void OnlyTheBuiltInChannelsAreKeptOutOfTheSavedList(string channel, bool builtIn) =>
         Assert.Equal(builtIn, LauncherInfo.IsBuiltInChannel(channel));
 
@@ -104,22 +98,23 @@ public sealed class GitHubReleaseSourceTests
     {
         FakeHttp http = new();
         http.Json(
-            PAGE1,
-            """
-            [
-              { "tag_name": "v1.1.0-beta.1", "name": "Beta", "prerelease": true, "draft": false, "published_at": "2026-02-01T00:00:00Z",
-                "body": "notes", "html_url": "https://github.com/o/r/releases/v1.1.0-beta.1",
-                "assets": [ { "name": "retooled-windows.rtpatch", "size": 12, "url": "https://api.github.com/assets/1",
-                              "browser_download_url": "https://github.com/dl/1", "digest": "sha256:ABCDEF" } ] },
-              { "tag_name": "v2.0.0", "draft": true, "prerelease": false, "assets": [] }
-            ]
-            """,
-            next: PAGE2
-        );
+                  PAGE1,
+                  """
+                  [
+                    { "tag_name": "v1.1.0-beta.1", "name": "Beta", "prerelease": true, "draft": false, "published_at": "2026-02-01T00:00:00Z",
+                      "body": "notes", "html_url": "https://github.com/o/r/releases/v1.1.0-beta.1",
+                      "assets": [ { "name": "retooled-windows.rtpatch", "size": 12, "url": "https://api.github.com/assets/1",
+                                    "browser_download_url": "https://github.com/dl/1", "digest": "sha256:ABCDEF" } ] },
+                    { "tag_name": "v2.0.0", "draft": true, "prerelease": false, "assets": [] }
+                  ]
+                  """,
+                  PAGE2
+                 );
+
         http.Json(
-            PAGE2,
-            """[ { "tag_name": "v1.0.0", "prerelease": false, "draft": false, "published_at": "2026-01-01T00:00:00Z", "assets": [] } ]"""
-        );
+                  PAGE2,
+                  """[ { "tag_name": "v1.0.0", "prerelease": false, "draft": false, "published_at": "2026-01-01T00:00:00Z", "assets": [] } ]"""
+                 );
 
         IReadOnlyList<Release> releases = await new GitHubReleaseSource(
                                                                         new HttpClient(http),
@@ -136,9 +131,9 @@ public sealed class GitHubReleaseSourceTests
         Assert.Same(asset, beta.PatchFor("windows"));
         Assert.Null(beta.PatchFor("linux"));
         Assert.All(
-            http.requests,
-            r => Assert.Contains("KSPRetooledLauncher", r.Headers.UserAgent.ToString())
-        );
+                   http.requests,
+                   r => Assert.Contains("KSPRetooledLauncher", r.Headers.UserAgent.ToString())
+                  );
     }
 
     [Fact]
@@ -147,15 +142,11 @@ public sealed class GitHubReleaseSourceTests
         LauncherException error = await Assert.ThrowsAsync<LauncherException>(() =>
                                                                                   new GitHubReleaseSource(new HttpClient(new FakeHttp()), "o/r").GetReleasesAsync()
                                                                              );
+
         Assert.Contains("GITHUB_TOKEN", error.Message);
     }
 
-    [Theory]
-    [InlineData("KSP1Retooled/retooled", true)]
-    [InlineData("a/b.c-d_e", true)]
-    [InlineData("noslash", false)]
-    [InlineData("a/b/c", false)]
-    [InlineData("a/../b", false)]
+    [Theory, InlineData("KSP1Retooled/retooled", true), InlineData("a/b.c-d_e", true), InlineData("noslash", false), InlineData("a/b/c", false), InlineData("a/../b", false)]
     public void ValidatesRepositoryNames(string repository, bool valid) =>
         Assert.Equal(valid, GitHubReleaseSource.IsValidRepository(repository));
 }
@@ -167,20 +158,17 @@ public sealed class MirrorTests
         "https://api.gitcode.com/api/v5/repos/ksp1retooled/retooled/releases?per_page=100&page=1";
 
     private const string GIT_CODE_JSON = """
-                                       [ { "tag_name": "1.13.0-rc6", "name": "RC 6", "prerelease": true, "body": "notes",
-                                           "created_at": "2026-11-11T19:02:45+08:00", "release_status": "pre",
-                                           "assets": [
-                                             { "browser_download_url": "https://raw.gitcode.com/ksp1retooled/retooled/archive/refs/heads/1.13.0-rc6.zip",
-                                               "name": "1.13.0-rc6.zip", "type": "source" },
-                                             { "browser_download_url": "https://gitcode.com/ksp1retooled/retooled/releases/download/1.13.0-rc6/retooled-windows.rtpatch",
-                                               "name": "retooled-windows.rtpatch", "type": "attach", "id": 1, "size": 3, "digest": "sha256:ABC" }
-                                           ] } ]
-                                       """;
+                                         [ { "tag_name": "1.13.0-rc6", "name": "RC 6", "prerelease": true, "body": "notes",
+                                             "created_at": "2026-11-11T19:02:45+08:00", "release_status": "pre",
+                                             "assets": [
+                                               { "browser_download_url": "https://raw.gitcode.com/ksp1retooled/retooled/archive/refs/heads/1.13.0-rc6.zip",
+                                                 "name": "1.13.0-rc6.zip", "type": "source" },
+                                               { "browser_download_url": "https://gitcode.com/ksp1retooled/retooled/releases/download/1.13.0-rc6/retooled-windows.rtpatch",
+                                                 "name": "retooled-windows.rtpatch", "type": "attach", "id": 1, "size": 3, "digest": "sha256:ABC" }
+                                             ] } ]
+                                         """;
 
-    [Theory]
-    [InlineData("KSP1Retooled/retooled", "ksp1retooled/retooled")]
-    [InlineData("ksp1retooled/RETOOLED", "ksp1retooled/retooled")]
-    [InlineData("o/r", null)]
+    [Theory, InlineData("KSP1Retooled/retooled", "ksp1retooled/retooled"), InlineData("ksp1retooled/RETOOLED", "ksp1retooled/retooled"), InlineData("o/r", null)]
     public void OnlyTheDEFAULT_REPOSITORYHasAMirror(string repository, string? mirror) =>
         Assert.Equal(mirror, LauncherInfo.MirrorOf(repository));
 
@@ -190,8 +178,8 @@ public sealed class MirrorTests
         HttpClient client = new(new FakeHttp());
         Assert.IsType<GitHubReleaseSource>(MirroredReleaseSource.For(client, "o/r"));
         Assert.IsType<MirroredReleaseSource>(
-            MirroredReleaseSource.For(client, LauncherInfo.DEBUG_CHANNEL)
-        );
+                                             MirroredReleaseSource.For(client, LauncherInfo.DEBUG_CHANNEL)
+                                            );
     }
 
     [Fact]
@@ -299,20 +287,22 @@ public sealed class MirrorTests
         IReleaseSource source = MirroredReleaseSource.For(new HttpClient(new FakeHttp()),
                                                           LauncherInfo.DEFAULT_REPOSITORY,
                                                           preferred: ReleaseMirror.GitCode);
+
         ReleaseAsset asset = new("retooled-linux.rtpatch",
                                  1,
                                  "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
                                  "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
                                  null);
+
         Release release = new("v1", string.Empty, false, default, string.Empty, string.Empty, [asset]);
 
         Assert.Equal(
-            [
-                "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
-                "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
-            ],
-            source.AssetRequests(release, asset).Select(r => r.RequestUri!.ToString())
-        );
+                     [
+                         "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+                         "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch"
+                     ],
+                     source.AssetRequests(release, asset).Select(r => r.RequestUri!.ToString())
+                    );
     }
 
     [Fact]
@@ -326,13 +316,15 @@ public sealed class MirrorTests
             cancel.Cancel();
             throw new TaskCanceledException();
         };
+
         http.Json(GIT_CODE_LIST, GIT_CODE_JSON);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            MirroredReleaseSource
-                .For(new HttpClient(http), LauncherInfo.DEFAULT_REPOSITORY)
-                .GetReleasesAsync(cancel.Token)
-        );
+                                                                    MirroredReleaseSource
+                                                                       .For(new HttpClient(http), LauncherInfo.DEFAULT_REPOSITORY)
+                                                                       .GetReleasesAsync(cancel.Token)
+                                                               );
+
         Assert.Single(http.requests);
     }
 }
@@ -348,7 +340,7 @@ public sealed class PatchCacheTests : IDisposable
     {
         if (Directory.Exists(this.root))
         {
-            Directory.Delete(this.root, recursive: true);
+            Directory.Delete(this.root, true);
         }
     }
 
@@ -362,14 +354,14 @@ public sealed class PatchCacheTests : IDisposable
             string.Empty,
             [
                 new ReleaseAsset(
-                    "retooled-linux.rtpatch",
-                    bytes.Length,
-                    $"https://dl/{tag}",
-                    $"https://api/{tag}",
-                    digest ? Convert.ToHexStringLower(SHA256.HashData(bytes)) : null
-                ),
+                                 "retooled-linux.rtpatch",
+                                 bytes.Length,
+                                 $"https://dl/{tag}",
+                                 $"https://api/{tag}",
+                                 digest ? Convert.ToHexStringLower(SHA256.HashData(bytes)) : null
+                                )
             ]
-        );
+           );
 
     [Fact]
     public async Task DownloadsOnceThenReusesTheVerifiedFile()
@@ -379,7 +371,7 @@ public sealed class PatchCacheTests : IDisposable
         http.Bytes("https://dl/v1", bytes);
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
-        Release release = WithPatch("v1", bytes, digest: true);
+        Release release = WithPatch("v1", bytes, true);
 
         string path = await cache.GetPatchAsync(release, "linux", null, CancellationToken.None);
         Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
@@ -397,9 +389,9 @@ public sealed class PatchCacheTests : IDisposable
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
 
         http.Bytes("https://dl/pr-1", first);
-        string old = await cache.GetPatchAsync(WithPatch("pr-1", first, digest: true), "linux", null, CancellationToken.None);
+        string old = await cache.GetPatchAsync(WithPatch("pr-1", first, true), "linux", null, CancellationToken.None);
         http.Bytes("https://dl/pr-1", second);
-        string rebuilt = await cache.GetPatchAsync(WithPatch("pr-1", second, digest: true), "linux", null, CancellationToken.None);
+        string rebuilt = await cache.GetPatchAsync(WithPatch("pr-1", second, true), "linux", null, CancellationToken.None);
 
         Assert.NotEqual(old, rebuilt);
         Assert.Equal(first, await File.ReadAllBytesAsync(old));
@@ -415,10 +407,10 @@ public sealed class PatchCacheTests : IDisposable
         HttpClient client = new(http);
         PatchCache cache = new(
                                client,
-                               new GitHubReleaseSource(client, "o/r", token: "secret"), this.root
+                               new GitHubReleaseSource(client, "o/r", "secret"), this.root
                               );
 
-        await cache.GetPatchAsync(WithPatch("v1", bytes, digest: false), "linux", null, CancellationToken.None);
+        await cache.GetPatchAsync(WithPatch("v1", bytes, false), "linux", null, CancellationToken.None);
         HttpRequestMessage request = Assert.Single(http.requests);
         Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
         Assert.Equal("application/octet-stream", request.Headers.Accept.Single().MediaType);
@@ -431,15 +423,18 @@ public sealed class PatchCacheTests : IDisposable
         FakeHttp http = new();
         http.routes["https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch"] =
             () => throw new HttpRequestException("connection reset");
+
         http.Bytes(
-            "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
-            bytes
-        );
+                   "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+                   bytes
+                  );
+
         HttpClient client = new(http);
         PatchCache cache = new(
                                client,
-                               MirroredReleaseSource.For(client, LauncherInfo.DEFAULT_REPOSITORY, token: "secret"), this.root
+                               MirroredReleaseSource.For(client, LauncherInfo.DEFAULT_REPOSITORY, "secret"), this.root
                               );
+
         Release release = new(
                               "v1",
                               string.Empty,
@@ -454,7 +449,7 @@ public sealed class PatchCacheTests : IDisposable
                                                    "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
                                                    "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
                                                    Convert.ToHexStringLower(SHA256.HashData(bytes))
-                                                  ),
+                                                  )
                               ]
                              ) { Channel = LauncherInfo.DEFAULT_REPOSITORY };
 
@@ -475,13 +470,14 @@ public sealed class PatchCacheTests : IDisposable
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
 
         await Assert.ThrowsAsync<LauncherException>(() =>
-            cache.GetPatchAsync(
-                WithPatch("v1", Encoding.UTF8.GetBytes("patch bytes"), digest: true),
-                "linux",
-                null,
-                CancellationToken.None
-            )
-        );
+                                                        cache.GetPatchAsync(
+                                                                            WithPatch("v1", Encoding.UTF8.GetBytes("patch bytes"), true),
+                                                                            "linux",
+                                                                            null,
+                                                                            CancellationToken.None
+                                                                           )
+                                                   );
+
         Assert.Empty(Directory.EnumerateFiles(this.root, "*", SearchOption.AllDirectories));
     }
 
@@ -495,11 +491,11 @@ public sealed class PatchCacheTests : IDisposable
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
         string old = await cache.GetPatchAsync(WithPatch("v1", [1], false), "linux", null, CancellationToken.None);
         string kept = await cache.GetPatchAsync(
-            WithPatch("release/v2", [2], false),
-            "linux",
-            null,
-            CancellationToken.None
-        );
+                                                WithPatch("release/v2", [2], false),
+                                                "linux",
+                                                null,
+                                                CancellationToken.None
+                                               );
 
         cache.Prune([kept]);
         Assert.False(File.Exists(old));
@@ -513,20 +509,21 @@ public sealed class PatchCacheTests : IDisposable
         http.Bytes("https://dl/v1", [1, 2, 3]);
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
-        Release release = WithPatch("v1", [1, 2, 3], digest: false);
+        Release release = WithPatch("v1", [1, 2, 3], false);
 
         string first = await cache.GetPatchAsync(
-            release with { Channel = "a/one" },
-            "linux",
-            null,
-            CancellationToken.None
-        );
+                                                 release with { Channel = "a/one" },
+                                                 "linux",
+                                                 null,
+                                                 CancellationToken.None
+                                                );
+
         string second = await cache.GetPatchAsync(
-            release with { Channel = "a/two" },
-            "linux",
-            null,
-            CancellationToken.None
-        );
+                                                  release with { Channel = "a/two" },
+                                                  "linux",
+                                                  null,
+                                                  CancellationToken.None
+                                                 );
 
         Assert.NotEqual(first, second);
         Assert.Equal(2, http.requests.Count);
@@ -573,12 +570,12 @@ public sealed class LauncherSettingsTests : IDisposable
     [Fact]
     public void OffersTheDefaultChannelFirstAndOnlyOnce() =>
         Assert.Equal(
-            [LauncherInfo.DEFAULT_REPOSITORY, LauncherInfo.DEBUG_CHANNEL, LauncherInfo.EXPERIMENTAL_CHANNEL, "a/b"],
-            new LauncherSettings
-            {
-                Channels = ["a/b", "A/B", LauncherInfo.DEFAULT_REPOSITORY],
-            }.AllChannels
-        );
+                     [LauncherInfo.DEFAULT_REPOSITORY, LauncherInfo.DEBUG_CHANNEL, LauncherInfo.EXPERIMENTAL_CHANNEL, "a/b"],
+                     new LauncherSettings
+                     {
+                         Channels = ["a/b", "A/B", LauncherInfo.DEFAULT_REPOSITORY]
+                     }.AllChannels
+                    );
 
     [Fact]
     public void ThePreferredMirrorIsSavedByName()
@@ -595,9 +592,10 @@ public sealed class LauncherSettingsTests : IDisposable
     {
         new LauncherSettings { LaunchArguments = "-popupwindow -logFile \"my log.txt\"" }.Save(this.file);
         Assert.Equal(
-            "-popupwindow -logFile \"my log.txt\"",
-            LauncherSettings.Load(this.file).LaunchArguments
-        );
+                     "-popupwindow -logFile \"my log.txt\"",
+                     LauncherSettings.Load(this.file).LaunchArguments
+                    );
+
         File.WriteAllText(this.file, "{}");
         Assert.Null(LauncherSettings.Load(this.file).LaunchArguments);
     }
@@ -607,9 +605,9 @@ public sealed class LauncherSettingsTests : IDisposable
     {
         File.WriteAllText(this.file, """{ "repository": "o/r" }""");
         Assert.Equal(
-            [LauncherInfo.DEFAULT_REPOSITORY, LauncherInfo.DEBUG_CHANNEL, LauncherInfo.EXPERIMENTAL_CHANNEL, "o/r"],
-            LauncherSettings.Load(this.file).AllChannels
-        );
+                     [LauncherInfo.DEFAULT_REPOSITORY, LauncherInfo.DEBUG_CHANNEL, LauncherInfo.EXPERIMENTAL_CHANNEL, "o/r"],
+                     LauncherSettings.Load(this.file).AllChannels
+                    );
     }
 
     [Fact]
@@ -628,67 +626,71 @@ public sealed class InstallLocatorTests
     public void ReadsSteamLibraryPaths()
     {
         const string VDF = """
-            "libraryfolders"
-            {
-                "0"
-                {
-                    "path"		"C:\\Program Files (x86)\\Steam"
-                    "apps" { "228980" "1" }
-                }
-                "1"
-                {
-                    "path"		"D:\\SteamLibrary"
-                }
-            }
-            """;
+                           "libraryfolders"
+                           {
+                               "0"
+                               {
+                                   "path"		"C:\\Program Files (x86)\\Steam"
+                                   "apps" { "228980" "1" }
+                               }
+                               "1"
+                               {
+                                   "path"		"D:\\SteamLibrary"
+                               }
+                           }
+                           """;
+
         Assert.Equal(
-            [@"C:\Program Files (x86)\Steam", @"D:\SteamLibrary"],
-            InstallLocator.ParseLibraryFolders(VDF)
-        );
+                     [@"C:\Program Files (x86)\Steam", @"D:\SteamLibrary"],
+                     InstallLocator.ParseLibraryFolders(VDF)
+                    );
     }
 
     [Fact]
     public void ReadsLegacySteamLibraryPaths()
     {
         const string VDF = """
-            "LibraryFolders"
-            {
-                "TimeNextStatsReport"		"1600000000"
-                "ContentStatsID"		"-1234"
-                "1"		"D:\\SteamLibrary"
-                "2"		"/mnt/games/steam"
-            }
-            """;
+                           "LibraryFolders"
+                           {
+                               "TimeNextStatsReport"		"1600000000"
+                               "ContentStatsID"		"-1234"
+                               "1"		"D:\\SteamLibrary"
+                               "2"		"/mnt/games/steam"
+                           }
+                           """;
+
         Assert.Equal(
-            [@"D:\SteamLibrary", "/mnt/games/steam"],
-            InstallLocator.ParseLibraryFolders(VDF)
-        );
+                     [@"D:\SteamLibrary", "/mnt/games/steam"],
+                     InstallLocator.ParseLibraryFolders(VDF)
+                    );
     }
 
     [Fact]
     public void ReadsHeroicGogInstalls()
     {
         const string JSON = """
-            {
-              "installed": [
-                {
-                  "platform": "linux",
-                  "executable": "",
-                  "install_path": "/home/kerbal/Games/Heroic/Kerbal Space Program",
-                  "appName": "1429864849"
-                },
-                {
-                  "platform": "windows",
-                  "install_path": "/home/kerbal/Games/Heroic/Other Game",
-                  "appName": "1111111111"
-                }
-              ]
-            }
-            """;
+                            {
+                              "installed": [
+                                {
+                                  "platform": "linux",
+                                  "executable": "",
+                                  "install_path": "/home/kerbal/Games/Heroic/Kerbal Space Program",
+                                  "appName": "1429864849"
+                                },
+                                {
+                                  "platform": "windows",
+                                  "install_path": "/home/kerbal/Games/Heroic/Other Game",
+                                  "appName": "1111111111"
+                                }
+                              ]
+                            }
+                            """;
+
         Assert.Equal(
-            ["/home/kerbal/Games/Heroic/Kerbal Space Program"],
-            InstallLocator.ParseHeroicInstalls(JSON, "1429864849")
-        );
+                     ["/home/kerbal/Games/Heroic/Kerbal Space Program"],
+                     InstallLocator.ParseHeroicInstalls(JSON, "1429864849")
+                    );
+
         Assert.Empty(InstallLocator.ParseHeroicInstalls("not json", "1429864849"));
         Assert.Empty(InstallLocator.ParseHeroicInstalls("[]", "1429864849"));
     }
@@ -698,17 +700,20 @@ public sealed class InstallLocatorTests
     {
         const string PREFIX = "/home/kerbal/.wine";
         Assert.Equal(
-            Path.Combine(PREFIX, "drive_c", "Program Files (x86)", "Steam"),
-            InstallLocator.WindowsPathInPrefix(PREFIX, @"C:\Program Files (x86)\Steam")
-        );
+                     Path.Combine(PREFIX, "drive_c", "Program Files (x86)", "Steam"),
+                     InstallLocator.WindowsPathInPrefix(PREFIX, @"C:\Program Files (x86)\Steam")
+                    );
+
         Assert.Equal(
-            Path.Combine(PREFIX, "dosdevices", "d:", "SteamLibrary"),
-            InstallLocator.WindowsPathInPrefix(PREFIX, @"D:\SteamLibrary")
-        );
+                     Path.Combine(PREFIX, "dosdevices", "d:", "SteamLibrary"),
+                     InstallLocator.WindowsPathInPrefix(PREFIX, @"D:\SteamLibrary")
+                    );
+
         Assert.Equal(
-            Path.Combine("/", "mnt", "games"),
-            InstallLocator.WindowsPathInPrefix(PREFIX, "z:/mnt/games/")
-        );
+                     Path.Combine("/", "mnt", "games"),
+                     InstallLocator.WindowsPathInPrefix(PREFIX, "z:/mnt/games/")
+                    );
+
         Assert.Null(InstallLocator.WindowsPathInPrefix(PREFIX, "/mnt/games"));
     }
 
@@ -716,48 +721,45 @@ public sealed class InstallLocatorTests
     public void ReadsHeroicAndMinigalaxyInstallFolders()
     {
         Assert.Equal(
-            "/data/games",
-            InstallLocator.ParseHeroicInstallFolder(
-                """{ "defaultSettings": { "defaultInstallPath": "/data/games" } }"""
-            )
-        );
+                     "/data/games",
+                     InstallLocator.ParseHeroicInstallFolder(
+                                                             """{ "defaultSettings": { "defaultInstallPath": "/data/games" } }"""
+                                                            )
+                    );
+
         Assert.Null(InstallLocator.ParseHeroicInstallFolder("{}"));
         Assert.Equal(
-            "/home/kerbal/GOG Games",
-            InstallLocator.ParseMinigalaxyInstallFolder(
-                """{ "install_dir": "/home/kerbal/GOG Games" }"""
-            )
-        );
+                     "/home/kerbal/GOG Games",
+                     InstallLocator.ParseMinigalaxyInstallFolder(
+                                                                 """{ "install_dir": "/home/kerbal/GOG Games" }"""
+                                                                )
+                    );
+
         Assert.Null(InstallLocator.ParseMinigalaxyInstallFolder("garbage"));
     }
 }
 
 public sealed class GameStarterTests
 {
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("  \t ")]
+    [Theory, InlineData(null), InlineData(""), InlineData("  \t ")]
     public void NoArgumentsSplitToNone(string? commandLine) =>
         Assert.Empty(GameStarter.SplitArguments(commandLine));
 
     [Fact]
     public void ArgumentsAreSplitAtWhitespace() =>
         Assert.Equal(
-            ["-popupwindow", "-screen-width", "1920"],
-            GameStarter.SplitArguments("  -popupwindow -screen-width\t1920 ")
-        );
+                     ["-popupwindow", "-screen-width", "1920"],
+                     GameStarter.SplitArguments("  -popupwindow -screen-width\t1920 ")
+                    );
 
     [Fact]
     public void QuotesKeepWhitespaceAndAreRemoved() =>
         Assert.Equal(
-            ["-logFile", @"C:\my logs\ksp.log", "--name=Jeb Kerman", string.Empty],
-            GameStarter.SplitArguments("""-logFile "C:\my logs\ksp.log" --name="Jeb Kerman" "" """)
-        );
+                     ["-logFile", @"C:\my logs\ksp.log", "--name=Jeb Kerman", string.Empty],
+                     GameStarter.SplitArguments("""-logFile "C:\my logs\ksp.log" --name="Jeb Kerman" "" """)
+                    );
 
-    [Theory]
-    [InlineData("windows")]
-    [InlineData("linux")]
+    [Theory, InlineData("windows"), InlineData("linux")]
     public void ThePlayerIsGivenTheArguments(string platform)
     {
         ProcessStartInfo start = GameStarter.StartInfo("install", platform, "-a \"b c\"");
@@ -772,9 +774,10 @@ public sealed class GameStarterTests
     {
         string app = Path.Combine("install", "KSP.app");
         Assert.Equal(
-            ["-a", app, "--args", "-a", "b c"],
-            GameStarter.StartInfo("install", "macos", "-a \"b c\"").ArgumentList
-        );
+                     ["-a", app, "--args", "-a", "b c"],
+                     GameStarter.StartInfo("install", "macos", "-a \"b c\"").ArgumentList
+                    );
+
         Assert.Equal(["-a", app], GameStarter.StartInfo("install", "macos", " ").ArgumentList);
     }
 }

@@ -26,8 +26,8 @@ public class BuildCliCommand
     [CliOption(Name = "--target", HelpName = "dir", Description = "The KSP Retooled build that the patch should produce.")]
     public required string Target { get; set; }
 
-    [CliOption(Name = "--out", HelpName = "file", Description =
-        "The patch file to write. If the name doesn't end in .rtpatch, the command adds it.")]
+    [CliOption(Name = "--out", HelpName = "file",
+               Description = "The patch file to write. If the name doesn't end in .rtpatch, the command adds it.")]
     public required string Output { get; set; }
 
     [CliOption(Name = "--platform", Required = false, AllowedValues = ["windows", "linux", "macos"],
@@ -91,8 +91,9 @@ public class BuildCliCommand
             Excludes       = SplitCommas(this.Excludes),
             TargetExcludes = SplitCommas(this.TargetExcludes),
             CopiedPaths    = SplitCommas(this.CopiedPaths),
-            Log            = Console.Out,
+            Log            = Console.Out
         });
+
         string report = Path.ChangeExtension(path, ".report.txt");
         File.WriteAllText(report, built.Report);
         Console.Write(built.Report);
@@ -100,8 +101,11 @@ public class BuildCliCommand
         return 0;
     }
 
-    private static string[] SplitCommas(string[] values) => [..values.SelectMany(v => v.Split(',', StringSplitOptions.RemoveEmptyEntries
-                                                                                                 | StringSplitOptions.TrimEntries))];
+    private static string[] SplitCommas(string[] values) =>
+    [
+        ..values.SelectMany(v => v.Split(',', StringSplitOptions.RemoveEmptyEntries
+                                            | StringSplitOptions.TrimEntries))
+    ];
 
     /// <summary>
     /// Splits <c>[name=]dir[;dir...]</c>. A drive letter's colon, or an '=' inside a path, doesn't separate a name.
@@ -133,6 +137,7 @@ public class InfoCliCommand
             int alternatives = m.Outputs.Count(x => x.Recipes.FindIndex(r => r.Inputs().All(files.Contains)) > 0);
             Console.WriteLine($"  source {variant.Id}: {variant.Files.Count} stock files, {alternatives} outputs use a recipe of its own");
         }
+
         foreach (string path in m.CopiedPaths)
         {
             Console.WriteLine($"  copied whole: {path}");
@@ -173,6 +178,7 @@ public class CheckCliCommand
             Console.WriteLine($"{this.Install} matches {check.Variant ?? "a mix of the known sources"}; the patch applies");
             return 0;
         }
+
         Console.WriteLine($"the patch does not apply to {this.Install}:\n  " + string.Join("\n  ", check.Problems));
         return 1;
     }

@@ -8,10 +8,10 @@ namespace KSP.Retooled.Patch.Build;
 /// </summary>
 internal sealed unsafe class MappedFile : IDisposable
 {
-    private readonly MemoryMappedFile map;
-    private readonly MemoryMappedViewAccessor view;
-    private readonly byte* pointer;
     private readonly int length;
+    private readonly MemoryMappedFile map;
+    private readonly byte* pointer;
+    private readonly MemoryMappedViewAccessor view;
 
     public MappedFile(string path, long length)
     {

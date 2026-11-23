@@ -5,7 +5,8 @@ using ZstdSharp.Unsafe;
 namespace KSP.Retooled.Patch;
 
 /// <summary>
-/// A patch file (<c>retooled-&lt;platform&gt;.rtpatch</c>): <c>RTPATCH2</c>, the manifest's offset and length (uint64 LE
+/// A patch file (<c>retooled-&lt;platform&gt;.rtpatch</c>): <c>RTPATCH2</c>, the manifest's offset and length (uint64
+/// LE
 /// each), then the sections, each an independent zstd frame of raw blobs, then the manifest JSON as one zstd frame.
 /// An apply decompresses only the sections its recipes read, skipping forward within them past blobs other installs
 /// need.
@@ -13,30 +14,30 @@ namespace KSP.Retooled.Patch;
 public sealed class PatchFile
 {
     public const string EXTENSION = ".rtpatch";
-    internal static readonly byte[] Magic = [.."RTPATCH2"u8];
     internal const int HEADER_SIZE = 24;
 
     /// <summary>
     /// Largest window a reader accepts (2 GB); the writer's window must not exceed it.
     /// </summary>
     internal const int MAX_WINDOW_LOG = 31;
+    internal static readonly byte[] Magic = [.."RTPATCH2"u8];
+
+    private PatchFile(string path, PatchManifest manifest)
+    {
+        this.FilePath = path;
+        this.Manifest = manifest;
+    }
 
     public string FilePath { get; }
 
     public PatchManifest Manifest { get; }
 
-    private PatchFile(string path, PatchManifest manifest)
-    {
-        this.FilePath = path;
-        this.Manifest    = manifest;
-    }
-
     public static PatchFile Open(string path)
     {
         using FileStream file = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         Span<byte> header = stackalloc byte[HEADER_SIZE];
-        if (file.Length < HEADER_SIZE || file.ReadAtLeast(header, HEADER_SIZE, throwOnEndOfStream: false) < HEADER_SIZE
-            || !header[..8].SequenceEqual(Magic))
+        if (file.Length < HEADER_SIZE || file.ReadAtLeast(header, HEADER_SIZE, false) < HEADER_SIZE
+                                      || !header[..8].SequenceEqual(Magic))
         {
             throw new InvalidDataException($"{path} is not a retooled patch file (or was made by an older patch tool)");
         }
@@ -77,8 +78,8 @@ public sealed class PatchFile
 public sealed class SectionReader : IDisposable
 {
     private readonly FileStream file;
-    private readonly DecompressionStream zstd;
     private readonly Section section;
+    private readonly DecompressionStream zstd;
     private byte[]? skipBuffer;
 
     internal SectionReader(string path, Section section)
@@ -86,7 +87,7 @@ public sealed class SectionReader : IDisposable
         this.section       = section;
         this.file          = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20);
         this.file.Position = section.Offset;
-        this.zstd             = new DecompressionStream(new BoundedStream(this.file, section.Length), 1 << 20, checkEndOfStream: true, leaveOpen: false);
+        this.zstd          = new DecompressionStream(new BoundedStream(this.file, section.Length), 1 << 20, true, false);
         this.zstd.SetParameter(ZSTD_dParameter.ZSTD_d_windowLogMax, PatchFile.MAX_WINDOW_LOG);
     }
 
@@ -94,6 +95,12 @@ public sealed class SectionReader : IDisposable
     /// Decompressed bytes consumed so far.
     /// </summary>
     private long Position { get; set; }
+
+    public void Dispose()
+    {
+        this.zstd.Dispose();
+        this.file.Dispose();
+    }
 
     public void SkipTo(long offset)
     {
@@ -110,12 +117,6 @@ public sealed class SectionReader : IDisposable
     {
         this.zstd.ReadExactly(buffer);
         this.Position += buffer.Length;
-    }
-
-    public void Dispose()
-    {
-        this.zstd.Dispose();
-        this.file.Dispose();
     }
 }
 
@@ -134,8 +135,14 @@ public sealed class PatchFileWriter : IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(windowLog, PatchFile.MAX_WINDOW_LOG);
         (this.level, this.windowLog, this.workers) = (level, windowLog, workers);
-        this.file                                     = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 1 << 20);
+        this.file                                  = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 1 << 20);
         this.file.Write(new byte[PatchFile.HEADER_SIZE]);
+    }
+
+    public void Dispose()
+    {
+        this.open?.Dispose();
+        this.file.Dispose();
     }
 
     /// <summary>
@@ -145,7 +152,7 @@ public sealed class PatchFileWriter : IDisposable
     {
         if (this.open is not null) throw new InvalidOperationException("previous section not ended");
 
-        CompressionStream zstd = new(this.file, this.level, 1 << 20, leaveOpen: true);
+        CompressionStream zstd = new(this.file, this.level, 1 << 20);
         zstd.SetParameter(ZSTD_cParameter.ZSTD_c_enableLongDistanceMatching, 1);
         zstd.SetParameter(ZSTD_cParameter.ZSTD_c_windowLog, this.windowLog);
         if (this.workers > 1) zstd.SetParameter(ZSTD_cParameter.ZSTD_c_nbWorkers, this.workers);
@@ -164,6 +171,7 @@ public sealed class PatchFileWriter : IDisposable
     public void Finish(PatchManifest manifest)
     {
         if (this.open is not null) throw new InvalidOperationException("section not ended");
+
         long offset = this.file.Position;
         using (Compressor compressor = new(19))
         {
@@ -176,13 +184,7 @@ public sealed class PatchFileWriter : IDisposable
         BinaryPrimitives.WriteUInt64LittleEndian(header[16..], (ulong)(this.file.Position - offset));
         this.file.Position = 0;
         this.file.Write(header);
-        this.file.Flush(flushToDisk: true);
-    }
-
-    public void Dispose()
-    {
-        this.open?.Dispose();
-        this.file.Dispose();
+        this.file.Flush(true);
     }
 }
 
@@ -192,17 +194,6 @@ public sealed class PatchFileWriter : IDisposable
 internal sealed class BoundedStream(Stream inner, long length) : Stream
 {
     private long left = length;
-
-    public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
-
-    public override int Read(Span<byte> buffer)
-    {
-        if (this.left <= 0) return 0;
-
-        int n = inner.Read(buffer[..(int)Math.Min(buffer.Length, this.left)]);
-        this.left -= n;
-        return n;
-    }
 
     public override bool CanRead => true;
 
@@ -216,6 +207,17 @@ internal sealed class BoundedStream(Stream inner, long length) : Stream
     {
         get => throw new NotSupportedException();
         set => throw new NotSupportedException();
+    }
+
+    public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+    public override int Read(Span<byte> buffer)
+    {
+        if (this.left <= 0) return 0;
+
+        int n = inner.Read(buffer[..(int)Math.Min(buffer.Length, this.left)]);
+        this.left -= n;
+        return n;
     }
 
     public override void Flush() { }
@@ -234,14 +236,6 @@ internal sealed class CountingStream(Stream inner) : Stream
 {
     private long length;
 
-    public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
-
-    public override void Write(ReadOnlySpan<byte> buffer)
-    {
-        inner.Write(buffer);
-        this.length += buffer.Length;
-    }
-
     public override bool CanRead => false;
 
     public override bool CanSeek => false;
@@ -250,7 +244,19 @@ internal sealed class CountingStream(Stream inner) : Stream
 
     public override long Length => this.length;
 
-    public override long Position { get => this.length; set => throw new NotSupportedException(); }
+    public override long Position
+    {
+        get => this.length;
+        set => throw new NotSupportedException();
+    }
+
+    public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
+
+    public override void Write(ReadOnlySpan<byte> buffer)
+    {
+        inner.Write(buffer);
+        this.length += buffer.Length;
+    }
 
     public override void Flush() => inner.Flush();
 

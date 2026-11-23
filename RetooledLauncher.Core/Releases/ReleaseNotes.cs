@@ -15,20 +15,20 @@ public static partial class ReleaseNotes
     {
         return Markup().Replace(notes,
                                 match =>
-        {
-            if (match.Groups["autolink"] is { Success: true } autolink)
-            {
-                return Link(autolink.Value) ?? match.Value;
-            }
+                                {
+                                    if (match.Groups["autolink"] is { Success: true } autolink)
+                                    {
+                                        return Link(autolink.Value) ?? match.Value;
+                                    }
 
-            if (match.Groups["bare"] is not { Success: true } bare)
-            {
-                return match.Value;
-            }
+                                    if (match.Groups["bare"] is not { Success: true } bare)
+                                    {
+                                        return match.Value;
+                                    }
 
-            string url = WithoutTrailingPunctuation(bare.Value);
-            return Link(url) is { } link ? link + bare.Value[url.Length..] : match.Value;
-        });
+                                    string url = WithoutTrailingPunctuation(bare.Value);
+                                    return Link(url) is { } link ? link + bare.Value[url.Length..] : match.Value;
+                                });
     }
 
     /// <summary>
@@ -66,16 +66,16 @@ public static partial class ReleaseNotes
     /// </summary>
     /// TODO csavard: fix this ungodly abomination that apprently breaks the regex generation limit
     [GeneratedRegex(
-        """
-        ^[ ]{0,3}(?<fence>`{3,}|~{3,})[\s\S]*?(?:^[ ]{0,3}\k<fence>|\z)  # fenced code
-        | ^(?:[ ]{4}|\t).*$                                              # indented code
-        | ^[ ]{0,3}\[[^\]\n]+\]:.*$                                      # link reference definition
-        | (?<!`)(?<ticks>`+)(?!`).+?(?<!`)\k<ticks>(?!`)                 # code span
-        | !?\[(?:[^\[\]\n]|\[[^\]\n]*\](?:\([^)\n]*\))?)*\]\([^\n]*?\)   # link or image, perhaps of an image
-        | <(?<autolink>https?://[^\s<>]+)>
-        | (?<![\w/:.@+-])(?<bare>https?://[^\s<>\[\]`]+)
-        """,
-        RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace
-    )]
+                       """
+                       ^[ ]{0,3}(?<fence>`{3,}|~{3,})[\s\S]*?(?:^[ ]{0,3}\k<fence>|\z)  # fenced code
+                       | ^(?:[ ]{4}|\t).*$                                              # indented code
+                       | ^[ ]{0,3}\[[^\]\n]+\]:.*$                                      # link reference definition
+                       | (?<!`)(?<ticks>`+)(?!`).+?(?<!`)\k<ticks>(?!`)                 # code span
+                       | !?\[(?:[^\[\]\n]|\[[^\]\n]*\](?:\([^)\n]*\))?)*\]\([^\n]*?\)   # link or image, perhaps of an image
+                       | <(?<autolink>https?://[^\s<>]+)>
+                       | (?<![\w/:.@+-])(?<bare>https?://[^\s<>\[\]`]+)
+                       """,
+                       RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace
+                   )]
     private static partial Regex Markup();
 }

@@ -32,6 +32,8 @@ public sealed record Release(string Tag,
     /// </summary>
     public string Channel { get; init; } = string.Empty;
 
+    public string DisplayName => string.IsNullOrWhiteSpace(this.Name) || this.Name == this.Tag ? this.Tag : $"{this.Tag} — {this.Name}";
+
     /// <summary>
     /// The release's name for a platform's patch: <c>retooled-&lt;platform&gt;.rtpatch</c>, or
     /// <c>retooled-&lt;platform&gt;-debug.rtpatch</c> for the development player's.
@@ -51,6 +53,4 @@ public sealed record Release(string Tag,
                                               && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
 
     public ReleaseAsset? PatchFor(string platform) => this.Assets.FirstOrDefault(a => a.Name.Equals(PatchNameFor(platform), StringComparison.OrdinalIgnoreCase));
-
-    public string DisplayName => string.IsNullOrWhiteSpace(this.Name) || this.Name == this.Tag ? this.Tag : $"{this.Tag} — {this.Name}";
 }

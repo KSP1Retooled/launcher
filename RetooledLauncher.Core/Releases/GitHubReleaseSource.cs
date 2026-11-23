@@ -52,8 +52,8 @@ public sealed class GitHubReleaseSource(HttpClient http,
             DateTimeOffset now = this.metadata.Clock.GetUtcNow();
             if (
                 stored.Pages.Count > 0
-                && now >= stored.CheckedAt
-                && now - stored.CheckedAt < this.metadata.Freshness
+             && now >= stored.CheckedAt
+             && now - stored.CheckedAt < this.metadata.Freshness
             )
             {
                 return Releases(stored);
@@ -104,18 +104,19 @@ public sealed class GitHubReleaseSource(HttpClient http,
                         ETag = response.Headers.ETag?.ToString(),
                         Next = NextPage(response),
                         Items = await JsonSerializer.DeserializeAsync(body, GitHubJson.Default.ListGitHubRelease, cancellation)
-                                                    .ConfigureAwait(false) ?? [],
+                                                    .ConfigureAwait(false) ?? []
                     };
                 }
 
                 updated.Pages[url] = current;
-                url = current.Next;
+                url                = current.Next;
                 if (url is not null && this.metadata.Clock.GetUtcNow() < scope.retryAt)
                 {
                     throw new LauncherException($"GitHub's rate limit was reached; try again after {scope.retryAt:u}");
                 }
             }
-            updated.CheckedAt = this.metadata.Clock.GetUtcNow();
+
+            updated.CheckedAt                   = this.metadata.Clock.GetUtcNow();
             scope.repositories[this.Repository] = updated;
             this.metadata.Save(this.Repository, string.IsNullOrEmpty(token), updated);
             return Releases(updated);
@@ -124,6 +125,11 @@ public sealed class GitHubReleaseSource(HttpClient http,
         {
             scope.gate.Release();
         }
+    }
+
+    public IEnumerable<HttpRequestMessage> AssetRequests(Release release, ReleaseAsset asset)
+    {
+        yield return AssetRequest(asset);
     }
 
     private IReadOnlyList<Release> Releases(Metadata stored) =>
@@ -153,6 +159,7 @@ public sealed class GitHubReleaseSource(HttpClient http,
             DateTimeOffset at = DateTimeOffset.FromUnixTimeSeconds(seconds);
             if (at > retry) retry = at;
         }
+
         if ((int)response.StatusCode is 403 or 429 && retry <= now)
         {
             retry = now + TimeSpan.FromMinutes(1);
@@ -195,18 +202,13 @@ public sealed class GitHubReleaseSource(HttpClient http,
     public string DownloadUrl(string tag, string name) =>
         $"https://github.com/{this.Repository}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}";
 
-    public IEnumerable<HttpRequestMessage> AssetRequests(Release release, ReleaseAsset asset)
-    {
-        yield return AssetRequest(asset);
-    }
-
     public static bool IsValidRepository(string repository)
     {
         string[] parts = repository.Split('/');
         return parts.Length == 2
             && parts.All(p =>
-                p.Length > 0 && p.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.')
-            );
+                             p.Length > 0 && p.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.')
+                        );
     }
 
     private static string Describe(HttpResponseMessage response, string repository) =>
@@ -214,10 +216,10 @@ public sealed class GitHubReleaseSource(HttpClient http,
         {
             404 =>
                 $"GitHub has no repository {repository}, or it is private and needs a GITHUB_TOKEN",
-            401 => "GitHub rejected the token in GITHUB_TOKEN",
+            401        => "GitHub rejected the token in GITHUB_TOKEN",
             403 or 429 => "GitHub's rate limit was reached; try again later or set GITHUB_TOKEN",
             _ =>
-                $"GitHub answered {(int)response.StatusCode} {response.ReasonPhrase} for {repository}'s releases",
+                $"GitHub answered {(int)response.StatusCode} {response.ReasonPhrase} for {repository}'s releases"
         };
 
     private static string? NextPage(HttpResponseMessage response)
@@ -232,14 +234,15 @@ public sealed class GitHubReleaseSource(HttpClient http,
             string[] parts = link.Split(';', StringSplitOptions.TrimEntries);
             if (
                 parts.Length >= 2
-                && parts[1..].Any(p => p is "rel=\"next\"")
-                && parts[0].StartsWith('<')
-                && parts[0].EndsWith('>')
+             && parts[1..].Any(p => p is "rel=\"next\"")
+             && parts[0].StartsWith('<')
+             && parts[0].EndsWith('>')
             )
             {
                 return parts[0][1..^1];
             }
         }
+
         return null;
     }
 
@@ -251,16 +254,16 @@ public sealed class GitHubReleaseSource(HttpClient http,
             r.Body ?? string.Empty,
             r.HtmlUrl ?? string.Empty,
             [
-                .. (r.Assets ?? []).Select(a => new ReleaseAsset(
-                                                                 a.Name,
-                                                                 a.Size,
-                                                                 a.BrowserDownloadUrl,
-                                                                 a.Url,
-                                                                 Sha256(a.Digest)
-                                                                )),
+                ..(r.Assets ?? []).Select(a => new ReleaseAsset(
+                                                                a.Name,
+                                                                a.Size,
+                                                                a.BrowserDownloadUrl,
+                                                                a.Url,
+                                                                Sha256(a.Digest)
+                                                               ))
             ])
         {
-            Created = r.CreatedAt ?? r.PublishedAt ?? DateTimeOffset.MinValue,
+            Created = r.CreatedAt ?? r.PublishedAt ?? DateTimeOffset.MinValue
         };
 
     /// <summary>
@@ -320,6 +323,5 @@ internal sealed class GitHubAsset
     public string? Digest { get; set; }
 }
 
-[JsonSerializable(typeof(List<GitHubRelease>))]
-[JsonSerializable(typeof(Metadata))]
+[JsonSerializable(typeof(List<GitHubRelease>)), JsonSerializable(typeof(Metadata))]
 internal sealed partial class GitHubJson : JsonSerializerContext;

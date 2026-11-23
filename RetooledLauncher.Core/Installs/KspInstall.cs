@@ -22,7 +22,7 @@ public enum InstallStatus
     /// <summary>
     /// An apply or revert stopped half way; uninstalling finishes restoring the stock install.
     /// </summary>
-    INTERRUPTED,
+    INTERRUPTED
 }
 
 /// <summary>
@@ -52,17 +52,19 @@ public sealed record InstallInfo(string Path, InstallStatus Status)
     public string? InstalledTag => this.Status is InstallStatus.RETOOLED or InstallStatus.INTERRUPTED ? this.Release?.Tag ?? string.Empty : null;
 
     /// <summary>
-    /// <see cref="InstalledTag"/> for comparing with <paramref name="channel"/>'s releases: "" when the installed release
+    /// <see cref="InstalledTag"/> for comparing with <paramref name="channel"/>'s releases: "" when the installed
+    /// release
     /// came from elsewhere, since an equal tag there may be a different build and a version number says nothing.
     /// </summary>
     public string? InstalledTagIn(string channel) =>
         string.IsNullOrEmpty(this.Release?.Channel) || this.Release.IsFrom(channel) ? this.InstalledTag
-        : this.InstalledTag is null                                                    ? null
-                                                                                         : string.Empty;
+        : this.InstalledTag is null                                                 ? null
+                                                                                      : string.Empty;
 }
 
 /// <summary>
-/// The launcher's record, in <c>.retooled/launcher.json</c>, of which release it applied. A revert deletes it with the journal.
+/// The launcher's record, in <c>.retooled/launcher.json</c>, of which release it applied. A revert deletes it with the
+/// journal.
 /// </summary>
 public sealed class InstalledRelease
 {
@@ -93,14 +95,17 @@ public sealed class InstalledRelease
     public bool IsFrom(string channel) => string.Equals(this.Channel, channel, StringComparison.OrdinalIgnoreCase);
 }
 
-[JsonSerializable(typeof(InstalledRelease))]
-[JsonSerializable(typeof(SavesBackupRecord))]
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
+[JsonSerializable(typeof(InstalledRelease)), JsonSerializable(typeof(SavesBackupRecord)), JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
 internal sealed partial class InstallJson : JsonSerializerContext;
 
 public static class KspInstall
 {
     private const string MARKER_FILE = InstallJournal.DIRECTORY + "/launcher.json";
+
+    /// <summary>
+    /// Every platform that KSP was released for.
+    /// </summary>
+    private static readonly IReadOnlyList<string> Platforms = ["windows", "linux", "macos"];
 
     /// <summary>
     /// The player each platform's build ships, relative to the install (the Retooled build keeps stock's names).
@@ -110,19 +115,14 @@ public static class KspInstall
         "windows" => "KSP_x64.exe",
         "linux"   => "KSP.x86_64",
         "macos"   => "KSP.app",
-        _         => throw new LauncherException($"unsupported platform {platform}"),
+        _         => throw new LauncherException($"unsupported platform {platform}")
     };
-
-    /// <summary>
-    /// Every platform that KSP was released for.
-    /// </summary>
-    private static readonly IReadOnlyList<string> Platforms = ["windows", "linux", "macos"];
 
     /// <summary>
     /// <see cref="Platforms"/> with <paramref name="host"/> moved to the front. If a folder has game executables for
     /// more than one platform, the launcher uses the first platform in this order.
     /// </summary>
-    public static IReadOnlyList<string> PlatformsOn(string host) => [.. Platforms.OrderBy(p => p != host)];
+    public static IReadOnlyList<string> PlatformsOn(string host) => [..Platforms.OrderBy(p => p != host)];
 
     /// <summary>
     /// The platform of the patch that the launcher should apply to <paramref name="info"/>. This is the install's own
@@ -144,6 +144,7 @@ public static class KspInstall
         {
             return new InstallInfo(path, InstallStatus.MISSING);
         }
+
         if (!Directory.Exists(full))
         {
             return new InstallInfo(full, InstallStatus.MISSING);
@@ -158,6 +159,7 @@ public static class KspInstall
             journal = InstallJournal.Load(full);
         }
         catch (Exception e) when (e is JsonException or InvalidDataException or IOException) { }
+
         if (journal is not null)
         {
             return new InstallInfo(full,
@@ -167,7 +169,7 @@ public static class KspInstall
             {
                 BuildId  = ReadBuildId(full),
                 Release  = ReadMarker(full),
-                Platform = journal.Platform,
+                Platform = journal.Platform
             };
         }
 
@@ -175,8 +177,8 @@ public static class KspInstall
         bool ksp = Directory.Exists(Path.Combine(full, "GameData", "Squad")) && platform is not null;
         return new InstallInfo(full, ksp ? InstallStatus.STOCK : InstallStatus.NOT_KSP)
         {
-            BuildId = ksp ? ReadBuildId(full) : null,
-            Platform = ksp ? platform : null,
+            BuildId  = ksp ? ReadBuildId(full) : null,
+            Platform = ksp ? platform : null
         };
     }
 
@@ -208,8 +210,10 @@ public static class KspInstall
             catch (Exception e)when (e is IOException
                                        or UnauthorizedAccessException
                                        or SecurityException) { }
+
             path = Path.Combine(path, name ?? part);
         }
+
         return path;
     }
 
@@ -228,13 +232,14 @@ public static class KspInstall
                 int eq = line.IndexOf('=');
                 if (
                     eq > 0
-                    && line[..eq].Trim().Equals("build id", StringComparison.OrdinalIgnoreCase)
+                 && line[..eq].Trim().Equals("build id", StringComparison.OrdinalIgnoreCase)
                 )
                 {
                     return line[(eq + 1)..].Trim();
                 }
             }
         }
+
         return null;
     }
 
@@ -262,6 +267,6 @@ public static class KspInstall
         string file = Path.Combine(install, MARKER_FILE);
         Directory.CreateDirectory(Path.GetDirectoryName(file)!);
         File.WriteAllBytes($"{file}.tmp", JsonSerializer.SerializeToUtf8Bytes(release, InstallJson.Default.InstalledRelease));
-        File.Move(file + ".tmp", file, overwrite: true);
+        File.Move(file + ".tmp", file, true);
     }
 }

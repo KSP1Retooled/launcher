@@ -45,6 +45,7 @@ public sealed class InstallJournal
     public string Patch { get; set; } = string.Empty;
 
     public DateTime Applied { get; set; }
+
     /// <summary>
     /// In the order the apply moves them; a revert goes through them backwards.
     /// </summary>
@@ -74,9 +75,9 @@ public sealed class InstallJournal
     public void Save(string install)
     {
         string path = Path.Combine(install, FILE_NAME);
-        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path + ".tmp", JsonSerializer.SerializeToUtf8Bytes(this, ManifestJson.Default.InstallJournal));
-        File.Move(path + ".tmp", path, overwrite: true);
+        File.Move(path + ".tmp", path, true);
     }
 
     /// <summary>
@@ -87,7 +88,7 @@ public sealed class InstallJournal
         string scratch = Path.Combine(install, DIRECTORY);
         try
         {
-            if (System.IO.Directory.Exists(scratch)) System.IO.Directory.Delete(scratch, recursive: true);
+            if (Directory.Exists(scratch)) Directory.Delete(scratch, true);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
@@ -111,7 +112,8 @@ public sealed class JournalFile
 }
 
 /// <summary>
-/// The in-place half of <see cref="PatchApplier"/>: journals, backs up and moves staged outputs into the install, in a
+/// The in-place half of <see cref="PatchApplier"/>: journals, backs up and moves staged outputs into the install, in
+/// a
 /// transaction, so an exception puts every file back and leaves no journal. If that rollback fails too, or the process
 /// dies, the journal stays and <see cref="PatchReverter"/> finishes the job.
 /// </summary>
@@ -141,7 +143,8 @@ internal sealed class InstallCommit(string install, InstallJournal journal, Dict
                                       .Concat(requested)
                                       .Append(GameSettingsFile.FILE_NAME),
                                 log);
-            Plan(staged,  removeArray, requested);
+
+            Plan(staged, removeArray, requested);
             journal.State = JournalState.COMMITTING;
             journal.Save(install);
 
@@ -173,8 +176,8 @@ internal sealed class InstallCommit(string install, InstallJournal journal, Dict
             throw;
         }
 
-        Directory.Delete(staging, recursive: true);
-        Directory.Delete(Full(InstallJournal.TRANSACTION_DIRECTORY), recursive: true);
+        Directory.Delete(staging, true);
+        Directory.Delete(Full(InstallJournal.TRANSACTION_DIRECTORY), true);
         int removed = journal.Files.Count(f => f.Action == JournalAction.REMOVED);
         log.WriteLine($"moved {journal.Files.Count - removed} files into the install, removed {removed} stock files "
                     + $"(originals kept in {InstallJournal.ORIGINAL_DIRECTORY})");
@@ -196,10 +199,10 @@ internal sealed class InstallCommit(string install, InstallJournal journal, Dict
             bool exists = File.Exists(Full(output.Path));
             journal.Files.Add(new JournalFile
             {
-                Path = output.Path,
-                Action = exists ? JournalAction.REPLACED : JournalAction.ADDED,
+                Path     = output.Path,
+                Action   = exists ? JournalAction.REPLACED : JournalAction.ADDED,
                 Original = exists ? StockHash(output.Path) : null,
-                Retooled = output.Sha256,
+                Retooled = output.Sha256
             });
         }
 
@@ -213,7 +216,7 @@ internal sealed class InstallCommit(string install, InstallJournal journal, Dict
             }
         }
 
-        journal.CreatedDirectories = [.. created.OrderBy(d => d.Count(c => c == '/')).ThenBy(d => d, StringComparer.Ordinal)];
+        journal.CreatedDirectories = [..created.OrderBy(d => d.Count(c => c == '/')).ThenBy(d => d, StringComparer.Ordinal)];
     }
 
     private void Commit(IFileManager files, string staging, List<string> directories, string? language)
@@ -231,6 +234,7 @@ internal sealed class InstallCommit(string install, InstallJournal journal, Dict
                 PruneEmptyParents(files, destination);
             }
         }
+
         foreach (string directory in directories) files.CreateDirectory(Full(directory));
 
         if (language is not null && GameSettingsFile.WithLanguage(install, language) is { } settings)
@@ -258,8 +262,10 @@ internal sealed class InstallCommit(string install, InstallJournal journal, Dict
 
     private void PruneEmptyParents(IFileManager files, string file)
     {
-        for (string? dir = Path.GetDirectoryName(file); dir is not null && dir.Length > install.Length
-             && Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any(); dir = Path.GetDirectoryName(dir))
+        for (string? dir = Path.GetDirectoryName(file);
+             dir is not null && dir.Length > install.Length
+                             && Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any();
+             dir = Path.GetDirectoryName(dir))
         {
             files.DeleteDirectory(dir);
             journal.RemovedDirectories.Add(Path.GetRelativePath(install, dir).Replace('\\', '/'));
@@ -269,7 +275,7 @@ internal sealed class InstallCommit(string install, InstallJournal journal, Dict
     internal static void MoveFile(string from, string to)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(to)!);
-        File.Move(from, to, overwrite: true);
+        File.Move(from, to, true);
     }
 }
 
@@ -288,8 +294,8 @@ public static class PatchReverter
     // ReSharper disable once CognitiveComplexity
     public static void Revert(string install, TextWriter? log = null, IProgress<PatchProgress>? progress = null)
     {
-        install = Path.TrimEndingDirectorySeparator(Path.GetFullPath(install));
-        log ??= TextWriter.Null;
+        install =   Path.TrimEndingDirectorySeparator(Path.GetFullPath(install));
+        log     ??= TextWriter.Null;
         InstallJournal journal = InstallJournal.Load(install) ?? throw new PatchException($"{install} has no {InstallJournal.DIRECTORY} journal; it is not patched");
         // a backup can be missing only where an earlier apply or revert stopped before moving it
         bool interrupted = journal.State != JournalState.APPLIED;
@@ -297,6 +303,7 @@ public static class PatchReverter
         journal.Save(install);
 
         string Full(string path) => Path.Combine(install, path);
+
         List<string> problems = [];
         int restored = 0, deleted = 0, done = 0;
         for (int i = journal.Files.Count - 1; i >= 0; i--)
@@ -314,11 +321,12 @@ public static class PatchReverter
             else if (File.Exists(backup))
             {
                 // the directory the apply made in this file's place: what it added has gone, and anything else there (Finder's .DS_Store) goes too
-                if (journal.CreatedDirectories.Contains(file.Path) && Directory.Exists(path)) Directory.Delete(path, recursive: true);
+                if (journal.CreatedDirectories.Contains(file.Path) && Directory.Exists(path)) Directory.Delete(path, true);
                 InstallCommit.MoveFile(backup, path);
                 restored++;
             }
             else if (!interrupted) problems.Add($"missing backup {InstallJournal.ORIGINAL_DIRECTORY}/{file.Path}");
+
             progress?.Report(new PatchProgress("revert", ++done, journal.Files.Count));
         }
 
@@ -334,7 +342,7 @@ public static class PatchReverter
 
         foreach (string artifact in RuntimeArtifacts.Where(a => Directory.Exists(Full(a))))
         {
-            Directory.Delete(Full(artifact), recursive: true);
+            Directory.Delete(Full(artifact), true);
             string parent = Path.GetDirectoryName(Full(artifact))!;
             if (parent.Length > install.Length && !Directory.EnumerateFileSystemEntries(parent).Any()) Directory.Delete(parent);
         }
@@ -345,7 +353,7 @@ public static class PatchReverter
                                    + string.Join("\n  ", problems));
         }
 
-        Directory.Delete(Full(InstallJournal.DIRECTORY), recursive: true);
+        Directory.Delete(Full(InstallJournal.DIRECTORY), true);
         log.WriteLine($"reverted {install}: restored {restored} stock files, deleted {deleted} retooled files");
     }
 }

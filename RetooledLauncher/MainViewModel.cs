@@ -20,7 +20,8 @@ public interface IDialogs
     Task<string?> PickFolderAsync(string title);
 
     /// <summary>
-    /// The path of the file that the user chose, which has one of the names in <paramref name="players"/>. Null if they cancelled.
+    /// The path of the file that the user chose, which has one of the names in <paramref name="players"/>. Null if they
+    /// cancelled.
     /// </summary>
     Task<string?> PickPlayerAsync(string title, IReadOnlyList<string> players);
 
@@ -58,6 +59,7 @@ public sealed class ReleaseItem(Release release, bool installed, bool latest, bo
     public string Date => this.Release.Published != DateTimeOffset.MinValue
                               ? this.Release.Published.LocalDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
                               : string.Empty;
+
     public bool IsPrerelease => this.Release.Prerelease;
 
     public bool IsInstalled { get; } = installed;
@@ -71,26 +73,26 @@ public sealed class ReleaseItem(Release release, bool installed, bool latest, bo
 
 public sealed partial class MainViewModel : ObservableObject
 {
-    private readonly LauncherSettings settings;
     private readonly IDialogs dialogs;
-    private readonly LauncherUpdater updater;
     // a short connect timeout, so an unreachable GitHub turns to the mirror quickly
     private readonly HttpClient http = new(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(15) })
     {
-        Timeout = TimeSpan.FromMinutes(30),
+        Timeout = TimeSpan.FromMinutes(30)
     };
-    private readonly string? token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
     private readonly StringBuilder log = new();
     private readonly GitHubMetadataCache metadata = new(Path.Combine(LauncherInfo.DataDirectory, "metadata"));
-    private CancellationTokenSource? releaseRefresh;
-    private ReleaseCatalog catalog = ReleaseCatalog.Empty;
+    private readonly LauncherSettings settings;
+    private readonly string? token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+    private readonly LauncherUpdater updater;
     private CancellationTokenSource? cancel;
+    private ReleaseCatalog catalog = ReleaseCatalog.Empty;
+    private CancellationTokenSource? releaseRefresh;
 
     public MainViewModel(LauncherSettings settings, IDialogs dialogs)
     {
         this.settings = settings;
         this.dialogs  = dialogs;
-        this.updater     = new LauncherUpdater(this.token);
+        this.updater  = new LauncherUpdater(this.token);
         Append(Title);
         this.InstallPath        = settings.InstallPath is { } saved ? KspInstall.Inspect(saved).Path : string.Empty;
         this.IncludePrereleases = settings.IncludePrereleases;
@@ -176,8 +178,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string? LauncherUpdateNotice => this.DownloadedLauncher is { } version
                                                ? $"Launcher {version} is ready to install."
-                                               : this.LauncherUpdate is { } r ? $"Launcher {r.Tag} is available."
-                                                                                                                                                                                                           : null;
+                                               : this.LauncherUpdate is { } r
+                                                   ? $"Launcher {r.Tag} is available."
+                                                   : null;
 
     public string InstallState => this.Install?.Status switch
     {
@@ -187,7 +190,7 @@ public sealed partial class MainViewModel : ObservableObject
         InstallStatus.NOT_KSP         => "That folder is not a KSP install (it needs GameData/Squad and the game).",
         InstallStatus.STOCK           => $"Stock KSP{this.Build}. KSP Retooled is not installed.",
         InstallStatus.RETOOLED        => $"KSP Retooled {this.InstalledName} is installed{this.Build}.",
-        _                             => "An earlier install or uninstall did not finish. Uninstall to restore the stock game.",
+        _                             => "An earlier install or uninstall did not finish. Uninstall to restore the stock game."
     };
 
     /// <summary>
@@ -207,23 +210,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// The tooltip on the Play button. It explains why Play is turned off for an install from another platform.
     /// </summary>
     public string? PlayTip => !this.RunsHere
-            ? $"This is the {PlatformName(this.PatchPlatform)} version of KSP, so the launcher can't start it."
-            : null;
-
-    private static string PlatformName(string platform) => platform switch
-    {
-        "windows" => "Windows",
-        "linux"   => "Linux",
-        "macos"   => "macOS",
-        _         => platform,
-    };
+                                  ? $"This is the {PlatformName(this.PatchPlatform)} version of KSP, so the launcher can't start it."
+                                  : null;
 
     private string InstalledName => this.Install?.Release switch
     {
-        null                                           => "(unknown version)",
+        null                                            => "(unknown version)",
         var r when r.IsFrom(LauncherInfo.LOCAL_CHANNEL) => $"{r.Tag} (local patch file)",
-        var r when this.InstalledTag == string.Empty      => $"{r.Tag} (from {r.Channel})",
-        var r                                          => r.Tag,
+        var r when this.InstalledTag == string.Empty    => $"{r.Tag} (from {r.Channel})",
+        var r                                           => r.Tag
     };
 
     /// <summary>
@@ -244,14 +239,14 @@ public sealed partial class MainViewModel : ObservableObject
     public string ActionLabel => this.SelectedRelease is null
                                      ? "Install"
                                      : this.catalog.ActionFor(this.SelectedRelease.Release, this.InstalledTag, this.InstalledSha256) switch
-    {
-        InstallAction.UPGRADE   => $"Upgrade to {this.SelectedRelease.Release.Tag}",
-        InstallAction.DOWNGRADE => $"Downgrade to {this.SelectedRelease.Release.Tag}",
-        InstallAction.REINSTALL => $"Reinstall {this.SelectedRelease.Release.Tag}",
-        InstallAction.REPLACE   => $"Switch to {this.SelectedRelease.Release.Tag}",
-        InstallAction.UPDATE    => $"Update {this.SelectedRelease.Release.Tag}",
-        _                       => $"Install {this.SelectedRelease.Release.Tag}",
-    };
+                                     {
+                                         InstallAction.UPGRADE   => $"Upgrade to {this.SelectedRelease.Release.Tag}",
+                                         InstallAction.DOWNGRADE => $"Downgrade to {this.SelectedRelease.Release.Tag}",
+                                         InstallAction.REINSTALL => $"Reinstall {this.SelectedRelease.Release.Tag}",
+                                         InstallAction.REPLACE   => $"Switch to {this.SelectedRelease.Release.Tag}",
+                                         InstallAction.UPDATE    => $"Update {this.SelectedRelease.Release.Tag}",
+                                         _                       => $"Install {this.SelectedRelease.Release.Tag}"
+                                     };
 
     public bool HasDetectedInstalls => this.DetectedInstalls.Count > 1;
 
@@ -277,6 +272,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     private bool Idle => !this.IsBusy;
 
+    private static string PlatformName(string platform) => platform switch
+    {
+        "windows" => "Windows",
+        "linux"   => "Linux",
+        "macos"   => "macOS",
+        _         => platform
+    };
+
     public async Task StartAsync()
     {
         Task update = CheckForLauncherUpdateAsync();
@@ -299,6 +302,7 @@ public sealed partial class MainViewModel : ObservableObject
             await DownloadLauncherUpdateAsync();
             return;
         }
+
         if (LauncherUpdater.OnReadOnlyVolume)
         {
             Append("the launcher can update itself once it is moved to Applications");
@@ -315,11 +319,11 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception e)
             when (e
-                    is LauncherException
-                        or HttpRequestException
-                        or OperationCanceledException
-                        or JsonException
-            )
+                      is LauncherException
+                      or HttpRequestException
+                      or OperationCanceledException
+                      or JsonException
+                 )
         {
             Append($"could not check for a new launcher: {e.Message}");
         }
@@ -405,9 +409,11 @@ public sealed partial class MainViewModel : ObservableObject
                  .Where(p => p is not "macos")
                  .Select(KspInstall.Player)
             ];
+
             string? player = await this.dialogs.PickPlayerAsync($"Select {string.Join(" or ", names)} in your KSP 1.12.5 folder", names);
             folder = Path.GetDirectoryName(player);
         }
+
         if (folder is not null)
         {
             this.InstallPath = folder;
@@ -454,9 +460,10 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             found = new ReleaseCatalog(
-                await Source().GetReleasesAsync(refresh.Token),
-                LauncherInfo.IsVersionedChannel(channel)
-            );
+                                       await Source().GetReleasesAsync(refresh.Token),
+                                       LauncherInfo.IsVersionedChannel(channel)
+                                      );
+
             if (found.All.Count is 0)
             {
                 error = $"{channel} has no releases yet.";
@@ -486,7 +493,7 @@ public sealed partial class MainViewModel : ObservableObject
             return; // the user has moved on, and the listing of the channel they chose is on its way
         }
 
-        this.catalog   = found;
+        this.catalog      = found;
         this.ReleaseError = error;
         ShowReleases();
     }
@@ -515,6 +522,7 @@ public sealed partial class MainViewModel : ObservableObject
                                                          "The GitHub repository whose releases to offer.",
                                                          "Add",
                                                          "owner/name");
+
         if (string.IsNullOrWhiteSpace(channel))
         {
             return;
@@ -558,18 +566,18 @@ public sealed partial class MainViewModel : ObservableObject
         InstallAction action = this.catalog.ActionFor(release, this.InstalledTag, this.InstalledSha256);
         if (
             release.Prerelease
-            && !await this.dialogs.ConfirmAsync("Pre-release",
-                                                $"{release.Tag} is a pre-release and may be unstable. Your saves folder is copied to saves-backup before it is installed.",
-                                                "Install anyway"))
+         && !await this.dialogs.ConfirmAsync("Pre-release",
+                                             $"{release.Tag} is a pre-release and may be unstable. Your saves folder is copied to saves-backup before it is installed.",
+                                             "Install anyway"))
         {
             return;
         }
 
         if (
             action == InstallAction.DOWNGRADE
-            && !await this.dialogs.ConfirmAsync("Downgrade",
-                                                $"Saves made with {this.Install?.Release?.Tag} may not load in {release.Tag}. Your saves folder is copied to saves-backup first.",
-                                                "Downgrade")
+         && !await this.dialogs.ConfirmAsync("Downgrade",
+                                             $"Saves made with {this.Install?.Release?.Tag} may not load in {release.Tag}. Your saves folder is copied to saves-backup first.",
+                                             "Downgrade")
         )
         {
             return;
@@ -663,7 +671,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void DismissLauncherUpdate()
     {
-        this.LauncherUpdate = null;
+        this.LauncherUpdate     = null;
         this.DownloadedLauncher = null;
     }
 
@@ -673,19 +681,20 @@ public sealed partial class MainViewModel : ObservableObject
                                     CancellationToken,
                                     Task<InstallInfo>> work)
     {
-        this.IsBusy             = true;
-        this.cancel             = new CancellationTokenSource();
-        this.Activity           = what;
+        this.IsBusy                = true;
+        this.cancel                = new CancellationTokenSource();
+        this.Activity              = what;
         this.ProgressIndeterminate = true;
         Progress<LauncherProgress> progress = new(p =>
         {
             this.Activity              = p.Stage;
             this.ProgressIndeterminate = p.Fraction is null;
-            this.ProgressValue            = (p.Fraction ?? 0) * 100;
+            this.ProgressValue         = (p.Fraction ?? 0) * 100;
         });
 
         LauncherService service = new(new PatchCache(this.http, Source(), Path.Combine(LauncherInfo.DataDirectory, "cache")), this.PatchPlatform,
                                       new LogWriter(this));
+
         try
         {
             await work(service, progress, this.cancel.Token);
@@ -716,7 +725,7 @@ public sealed partial class MainViewModel : ObservableObject
             this.IsBusy                = false;
             this.Activity              = string.Empty;
             this.ProgressIndeterminate = false;
-            this.ProgressValue            = 0;
+            this.ProgressValue         = 0;
             Inspect();
             ShowReleases();
         }
@@ -744,9 +753,10 @@ public sealed partial class MainViewModel : ObservableObject
 
         // keep the user's pick; otherwise offer the upgrade, else the installed release, else the newest
         this.SelectedRelease = this.Releases.FirstOrDefault(r => r.Release.Tag == previous)
-            ?? this.Releases.FirstOrDefault(r => r.Release == this.Upgrade)
-            ?? this.Releases.FirstOrDefault(r => r.IsInstalled)
-            ?? this.Releases.FirstOrDefault(r => r.HasBuild);
+                            ?? this.Releases.FirstOrDefault(r => r.Release == this.Upgrade)
+                            ?? this.Releases.FirstOrDefault(r => r.IsInstalled)
+                            ?? this.Releases.FirstOrDefault(r => r.HasBuild);
+
         OnPropertyChanged(nameof(this.HasReleases));
         OnPropertyChanged(nameof(this.ShowsPrereleases));
         OnPropertyChanged(nameof(this.CanChoosePrereleases));
@@ -821,9 +831,11 @@ public sealed partial class MainViewModel : ObservableObject
                     this.line.Append(value);
                     return;
                 }
+
                 done = this.line.ToString();
                 this.line.Clear();
             }
+
             Dispatcher.UIThread.Post(() => model.Append(done));
         }
     }
