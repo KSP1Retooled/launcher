@@ -168,7 +168,7 @@
       </Grid>
       <Grid
         Grid.Row="1"
-        Grid.ColumnSpan="2"
+        Grid.ColumnSpan="2" Grid.Column="0"
         ColumnDefinitions="Auto,*,Auto,Auto"
         ColumnSpacing="8"
         Margin="0,0,0,6"
@@ -184,7 +184,7 @@
       </Grid>
       <TextBlock
         Grid.Row="2"
-        Grid.ColumnSpan="2"
+        Grid.ColumnSpan="2" Grid.Column="0"
         Text="{Binding ReleaseError}"
         TextWrapping="Wrap"
         Foreground="OrangeRed"
@@ -194,7 +194,7 @@
 
       <TextBlock
         Grid.Row="3"
-        Grid.ColumnSpan="2"
+        Grid.ColumnSpan="2" Grid.Column="0"
         Text="No releases to show."
         Opacity="0.6"
         Margin="0,8,0,0"

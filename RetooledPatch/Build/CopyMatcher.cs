@@ -1,14 +1,16 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 
-namespace KSP.Retooled.Patch;
+namespace KSP.Retooled.Patch.Build;
 
 public static partial class PatchBuilder
 {
-    /// <summary>A run of target bytes identical to <see cref="Length"/> bytes of <see cref="Source"/> at <see cref="SourceOffset"/>.</summary>
-    readonly record struct CopyRun(long Start, long Length, FileEntry Source, long SourceOffset)
+    /// <summary>
+    /// A run of target bytes identical to <see cref="Length"/> bytes of <see cref="Source"/> at <see cref="SourceOffset"/>.
+    /// </summary>
+    private readonly record struct CopyRun(long Start, long Length, FileEntry Source, long SourceOffset)
     {
-        public long End => Start + Length;
+        public long End => this.Start + this.Length;
     }
 
     /// <summary>
@@ -16,51 +18,59 @@ public static partial class PatchBuilder
     /// audio payloads between files and offsets but mostly keeps their bytes, so chunks cut by a content-defined (gear)
     /// hash line up on both sides regardless of position; each hit is verified and extended byte by byte.
     /// </summary>
-    sealed class CopyMatcher : IDisposable
+    private sealed class CopyMatcher : IDisposable
     {
-        const int MinChunk = 4 << 10, MaxChunk = 128 << 10;
-        const ulong CutMask = (1UL << 14) - 1;
-        /// <summary>Shorter runs cost more manifest than they save.</summary>
-        public const int MinRun = 1 << 10;
+        private const int MIN_CHUNK = 4 << 10, MAX_CHUNK = 128 << 10;
+        private const ulong CUT_MASK = (1UL << 14) - 1;
+        /// <summary>
+        /// Shorter runs cost more manifest than they save.
+        /// </summary>
+        private const int MIN_RUN = 1 << 10;
 
-        static readonly ulong[] Gear = MakeGear();
+        private static readonly ulong[] Gear = MakeGear();
 
-        readonly Dictionary<(UInt128 Hash, int Length), (FileEntry File, long Offset)> index = new();
-        readonly ConcurrentDictionary<FileEntry, Lazy<MappedFile>> contents = new();
+        private readonly Dictionary<(UInt128 Hash, int Length), (FileEntry File, long Offset)> index = new();
+        private readonly ConcurrentDictionary<FileEntry, Lazy<MappedFile>> contents = new();
 
-        /// <summary>Indexes stock files in order; on duplicate content the earlier file wins, so pass core files first.</summary>
+        /// <summary>
+        /// Indexes stock files in order; on duplicate content the earlier file wins, so pass core files first.
+        /// </summary>
         public CopyMatcher(IReadOnlyList<FileEntry> stock)
         {
-            var chunks = new List<(UInt128, int, long)>[stock.Count];
+            List<(UInt128, int, long)>[] chunks = new List<(UInt128, int, long)>[stock.Count];
             Parallel.For(0, stock.Count, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, i =>
             {
-                var bytes = Contents(stock[i]).Span;
-                var list = chunks[i] = [];
-                foreach (var (offset, length) in Chunks(bytes)) list.Add((Hash(bytes.Slice(offset, length)), length, offset));
+                ReadOnlySpan<byte> bytes = Contents(stock[i]).Span;
+                List<(UInt128, int, long)> list = chunks[i] = [];
+                foreach ((int offset, int length) in Chunks(bytes)) list.Add((Hash(bytes.Slice(offset, length)), length, offset));
             });
             for (int i = 0; i < stock.Count; i++)
-                foreach (var (hash, length, offset) in chunks[i])
-                    index.TryAdd((hash, length), (stock[i], offset));
+            {
+                foreach ((UInt128 hash, int length, long offset) in chunks[i])
+                {
+                    this.index.TryAdd((hash, length), (stock[i], offset));
+                }
+            }
         }
 
-        public int Count => index.Count;
+        public int Count => this.index.Count;
 
         public void Dispose()
         {
-            foreach (var mapped in contents.Values) mapped.Value.Dispose();
+            foreach (Lazy<MappedFile> mapped in this.contents.Values) mapped.Value.Dispose();
         }
 
         public List<CopyRun> Match(FileEntry file, Func<FileEntry, bool> inScope)
         {
-            using var mapped = new MappedFile(file.Full, file.Size);
-            var target = mapped.Span;
-            var runs = new List<CopyRun>();
+            using MappedFile mapped = new(file.full, file.size);
+            ReadOnlySpan<byte> target = mapped.Span;
+            List<CopyRun> runs = [];
             int coveredTo = 0;
-            foreach (var (offset, length) in Chunks(target))
+            foreach ((int offset, int length) in Chunks(target))
             {
                 if (offset + length <= coveredTo) continue;
-                if (!index.TryGetValue((Hash(target.Slice(offset, length)), length), out var hit) || !inScope(hit.File)) continue;
-                var source = Contents(hit.File).Span;
+                if (!this.index.TryGetValue((Hash(target.Slice(offset, length)), length), out (FileEntry File, long Offset) hit) || !inScope(hit.File)) continue;
+                ReadOnlySpan<byte> source = Contents(hit.File).Span;
                 int sourceOffset = (int)hit.Offset;
                 if (!target.Slice(offset, length).SequenceEqual(source.Slice(sourceOffset, length))) continue;
 
@@ -74,32 +84,31 @@ public static partial class PatchBuilder
                 int end = offset + length;
                 end += target[end..].CommonPrefixLength(source[(sourceOffset + length)..]);
 
-                if (end - start >= MinRun) runs.Add(new CopyRun(start, end - start, hit.File, sourceStart));
+                if (end - start >= MIN_RUN) runs.Add(new CopyRun(start, end - start, hit.File, sourceStart));
                 coveredTo = end;
             }
             return runs;
         }
 
-        MappedFile Contents(FileEntry file) =>
-            contents.GetOrAdd(file, f => new Lazy<MappedFile>(() => new MappedFile(f.Full, f.Size))).Value;
+        private MappedFile Contents(FileEntry file) => this.contents.GetOrAdd(file, f => new Lazy<MappedFile>(() => new MappedFile(f.full, f.size))).Value;
 
-        static UInt128 Hash(ReadOnlySpan<byte> bytes)
+        private static UInt128 Hash(ReadOnlySpan<byte> bytes)
         {
             Span<byte> digest = stackalloc byte[32];
             SHA256.HashData(bytes, digest);
             return new UInt128(BitConverter.ToUInt64(digest), BitConverter.ToUInt64(digest[8..]));
         }
 
-        static List<(int Offset, int Length)> Chunks(ReadOnlySpan<byte> data)
+        private static List<(int Offset, int Length)> Chunks(ReadOnlySpan<byte> data)
         {
-            var chunks = new List<(int, int)>(data.Length / (16 << 10) + 1);
+            List<(int, int)> chunks = new(data.Length / (16 << 10) + 1);
             int start = 0;
             ulong h = 0;
             for (int i = 0; i < data.Length; i++)
             {
                 h = (h << 1) + Gear[data[i]];
                 int length = i - start + 1;
-                if ((length >= MinChunk && (h & CutMask) == 0) || length >= MaxChunk)
+                if ((length >= MIN_CHUNK && (h & CUT_MASK) is 0) || length >= MAX_CHUNK)
                 {
                     chunks.Add((start, length));
                     start = i + 1;
@@ -110,10 +119,10 @@ public static partial class PatchBuilder
             return chunks;
         }
 
-        static ulong[] MakeGear()
+        private static ulong[] MakeGear()
         {
-            var gear = new ulong[256];
-            var rng = new Random(0x5EED);
+            ulong[] gear = new ulong[256];
+            Random rng = new(0x5EED);
             for (int i = 0; i < gear.Length; i++) gear[i] = (ulong)rng.NextInt64() ^ ((ulong)rng.Next() << 63);
             return gear;
         }

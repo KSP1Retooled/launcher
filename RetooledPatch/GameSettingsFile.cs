@@ -2,10 +2,12 @@ using System.Text.RegularExpressions;
 
 namespace KSP.Retooled.Patch;
 
-/// <summary>The settings.cfg the game writes in an install's root.</summary>
-static partial class GameSettingsFile
+/// <summary>
+/// The settings.cfg the game writes in an install's root.
+/// </summary>
+internal static partial class GameSettingsFile
 {
-    public const string FileName = "settings.cfg";
+    public const string FILE_NAME = "settings.cfg";
 
     [GeneratedRegex(@"^([ \t]*LANGUAGE[ \t]*=)[^\r\n]*", RegexOptions.Multiline)]
     private static partial Regex LanguageLine();
@@ -17,12 +19,13 @@ static partial class GameSettingsFile
     /// </summary>
     public static string? WithLanguage(string install, string language)
     {
-        string path = Path.Combine(install, FileName);
+        string path = Path.Combine(install, FILE_NAME);
         if (!File.Exists(path)) return null;
+
         string text = File.ReadAllText(path);
         // stock writes LANGUAGE = en-us whatever the install's language, and never reads it
         return LanguageLine().IsMatch(text)
-            ? LanguageLine().Replace(text, m => m.Groups[1].Value + " " + language, 1)
-            : "LANGUAGE = " + language + Environment.NewLine + text;
+                   ? LanguageLine().Replace(text, m => $"{m.Groups[1].Value} {language}", 1)
+                   : $"LANGUAGE = {language}{Environment.NewLine}{text}";
     }
 }

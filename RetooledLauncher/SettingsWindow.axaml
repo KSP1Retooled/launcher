@@ -27,7 +27,7 @@
       <TextBlock Text="{Binding LaunchArgumentsDescription}" TextWrapping="Wrap" Opacity="0.7" />
       <TextBox
         Text="{Binding LaunchArguments}"
-        Watermark="-popupwindow -force-vulkan"
+        PlaceholderText="-popupwindow -force-vulkan"
         AutomationProperties.Name="Launch arguments"
       />
     </StackPanel>

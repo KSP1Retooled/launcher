@@ -11,24 +11,32 @@ public static class GameStarter
     /// </summary>
     public static void Start(string install, string platform, string? arguments = null)
     {
-        var start = StartInfo(install, platform, arguments);
+        ProcessStartInfo start = StartInfo(install, platform, arguments);
         string player = Path.Combine(install, KspInstall.Player(platform));
-        if (platform == "macos" ? !Directory.Exists(player) : !File.Exists(player))
+        if (platform is "macos" ? !Directory.Exists(player) : !File.Exists(player))
+        {
             throw new LauncherException($"{player} is missing; reinstall Retooled");
+        }
+
         if (OperatingSystem.IsLinux())
+        {
             File.SetUnixFileMode(player, File.GetUnixFileMode(player) | UnixFileMode.UserExecute);
-        using var _ =
+        }
+
+        using Process _ =
             Process.Start(start) ?? throw new LauncherException($"could not start {player}");
     }
 
-    /// <summary>How <see cref="Start"/> runs the player.</summary>
+    /// <summary>
+    /// How <see cref="Start"/> runs the player.
+    /// </summary>
     internal static ProcessStartInfo StartInfo(string install, string platform, string? arguments)
     {
         string player = Path.Combine(install, KspInstall.Player(platform));
-        var args = SplitArguments(arguments);
+        IReadOnlyList<string> args = SplitArguments(arguments);
         // open takes the app's own arguments after --args
-        var start =
-            platform == "macos"
+        ProcessStartInfo start =
+            platform is "macos"
                 ? new ProcessStartInfo("open", ["-a", player, .. args is [] ? [] : args.Prepend("--args")])
                 : new ProcessStartInfo(player, args);
         start.WorkingDirectory = install;
@@ -42,13 +50,13 @@ public static class GameStarter
     /// </summary>
     public static IReadOnlyList<string> SplitArguments(string? commandLine)
     {
-        var arguments = new List<string>();
-        var current = new StringBuilder();
-        bool quoted = false,
-            started = false;
-        foreach (char c in commandLine ?? "")
+        List<string> arguments = [];
+        StringBuilder current = new();
+        bool quoted = false;
+        bool started = false;
+        foreach (char c in commandLine ?? string.Empty)
         {
-            if (c == '"')
+            if (c is '"')
             {
                 quoted = !quoted;
                 started = true;
@@ -56,7 +64,10 @@ public static class GameStarter
             else if (char.IsWhiteSpace(c) && !quoted)
             {
                 if (started)
+                {
                     arguments.Add(current.ToString());
+                }
+
                 current.Clear();
                 started = false;
             }
@@ -67,7 +78,10 @@ public static class GameStarter
             }
         }
         if (started)
+        {
             arguments.Add(current.ToString());
+        }
+
         return arguments;
     }
 }

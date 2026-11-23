@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics.X86;
 
-namespace KSP.Retooled.Patch;
+namespace KSP.Retooled.Patch.Build;
 
 /// <summary>
 /// Suffix array construction by induced sorting (SA-IS: Nong, Zhang and Chan, "Two Efficient Algorithms for Linear
@@ -16,8 +16,10 @@ namespace KSP.Retooled.Patch;
 /// </summary>
 internal static unsafe class SuffixSorter
 {
-    /// <summary>How far ahead of the scan to prefetch: enough for main memory to answer before the scan arrives.</summary>
-    const int PrefetchDistance = 32;
+    /// <summary>
+    /// How far ahead of the scan to prefetch: enough for main memory to answer before the scan arrives.
+    /// </summary>
+    private const int PREFETCH_DISTANCE = 32;
 
     /// <summary>
     /// Writes the suffix array of <paramref name="text"/> to the first <c>text.Length + 1</c> entries of
@@ -44,7 +46,7 @@ internal static unsafe class SuffixSorter
         int n = text.Length;
         ArgumentOutOfRangeException.ThrowIfLessThan(suffixes.Length, n + 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(symbols.Length, n + 1);
-        if (n == 0)
+        if (n is 0)
         {
             suffixes[0] = 0;
             return;
@@ -52,12 +54,17 @@ internal static unsafe class SuffixSorter
 
         // SA-IS needs a unique smallest symbol at the end, which a byte has no room for.
         for (int i = 0; i < n; i++)
+        {
             symbols[i] = (ushort)(text[i] + 1);
+        }
+
         symbols[n] = 0;
 
         fixed (ushort* s = symbols)
         fixed (int* sa = suffixes)
+        {
             Induce(s, sa, n + 1, byte.MaxValue + 1);
+        }
     }
 
     // T is ushort for the text and int when recursing. The top bit of a symbol flags an S-type suffix: one smaller than
@@ -65,48 +72,63 @@ internal static unsafe class SuffixSorter
     // tier, rather than use generic math, which it doesn't.
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static int Raw<T>(T* s, int i)
-        where T : unmanaged => sizeof(T) == sizeof(ushort) ? ((ushort*)s)[i] : ((int*)s)[i];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static int Symbol<T>(T* s, int i)
-        where T : unmanaged => sizeof(T) == sizeof(ushort) ? ((ushort*)s)[i] & 0x7FFF : ((int*)s)[i] & int.MaxValue;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool IsS<T>(T* s, int i)
-        where T : unmanaged => sizeof(T) == sizeof(ushort) ? (((ushort*)s)[i] & 0x8000) != 0 : ((int*)s)[i] < 0;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void MarkS<T>(T* s, int i)
-        where T : unmanaged
+    private static int Raw<T>(T* s, int i) where T : unmanaged
     {
-        if (sizeof(T) == sizeof(ushort))
-            ((ushort*)s)[i] |= 0x8000;
-        else
-            ((int*)s)[i] |= int.MinValue;
+        return sizeof(T) == sizeof(ushort) ? ((ushort*)s)[i] : ((int*)s)[i];
     }
 
-    /// <summary>A leftmost S-type suffix: an S-type suffix right after an L-type one.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool IsLms<T>(T* s, int i)
-        where T : unmanaged => i > 0 && IsS(s, i) && !IsS(s, i - 1);
+    private static int Symbol<T>(T* s, int i) where T : unmanaged
+    {
+        return sizeof(T) == sizeof(ushort) ? ((ushort*)s)[i] & 0x7FFF : ((int*)s)[i] & int.MaxValue;
+    }
 
-    /// <summary>Asks for the symbol before the suffix <paramref name="sa"/> holds at <paramref name="index"/>.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Prefetch<T>(T* s, int* sa, int index, int n)
-        where T : unmanaged
+    private static bool IsS<T>(T* s, int i) where T : unmanaged
+    {
+        return sizeof(T) == sizeof(ushort) ? (((ushort*)s)[i] & 0x8000) is not 0 : ((int*)s)[i] < 0;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void MarkS<T>(T* s, int i) where T : unmanaged
+    {
+        if (sizeof(T) == sizeof(ushort))
+        {
+            ((ushort*)s)[i] |= 0x8000;
+        }
+        else
+        {
+            ((int*)s)[i] |= int.MinValue;
+        }
+    }
+
+    /// <summary>
+    /// A leftmost S-type suffix: an S-type suffix right after an L-type one.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsLms<T>(T* s, int i) where T : unmanaged
+    {
+        return i > 0 && IsS(s, i) && !IsS(s, i - 1);
+    }
+
+    /// <summary>
+    /// Asks for the symbol before the suffix <paramref name="sa"/> holds at <paramref name="index"/>.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Prefetch<T>(T* s, int* sa, int index, int n) where T : unmanaged
     {
         // A prefetch never faults, so a slot that is still empty only wastes the hint.
         if (Sse.IsSupported && index >= 0 && index < n)
+        {
             Sse.Prefetch0(s + sa[index] - 1);
+        }
     }
 
     /// <param name="s">The text, ending in a unique smallest symbol of 0. Its symbols get their type flags here.</param>
     /// <param name="sa">Receives the suffix array; also the working space of the recursion.</param>
     /// <param name="n">The text's length, including that last symbol.</param>
     /// <param name="maxSymbol">The largest symbol in the text.</param>
-    static void Induce<T>(T* s, int* sa, int n, int maxSymbol)
-        where T : unmanaged
+    private static void Induce<T>(T* s, int* sa, int n, int maxSymbol) where T : unmanaged
     {
         int[] countArray = ArrayPool<int>.Shared.Rent(maxSymbol + 1);
         int[] bucketArray = ArrayPool<int>.Shared.Rent(maxSymbol + 1);
@@ -116,7 +138,9 @@ internal static unsafe class SuffixSorter
             {
                 new Span<int>(counts, maxSymbol + 1).Clear();
                 for (int i = 0; i < n; i++)
+                {
                     counts[Symbol(s, i)]++;
+                }
 
                 ClassifySuffixes(s, n);
                 new Span<int>(sa, n).Fill(-1);
@@ -124,8 +148,13 @@ internal static unsafe class SuffixSorter
                 // Sort the LMS substrings by inducing from them in text order.
                 BucketEnds(counts, buckets, maxSymbol);
                 for (int i = 1; i < n; i++)
+                {
                     if (IsLms(s, i))
+                    {
                         sa[--buckets[Symbol(s, i)]] = i;
+                    }
+                }
+
                 InduceFromLms(s, sa, counts, buckets, n, maxSymbol);
 
                 int lmsCount = NameLmsSubstrings(s, sa, n, out int names);
@@ -133,17 +162,31 @@ internal static unsafe class SuffixSorter
                 // The reduced text sits at the end of sa, and its suffix array goes at the start.
                 int* reduced = sa + n - lmsCount;
                 if (names < lmsCount)
+                {
                     Induce(reduced, sa, lmsCount, names - 1);
+                }
                 else
+                {
                     for (int i = 0; i < lmsCount; i++)
+                    {
                         sa[reduced[i]] = i;
+                    }
+                }
 
                 // Place the now sorted LMS suffixes and induce everything else from them.
                 for (int i = 1, j = 0; i < n; i++)
+                {
                     if (IsLms(s, i))
+                    {
                         reduced[j++] = i;
+                    }
+                }
+
                 for (int i = 0; i < lmsCount; i++)
+                {
                     sa[i] = reduced[sa[i]];
+                }
+
                 new Span<int>(sa + lmsCount, n - lmsCount).Fill(-1);
 
                 BucketEnds(counts, buckets, maxSymbol);
@@ -163,9 +206,10 @@ internal static unsafe class SuffixSorter
         }
     }
 
-    /// <summary>Flags every S-type suffix. The last suffix is the smallest, so it is S-type.</summary>
-    static void ClassifySuffixes<T>(T* s, int n)
-        where T : unmanaged
+    /// <summary>
+    /// Flags every S-type suffix. The last suffix is the smallest, so it is S-type.
+    /// </summary>
+    private static void ClassifySuffixes<T>(T* s, int n) where T : unmanaged
     {
         MarkS(s, n - 1);
         bool nextIsS = true;
@@ -175,13 +219,18 @@ internal static unsafe class SuffixSorter
             int current = Symbol(s, i);
             nextIsS = current < next || (current == next && nextIsS);
             if (nextIsS)
+            {
                 MarkS(s, i);
+            }
+
             next = current;
         }
     }
 
-    /// <summary>Sets each symbol's bucket pointer one past its bucket's last entry.</summary>
-    static void BucketEnds(int* counts, int* buckets, int maxSymbol)
+    /// <summary>
+    /// Sets each symbol's bucket pointer one past its bucket's last entry.
+    /// </summary>
+    private static void BucketEnds(int* counts, int* buckets, int maxSymbol)
     {
         int sum = 0;
         for (int i = 0; i <= maxSymbol; i++)
@@ -191,9 +240,10 @@ internal static unsafe class SuffixSorter
         }
     }
 
-    /// <summary>Induces the L-type suffixes left to right, then the S-type ones right to left.</summary>
-    static void InduceFromLms<T>(T* s, int* sa, int* counts, int* buckets, int n, int maxSymbol)
-        where T : unmanaged
+    /// <summary>
+    /// Induces the L-type suffixes left to right, then the S-type ones right to left.
+    /// </summary>
+    private static void InduceFromLms<T>(T* s, int* sa, int* counts, int* buckets, int n, int maxSymbol) where T : unmanaged
     {
         int sum = 0;
         for (int i = 0; i <= maxSymbol; i++)
@@ -204,19 +254,23 @@ internal static unsafe class SuffixSorter
 
         for (int i = 0; i < n; i++)
         {
-            Prefetch(s, sa, i + PrefetchDistance, n);
+            Prefetch(s, sa, i + PREFETCH_DISTANCE, n);
             int previous = sa[i] - 1;
             if (previous >= 0 && !IsS(s, previous))
+            {
                 sa[buckets[Symbol(s, previous)]++] = previous;
+            }
         }
 
         BucketEnds(counts, buckets, maxSymbol);
         for (int i = n - 1; i >= 0; i--)
         {
-            Prefetch(s, sa, i - PrefetchDistance, n);
+            Prefetch(s, sa, i - PREFETCH_DISTANCE, n);
             int previous = sa[i] - 1;
             if (previous >= 0 && IsS(s, previous))
+            {
                 sa[--buckets[Symbol(s, previous)]] = previous;
+            }
         }
     }
 
@@ -224,13 +278,17 @@ internal static unsafe class SuffixSorter
     /// With the LMS substrings sorted in <paramref name="sa"/>, gives equal substrings equal names and writes the names
     /// in text order to the end of <paramref name="sa"/>: the reduced text. Returns its length.
     /// </summary>
-    static int NameLmsSubstrings<T>(T* s, int* sa, int n, out int names)
-        where T : unmanaged
+    private static int NameLmsSubstrings<T>(T* s, int* sa, int n, out int names) where T : unmanaged
     {
         int lmsCount = 0;
         for (int i = 0; i < n; i++)
+        {
             if (IsLms(s, sa[i]))
+            {
                 sa[lmsCount++] = sa[i];
+            }
+        }
+
         new Span<int>(sa + lmsCount, n - lmsCount).Fill(-1);
 
         names = 0;
@@ -249,8 +307,13 @@ internal static unsafe class SuffixSorter
         }
 
         for (int i = n - 1, j = n - 1; i >= lmsCount; i--)
+        {
             if (sa[i] >= 0)
+            {
                 sa[j--] = sa[i];
+            }
+        }
+
         return lmsCount;
     }
 
@@ -258,15 +321,19 @@ internal static unsafe class SuffixSorter
     /// Compares symbols with their type flags, as equal substrings need both to match. The text's last symbol is unique,
     /// so a comparison stops before it can run off the end.
     /// </summary>
-    static bool SameLmsSubstring<T>(T* s, int a, int b)
-        where T : unmanaged
+    private static bool SameLmsSubstring<T>(T* s, int a, int b) where T : unmanaged
     {
         for (int d = 0; ; d++)
         {
             if (Raw(s, a + d) != Raw(s, b + d))
+            {
                 return false;
+            }
+
             if (d > 0 && (IsLms(s, a + d) || IsLms(s, b + d)))
+            {
                 return true;
+            }
         }
     }
 }

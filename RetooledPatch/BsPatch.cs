@@ -12,22 +12,24 @@ namespace KSP.Retooled.Patch;
 /// </summary>
 public static class BsPatch
 {
-    public const int HeaderSize = 32;
+    public const int HEADER_SIZE = 32;
 
     public static void Apply(ReadOnlySpan<byte> old, ReadOnlySpan<byte> patch, Stream output)
     {
-        if (patch.Length < HeaderSize) throw new InvalidDataException("bsdiff patch shorter than its header");
+        if (patch.Length < HEADER_SIZE) throw new InvalidDataException("bsdiff patch shorter than its header");
         long controlCount = BinaryPrimitives.ReadInt64LittleEndian(patch);
         long diffLength = BinaryPrimitives.ReadInt64LittleEndian(patch[8..]);
         long extraLength = BinaryPrimitives.ReadInt64LittleEndian(patch[16..]);
         long newSize = BinaryPrimitives.ReadInt64LittleEndian(patch[24..]);
         if (controlCount < 0 || diffLength < 0 || extraLength < 0 || newSize < 0
-            || HeaderSize + controlCount * 24 + diffLength + extraLength != patch.Length)
+         || HEADER_SIZE + controlCount * 24 + diffLength + extraLength != patch.Length)
+        {
             throw new InvalidDataException("bsdiff patch header does not match its length");
+        }
 
-        var control = patch.Slice(HeaderSize, (int)(controlCount * 24));
-        var diff = patch.Slice(HeaderSize + control.Length, (int)diffLength);
-        var extra = patch.Slice(HeaderSize + control.Length + (int)diffLength, (int)extraLength);
+        ReadOnlySpan<byte> control = patch.Slice(HEADER_SIZE, (int)(controlCount * 24));
+        ReadOnlySpan<byte> diff = patch.Slice(HEADER_SIZE + control.Length, (int)diffLength);
+        ReadOnlySpan<byte> extra = patch.Slice(HEADER_SIZE + control.Length + (int)diffLength, (int)extraLength);
 
         byte[] buffer = ArrayPool<byte>.Shared.Rent(1 << 16);
         try
@@ -39,7 +41,9 @@ public static class BsPatch
                 long copy = BinaryPrimitives.ReadInt64LittleEndian(control[(c * 24 + 8)..]);
                 long seek = BinaryPrimitives.ReadInt64LittleEndian(control[(c * 24 + 16)..]);
                 if (add < 0 || copy < 0 || newPos + add + copy > newSize || add > diff.Length || copy > extra.Length)
+                {
                     throw new InvalidDataException("corrupt bsdiff control stream");
+                }
 
                 for (long done = 0; done < add;)
                 {
@@ -48,6 +52,7 @@ public static class BsPatch
                     output.Write(buffer, 0, n);
                     done += n;
                 }
+
                 diff = diff[(int)add..];
                 oldPos += add;
                 newPos += add;
@@ -57,6 +62,7 @@ public static class BsPatch
                 newPos += copy;
                 oldPos += seek;
             }
+
             if (newPos != newSize) throw new InvalidDataException("bsdiff patch produced the wrong length");
         }
         finally
@@ -66,19 +72,24 @@ public static class BsPatch
     }
 
     // destination[i] = diff[i] + old[oldPos + i], where old bytes outside the old file count as zero
-    static void AddOld(ReadOnlySpan<byte> diff, ReadOnlySpan<byte> old, long oldPos, Span<byte> destination)
+    private static void AddOld(ReadOnlySpan<byte> diff, ReadOnlySpan<byte> old, long oldPos, Span<byte> destination)
     {
         diff.CopyTo(destination);
         long start = Math.Max(oldPos, 0), end = Math.Min(oldPos + diff.Length, old.Length);
         if (start >= end) return;
-        var target = destination[(int)(start - oldPos)..(int)(end - oldPos)];
-        var source = old[(int)start..(int)end];
+        Span<byte> target = destination[(int)(start - oldPos)..(int)(end - oldPos)];
+        ReadOnlySpan<byte> source = old[(int)start..(int)end];
         int i = 0;
         if (Vector.IsHardwareAccelerated)
         {
             for (; i + Vector<byte>.Count <= target.Length; i += Vector<byte>.Count)
+            {
                 (new Vector<byte>(target[i..]) + new Vector<byte>(source[i..])).CopyTo(target[i..]);
+            }
         }
-        for (; i < target.Length; i++) target[i] += source[i];
+        for (; i < target.Length; i++)
+        {
+            target[i] += source[i];
+        }
     }
 }

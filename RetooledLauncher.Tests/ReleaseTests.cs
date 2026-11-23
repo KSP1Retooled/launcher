@@ -18,59 +18,52 @@ public sealed class ReleaseLinkTests
     [InlineData("relative/page", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
-    public void OpensOnlyWebLinks(string? url, bool expected) =>
-        Assert.Equal(expected, Release.IsWebLink(url));
+    public void OpensOnlyWebLinks(string? url, bool expected) => Assert.Equal(expected, Release.IsWebLink(url));
 }
 
 public sealed class ReleaseNotesTests
 {
-    const string Url = "https://github.com/KSP1Retooled/launcher/pull/9";
-    const string Linked = $"[{Url}]({Url})";
+    private const string URL = "https://github.com/KSP1Retooled/launcher/pull/9";
+    private const string LINKED = $"[{URL}]({URL})";
 
     [Theory]
-    [InlineData($"* Fix it by @someone in {Url}", $"* Fix it by @someone in {Linked}")]
-    [InlineData($"{Url}\r\nnext", $"{Linked}\r\nnext")]
-    [InlineData($"<{Url}>", Linked)]
-    [InlineData($"See {Url}.", $"See {Linked}.")]
-    [InlineData($"See {Url}, then", $"See {Linked}, then")]
-    [InlineData($"(see {Url})", $"(see {Linked})")]
-    [InlineData($"**{Url}**", $"**{Linked}**")]
-    [InlineData(
-        "**Full Changelog**: https://github.com/a/b/compare/v0.1.3...v0.1.4",
-        "**Full Changelog**: [https://github.com/a/b/compare/v0.1.3...v0.1.4](https://github.com/a/b/compare/v0.1.3...v0.1.4)"
-    )]
+    [InlineData($"* Fix it by @someone in {URL}", $"* Fix it by @someone in {LINKED}")]
+    [InlineData($"{URL}\r\nnext", $"{LINKED}\r\nnext")]
+    [InlineData($"<{URL}>", LINKED)]
+    [InlineData($"See {URL}.", $"See {LINKED}.")]
+    [InlineData($"See {URL}, then", $"See {LINKED}, then")]
+    [InlineData($"(see {URL})", $"(see {LINKED})")]
+    [InlineData($"**{URL}**", $"**{LINKED}**")]
+    [InlineData("**Full Changelog**: https://github.com/a/b/compare/v0.1.3...v0.1.4",
+                "**Full Changelog**: [https://github.com/a/b/compare/v0.1.3...v0.1.4](https://github.com/a/b/compare/v0.1.3...v0.1.4)")]
     [InlineData("https://a.example/x_(y)", @"[https://a.example/x\_(y)](https://a.example/x_(y))")]
     [InlineData("https://a.example/a*b~c", @"[https://a.example/a\*b\~c](https://a.example/a*b~c)")]
-    public void LinksUrls(string notes, string expected) =>
-        Assert.Equal(expected, ReleaseNotes.LinkUrls(notes));
+    public void LinksUrls(string notes, string expected) => Assert.Equal(expected, ReleaseNotes.LinkUrls(notes));
 
     [Theory]
     [InlineData("")]
     [InlineData("no links here")]
-    [InlineData(Linked)]
-    [InlineData($"[the pull request]({Url})")]
-    [InlineData($"![screenshot]({Url}.png)")]
-    [InlineData($"[![badge]({Url}.svg)]({Url})")]
-    [InlineData($"[ref]: {Url}")]
-    [InlineData($"`{Url}`")]
-    [InlineData($"``a ` {Url}``")]
-    [InlineData($"```\n{Url}\n```")]
-    [InlineData($"~~~sh\r\ncurl {Url}\r\n~~~\r\n")]
-    [InlineData($"```\n{Url}")]
-    [InlineData($"    {Url}")]
+    [InlineData(LINKED)]
+    [InlineData($"[the pull request]({URL})")]
+    [InlineData($"![screenshot]({URL}.png)")]
+    [InlineData($"[![badge]({URL}.svg)]({URL})")]
+    [InlineData($"[ref]: {URL}")]
+    [InlineData($"`{URL}`")]
+    [InlineData($"``a ` {URL}``")]
+    [InlineData($"```\n{URL}\n```")]
+    [InlineData($"~~~sh\r\ncurl {URL}\r\n~~~\r\n")]
+    [InlineData($"```\n{URL}")]
+    [InlineData($"    {URL}")]
     [InlineData("ftp://example.com/file")]
     [InlineData("https://.")]
-    public void LeavesOtherTextAlone(string notes) =>
-        Assert.Equal(notes, ReleaseNotes.LinkUrls(notes));
+    public void LeavesOtherTextAlone(string notes) => Assert.Equal(notes, ReleaseNotes.LinkUrls(notes));
 
     [Fact]
     public void LinksTextAroundCode()
     {
-        var notes = $"```\n{Url}\n```\n\n{Url} and `{Url}` and {Url}";
-        Assert.Equal(
-            $"```\n{Url}\n```\n\n{Linked} and `{Url}` and {Linked}",
-            ReleaseNotes.LinkUrls(notes)
-        );
+        const string NOTES = $"```\n{URL}\n```\n\n{URL} and `{URL}` and {URL}";
+        Assert.Equal($"```\n{URL}\n```\n\n{LINKED} and `{URL}` and {LINKED}",
+                     ReleaseNotes.LinkUrls(NOTES));
     }
 }
 
@@ -94,21 +87,23 @@ public sealed class ReleaseVersionTests
             "1.2",
             "1.10.0",
         ];
-        var parsed = ascending
-            .Select(t => ReleaseVersion.TryParse(t, out var v) ? v : throw new Exception(t))
-            .ToList();
+        List<ReleaseVersion> parsed =
+        [
+            ..ascending
+               .Select(t => ReleaseVersion.TryParse(t, out ReleaseVersion v) ? v : throw new Exception(t))
+        ];
         for (int i = 1; i < parsed.Count; i++)
-            Assert.True(
-                parsed[i - 1].CompareTo(parsed[i]) < 0,
-                $"{ascending[i - 1]} < {ascending[i]}"
-            );
+        {
+            Assert.True(parsed[i - 1].CompareTo(parsed[i]) < 0,
+                        $"{ascending[i - 1]} < {ascending[i]}");
+        }
     }
 
     [Fact]
     public void BuildMetadataAndPrefixDoNotChangeTheVersion()
     {
-        Assert.True(ReleaseVersion.TryParse("v1.2.3+abc", out var a));
-        Assert.True(ReleaseVersion.TryParse("1.2.3", out var b));
+        Assert.True(ReleaseVersion.TryParse("v1.2.3+abc", out ReleaseVersion a));
+        Assert.True(ReleaseVersion.TryParse("1.2.3", out ReleaseVersion b));
         Assert.Equal(0, a.CompareTo(b));
     }
 
@@ -125,33 +120,29 @@ public sealed class ReleaseVersionTests
 
 public sealed class ReleaseCatalogTests
 {
-    static readonly DateTimeOffset Day0 = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Day0 = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
-    internal static Release Make(
-        string tag,
-        bool prerelease = false,
-        int day = 0,
-        params string[] platforms
-    ) =>
-        new(
-            tag,
-            "",
-            prerelease,
-            Day0.AddDays(day),
-            "",
-            "",
-            [
-                .. (platforms.Length == 0 ? ["windows", "linux", "macos"] : platforms).Select(
-                    p => new ReleaseAsset(
-                        Release.PatchName(p),
-                        10,
-                        $"https://example/{tag}/{p}",
-                        $"https://api/{tag}/{p}",
-                        null
-                    )
-                ),
-            ]
-        );
+    internal static Release Make(string tag,
+                                 bool prerelease = false,
+                                 int day = 0,
+                                 params string[] platforms)
+    {
+        return new Release(tag,
+                           string.Empty,
+                           prerelease,
+                           Day0.AddDays(day),
+                           string.Empty,
+                           string.Empty,
+                           [
+                               ..(platforms.Length is 0
+                                      ? ["windows", "linux", "macos"]
+                                      : platforms).Select(p => new ReleaseAsset(Release.PatchName(p),
+                                                                                10,
+                                                                                $"https://example/{tag}/{p}",
+                                                                                $"https://api/{tag}/{p}",
+                                                                                null)),
+                           ]);
+    }
 
     [Theory]
     [InlineData("0.9.0", "v1.0.0")] // the newest stable one, not the pre-release above it
@@ -163,7 +154,7 @@ public sealed class ReleaseCatalogTests
     [InlineData("not-a-version", null)]
     public void NewerThanLooksPastPrereleasesUnlessOnOne(string version, string? expected)
     {
-        var catalog = new ReleaseCatalog([
+        ReleaseCatalog catalog = new([
             Make("v0.9.0", day: 0),
             Make("v1.0.0", day: 1),
             Make("v1.1.0-beta.1", prerelease: true, day: 2),
@@ -174,7 +165,7 @@ public sealed class ReleaseCatalogTests
     }
 
     // 1.1.0-beta.1 came out after 1.0.0 but is a pre-release; 0.9.0 is older than both
-    static ReleaseCatalog Catalog() =>
+    private static ReleaseCatalog Catalog() =>
         new([
             Make("v0.9.0", day: 0),
             Make("v1.1.0-beta.1", prerelease: true, day: 20),
@@ -217,7 +208,7 @@ public sealed class ReleaseCatalogTests
     [Fact]
     public void LatestSkipsReleasesWithoutABuildForThePlatform()
     {
-        var catalog = new ReleaseCatalog([
+        ReleaseCatalog catalog = new([
             Make("v1.0.0"),
             Make("v1.1.0", day: 1, platforms: "windows"),
         ]);
@@ -238,7 +229,7 @@ public sealed class ReleaseCatalogTests
     [Fact]
     public void OffersPrereleasesWhenThereIsNothingElse()
     {
-        var catalog = new ReleaseCatalog([
+        ReleaseCatalog catalog = new([
             Make("v1.0.0-beta.1", prerelease: true),
             Make("v1.0.0-beta.2", prerelease: true, day: 1),
         ]);
@@ -259,7 +250,7 @@ public sealed class ReleaseCatalogTests
     [Fact]
     public void APrereleaseUserIsOfferedTheStableReleaseThatSupersedesIt()
     {
-        var catalog = new ReleaseCatalog([
+        ReleaseCatalog catalog = new([
             Make("v1.1.0-beta.1", prerelease: true),
             Make("v1.1.0", day: 5),
         ]);
@@ -272,22 +263,22 @@ public sealed class ReleaseCatalogTests
     [Fact]
     public void ActionsCompareAgainstTheInstalledRelease()
     {
-        var catalog = Catalog();
-        var stable = catalog.Find("v1.0.0")!;
-        Assert.Equal(InstallAction.Install, catalog.ActionFor(stable, installedTag: null));
-        Assert.Equal(InstallAction.Upgrade, catalog.ActionFor(stable, "v0.9.0"));
-        Assert.Equal(InstallAction.Downgrade, catalog.ActionFor(stable, "v1.1.0-beta.1"));
-        Assert.Equal(InstallAction.Reinstall, catalog.ActionFor(stable, "v1.0.0"));
-        Assert.Equal(InstallAction.Replace, catalog.ActionFor(stable, ""));
+        ReleaseCatalog catalog = Catalog();
+        Release stable = catalog.Find("v1.0.0")!;
+        Assert.Equal(InstallAction.INSTALL, catalog.ActionFor(stable, installedTag: null));
+        Assert.Equal(InstallAction.UPGRADE, catalog.ActionFor(stable, "v0.9.0"));
+        Assert.Equal(InstallAction.DOWNGRADE, catalog.ActionFor(stable, "v1.1.0-beta.1"));
+        Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(stable, "v1.0.0"));
+        Assert.Equal(InstallAction.REPLACE, catalog.ActionFor(stable, string.Empty));
         // a release since deleted from GitHub is still compared by version
-        Assert.Equal(InstallAction.Downgrade, catalog.ActionFor(stable, "v2.0.0"));
+        Assert.Equal(InstallAction.DOWNGRADE, catalog.ActionFor(stable, "v2.0.0"));
     }
 
     [Fact]
     public void OrdersByCreationDateRatherThanVersion()
     {
         // a maintenance release of an older line, created after the newer line's release
-        var catalog = new ReleaseCatalog([
+        ReleaseCatalog catalog = new([
             Make("v2.0.0", day: 10),
             Make("v1.9.1", day: 12),
             Make("old-build", day: 1),
@@ -300,25 +291,25 @@ public sealed class ReleaseCatalogTests
     public void OrdersByCreationDateRatherThanPublishDate()
     {
         // v1.1.0 was drafted first and published after v1.0.1
-        var catalog = new ReleaseCatalog([
+        ReleaseCatalog catalog = new([
             Make("v1.1.0", day: 9) with { Created = Day0.AddDays(1) },
             Make("v1.0.1", day: 5),
         ]);
         Assert.Equal(["v1.0.1", "v1.1.0"], catalog.All.Select(r => r.Tag));
     }
 
-    static Release Built(string tag, string sha256, int day = 0)
+    private static Release Built(string tag, string sha256, int day = 0)
     {
-        var release = Make(tag, prerelease: true, day: day);
+        Release release = Make(tag, prerelease: true, day: day);
         return release with { Assets = [.. release.Assets.Select(a => a with { Sha256 = sha256 })] };
     }
 
     [Fact]
     public void SeparateBuildsAreNotVersionsOfEachOther()
     {
-        var catalog = new ReleaseCatalog([Built("pr-1", "aa"), Built("pr-2", "bb", day: 1)], versioned: false);
-        Assert.Equal(InstallAction.Replace, catalog.ActionFor(catalog.Find("pr-2")!, "pr-1", "aa"));
-        Assert.Equal(InstallAction.Replace, catalog.ActionFor(catalog.Find("pr-1")!, "pr-2", "bb"));
+        ReleaseCatalog catalog = new([Built("pr-1", "aa"), Built("pr-2", "bb", day: 1)], versioned: false);
+        Assert.Equal(InstallAction.REPLACE, catalog.ActionFor(catalog.Find("pr-2")!, "pr-1", "aa"));
+        Assert.Equal(InstallAction.REPLACE, catalog.ActionFor(catalog.Find("pr-1")!, "pr-2", "bb"));
         Assert.Null(catalog.Latest("windows", includePrereleases: false));
         Assert.Null(catalog.UpgradeFor("pr-1", "windows", includePrereleases: false, "aa"));
         Assert.Null(catalog.UpgradeFor(null, "windows", includePrereleases: false));
@@ -327,21 +318,21 @@ public sealed class ReleaseCatalogTests
     [Fact]
     public void ANewBuildOfTheInstalledReleaseIsAnUpdate()
     {
-        var catalog = new ReleaseCatalog([Built("pr-1", "bb"), Built("pr-2", "cc", day: 1)], versioned: false);
-        var installed = catalog.Find("pr-1")!;
-        Assert.Equal(InstallAction.Update, catalog.ActionFor(installed, "pr-1", "aa"));
+        ReleaseCatalog catalog = new([Built("pr-1", "bb"), Built("pr-2", "cc", day: 1)], versioned: false);
+        Release installed = catalog.Find("pr-1")!;
+        Assert.Equal(InstallAction.UPDATE, catalog.ActionFor(installed, "pr-1", "aa"));
         Assert.Same(installed, catalog.UpgradeFor("pr-1", "windows", includePrereleases: false, "aa"));
-        Assert.Equal(InstallAction.Reinstall, catalog.ActionFor(installed, "pr-1", "BB"));
+        Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(installed, "pr-1", "BB"));
         Assert.Null(catalog.UpgradeFor("pr-1", "windows", includePrereleases: false, "bb"));
         // installed by an older launcher, or from a release that published no digests
-        Assert.Equal(InstallAction.Reinstall, catalog.ActionFor(installed, "pr-1", installedSha256: null));
-        Assert.Equal(InstallAction.Reinstall, catalog.ActionFor(Make("pr-1"), "pr-1", "aa"));
+        Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(installed, "pr-1", installedSha256: null));
+        Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(Make("pr-1"), "pr-1", "aa"));
     }
 
     [Fact]
     public void ANewerVersionComesBeforeANewBuildOfTheInstalledOne()
     {
-        var catalog = new ReleaseCatalog([Built("v1.0.0", "bb"), Built("v1.1.0", "cc", day: 1)]);
+        ReleaseCatalog catalog = new([Built("v1.0.0", "bb"), Built("v1.1.0", "cc", day: 1)]);
         Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.0.0", "windows", includePrereleases: true, "aa")?.Tag);
         Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.1.0", "windows", includePrereleases: true, "aa")?.Tag);
         Assert.Null(catalog.UpgradeFor("v1.1.0", "windows", includePrereleases: true, "cc"));
@@ -350,23 +341,23 @@ public sealed class ReleaseCatalogTests
     [Fact]
     public void OnlyTheExperimentalChannelHoldsSeparateBuilds()
     {
-        Assert.False(LauncherInfo.IsVersionedChannel(LauncherInfo.ExperimentalChannel));
-        Assert.False(LauncherInfo.IsVersionedChannel(LauncherInfo.ExperimentalChannel + LauncherInfo.DebugSuffix));
-        Assert.True(LauncherInfo.IsVersionedChannel(LauncherInfo.DefaultRepository));
+        Assert.False(LauncherInfo.IsVersionedChannel(LauncherInfo.EXPERIMENTAL_CHANNEL));
+        Assert.False(LauncherInfo.IsVersionedChannel(LauncherInfo.EXPERIMENTAL_CHANNEL + LauncherInfo.DEBUG_SUFFIX));
+        Assert.True(LauncherInfo.IsVersionedChannel(LauncherInfo.DEFAULT_REPOSITORY));
         Assert.True(LauncherInfo.IsVersionedChannel("o/r"));
     }
 
     [Fact]
     public void NonVersionTagsAreOrderedByCreationDate()
     {
-        var catalog = new ReleaseCatalog([
+        ReleaseCatalog catalog = new([
             Make("nightly-b", day: 2),
             Make("v1.0.0", day: 1),
             Make("nightly-c", day: 3),
         ]);
         Assert.Equal(["nightly-c", "nightly-b", "v1.0.0"], catalog.All.Select(r => r.Tag));
         Assert.Equal(
-            InstallAction.Upgrade,
+            InstallAction.UPGRADE,
             catalog.ActionFor(catalog.Find("nightly-c")!, "nightly-b")
         );
     }
