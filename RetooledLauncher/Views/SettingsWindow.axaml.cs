@@ -2,10 +2,10 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
-namespace KSP.Retooled.Launcher.App;
+namespace KSP.Retooled.Launcher.App.Views;
 
 /// <summary>
-/// Edits a <see cref="SettingsViewModel"/>; closes with true when the user saves.
+/// Edits a <see cref="ViewModels.SettingsViewModel"/>; closes with true when the user saves.
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {

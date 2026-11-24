@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using KSP.Retooled.Launcher.App.Updater;
 using KSP.Retooled.Launcher.Exceptions;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Patches;
@@ -15,66 +15,7 @@ using KSP.Retooled.Launcher.Settings;
 using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch.Exceptions;
 
-namespace KSP.Retooled.Launcher.App;
-
-/// <summary>
-/// What the view model needs from the window.
-/// </summary>
-public interface IDialogs
-{
-    Task<string?> PickFolderAsync(string title);
-
-    /// <summary>
-    /// The path of the file that the user chose, which has one of the names in <paramref name="players"/>. Null if they
-    /// cancelled.
-    /// </summary>
-    Task<string?> PickPlayerAsync(string title, IReadOnlyList<string> players);
-
-    Task<string?> PickPatchFileAsync(string title);
-
-    /// <summary>
-    /// The text the user entered, or null if they cancelled.
-    /// </summary>
-    Task<string?> PromptAsync(string title, string message, string accept, string placeholder);
-
-    Task<bool> ConfirmAsync(string title, string message, string accept);
-
-    Task AlertAsync(string title, string message);
-
-    /// <summary>
-    /// Opens <paramref name="url"/> in the browser: false if that did not work.
-    /// </summary>
-    Task<bool> OpenUrlAsync(string url);
-
-    /// <summary>
-    /// Shows the settings window: true if the user saved.
-    /// </summary>
-    Task<bool> ShowSettingsAsync(SettingsViewModel settings);
-}
-
-/// <summary>
-/// One row of the release list.
-/// </summary>
-public sealed class ReleaseItem(Release release, bool installed, bool latest, bool hasBuild)
-{
-    public Release Release { get; } = release;
-
-    public string Title => this.Release.DisplayName;
-
-    public string Date => this.Release.Published != DateTimeOffset.MinValue
-                              ? this.Release.Published.LocalDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-                              : string.Empty;
-
-    public bool IsPrerelease => this.Release.Prerelease;
-
-    public bool IsInstalled { get; } = installed;
-
-    public bool IsLatest { get; } = latest;
-
-    public bool HasBuild { get; } = hasBuild;
-
-    public bool NoBuild => !this.HasBuild;
-}
+namespace KSP.Retooled.Launcher.App.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
@@ -84,6 +25,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         Timeout = TimeSpan.FromMinutes(30)
     };
+
     private readonly StringBuilder log = new();
     private readonly GitHubMetadataCache metadata = new(Path.Combine(LauncherInfo.DataDirectory, "metadata"));
     private readonly LauncherSettings settings;
@@ -323,12 +265,10 @@ public sealed partial class MainViewModel : ObservableObject
             this.LauncherUpdate = new ReleaseCatalog(releases).NewerThan(LauncherInfo.Version);
         }
         catch (Exception e)
-            when (e
-                      is LauncherException
-                      or HttpRequestException
-                      or OperationCanceledException
-                      or JsonException
-                 )
+            when (e is LauncherException
+                    or HttpRequestException
+                    or OperationCanceledException
+                    or JsonException)
         {
             Append($"could not check for a new launcher: {e.Message}");
         }
@@ -813,7 +753,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>
     /// Feeds the patch library's log, written from worker threads, into <see cref="Log"/> a line at a time.
     /// </summary>
-    private sealed class LogWriter(MainViewModel model) : TextWriter
+    private sealed class LogWriter(MainViewModel viewModel) : TextWriter
     {
         private readonly StringBuilder line = new();
 
@@ -839,7 +779,7 @@ public sealed partial class MainViewModel : ObservableObject
                 this.line.Clear();
             }
 
-            Dispatcher.UIThread.Post(() => model.Append(done));
+            Dispatcher.UIThread.Post(() => viewModel.Append(done));
         }
     }
 }

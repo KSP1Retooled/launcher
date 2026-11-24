@@ -3,8 +3,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:app="using:KSP.Retooled.Launcher.App"
     xmlns:md="https://github.com/whistyun/Markdown.Avalonia.Tight"
-    x:Class="KSP.Retooled.Launcher.App.MainWindow"
-    x:DataType="app:MainViewModel"
+    xmlns:viewModels="clr-namespace:KSP.Retooled.Launcher.App.ViewModels"
+    x:Class="KSP.Retooled.Launcher.App.Views.MainWindow"
+    x:DataType="viewModels:MainViewModel"
     Title="{Binding Title}"
     Width="900"
     Height="640"
@@ -190,7 +191,7 @@
                 CornerRadius="4"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
                 <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="app:ReleaseItem">
+                    <DataTemplate x:DataType="viewModels:ReleaseItem">
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />

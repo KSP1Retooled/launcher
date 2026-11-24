@@ -1,6 +1,6 @@
 using Markdown.Avalonia.Utils;
 
-namespace KSP.Retooled.Launcher.App;
+namespace KSP.Retooled.Launcher.App.Resolvers;
 
 /// <summary>
 /// Loads no images for the release notes: the renderer would otherwise fetch any path or URL in them as soon as they

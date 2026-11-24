@@ -5,11 +5,13 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
+using KSP.Retooled.Launcher.App.Resolvers;
+using KSP.Retooled.Launcher.App.ViewModels;
 using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Patch.Patcher;
 using Markdown.Avalonia;
 
-namespace KSP.Retooled.Launcher.App;
+namespace KSP.Retooled.Launcher.App.Views;
 
 public sealed partial class MainWindow : Window, IDialogs
 {
@@ -74,7 +76,7 @@ public sealed partial class MainWindow : Window, IDialogs
 
     public async Task<bool> OpenUrlAsync(string url) => Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) && await this.Launcher.LaunchUriAsync(uri);
 
-    public async Task<bool> ShowSettingsAsync(SettingsViewModel settings) => await new SettingsWindow { DataContext = settings }.ShowDialog<bool>(this);
+    public async Task<bool> ShowSettingsAsync(ViewModels.SettingsViewModel settings) => await new SettingsWindow { DataContext = settings }.ShowDialog<bool>(this);
 
     /// <summary>
     /// A small modal message box, with <paramref name="input"/> under the message: true when <paramref name="accept"/>

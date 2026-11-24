@@ -1,16 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using KSP.Retooled.Launcher.App.Mirrors;
 using KSP.Retooled.Launcher.Settings;
 using KSP.Retooled.Launcher.Utils;
 
-namespace KSP.Retooled.Launcher.App;
-
-/// <summary>
-/// A host to offer in the mirror list.
-/// </summary>
-public sealed record MirrorOption(ReleaseMirror Value, string Label)
-{
-    public override string ToString() => this.Label;
-}
+namespace KSP.Retooled.Launcher.App.ViewModels;
 
 /// <summary>
 /// The settings window's working copy of <see cref="LauncherSettings"/>: nothing changes until the user saves, when

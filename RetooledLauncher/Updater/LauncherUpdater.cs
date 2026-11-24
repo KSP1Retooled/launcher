@@ -4,7 +4,7 @@ using KSP.Retooled.Launcher.Utils;
 using Velopack;
 using Velopack.Sources;
 
-namespace KSP.Retooled.Launcher.App;
+namespace KSP.Retooled.Launcher.App.Updater;
 
 /// <summary>
 /// Replaces the installed launcher with a newer release, from the update files that release carries. A downloaded
