@@ -1,4 +1,4 @@
-using KSP.Retooled.Patch;
+using KSP.Retooled.Patch.Patcher;
 
 namespace KSP.Retooled.Launcher.Releases;
 

@@ -1,6 +1,12 @@
 using System.Text;
-using KSP.Retooled.Patch.Build;
 using KSP.Retooled.Patch.Cli;
+using KSP.Retooled.Patch.Exceptions;
+using KSP.Retooled.Patch.Install;
+using KSP.Retooled.Patch.IO;
+using KSP.Retooled.Patch.Models.Journal;
+using KSP.Retooled.Patch.Models.Manifest;
+using KSP.Retooled.Patch.Patcher;
+using KSP.Retooled.Patch.Utils;
 using Xunit;
 using ZstdSharp;
 

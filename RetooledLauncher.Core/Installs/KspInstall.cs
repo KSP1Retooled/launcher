@@ -1,7 +1,7 @@
 using System.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using KSP.Retooled.Patch;
+using KSP.Retooled.Patch.Models.Journal;
 
 namespace KSP.Retooled.Launcher.Installs;
 

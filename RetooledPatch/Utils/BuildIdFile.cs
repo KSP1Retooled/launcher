@@ -1,4 +1,4 @@
-namespace KSP.Retooled.Patch;
+namespace KSP.Retooled.Patch.Utils;
 
 /// <summary>
 /// A KSP install's buildID64.txt or buildID.txt: <c>key = value</c> lines such as <c>build id = 03190</c>.

@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace KSP.Retooled.Patch;
+namespace KSP.Retooled.Patch.Utils;
 
 /// <summary>
 /// The settings.cfg the game writes in an install's root.

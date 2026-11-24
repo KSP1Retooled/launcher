@@ -1,12 +1,11 @@
 using System.Buffers.Binary;
 
-namespace KSP.Retooled.Patch.Build;
+namespace KSP.Retooled.Patch.Utils;
 
 /// <summary>
 /// bsdiff (Colin Percival, BSD-2-Clause; see THIRD_PARTY_NOTICES.md) producing the raw stream layout
 /// <see cref="BsPatch"/> reads. Memory is about 7× the reference length while sorting and 5× after it, so callers
-/// keep
-/// references to a bounded window.
+/// keep references to a bounded window.
 /// </summary>
 public static class BsDiff
 {

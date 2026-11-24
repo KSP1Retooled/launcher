@@ -3,7 +3,8 @@ using System.Security.Cryptography;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Patch;
-using KSP.Retooled.Patch.Build;
+using KSP.Retooled.Patch.Models.Journal;
+using KSP.Retooled.Patch.Patcher;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;

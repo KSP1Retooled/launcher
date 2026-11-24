@@ -1,59 +1,14 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using KSP.Retooled.Patch.Exceptions;
+using KSP.Retooled.Patch.Install;
+using KSP.Retooled.Patch.IO;
+using KSP.Retooled.Patch.Models.Journal;
+using KSP.Retooled.Patch.Models.Manifest;
+using KSP.Retooled.Patch.Utils;
 using Microsoft.Win32.SafeHandles;
 
-namespace KSP.Retooled.Patch;
-
-/// <summary>
-/// Where an apply or revert is: <see cref="Done"/> of <see cref="Total"/> (bytes or files) in <see cref="Stage"/>.
-/// </summary>
-public readonly record struct PatchProgress(string Stage, long Done, long Total);
-
-public sealed class ApplyOptions
-{
-    /// <summary>
-    /// Destination for a separate patched install. The patcher hard-links unchanged files where possible
-    /// and copies them otherwise. A null destination patches the stock install in place.
-    /// </summary>
-    public string? OutputDirectory { get; init; }
-
-    public TextWriter Log { get; init; } = TextWriter.Null;
-
-    public IProgress<PatchProgress>? Progress { get; init; }
-
-    public CancellationToken Cancellation { get; init; }
-
-    /// <summary>
-    /// Called with the destination of each move into or out of the install; lets the tests stop a commit half way.
-    /// </summary>
-    internal Action<string>? BeforeMove { get; init; }
-}
-
-/// <summary>
-/// What <see cref="PatchApplier.Check"/> found: whether the install can be patched and which source it matches.
-/// </summary>
-public sealed class InstallCheck
-{
-    internal Recipe?[] chosen = [];
-
-    internal Dictionary<string, string?> hashes = [];
-
-    /// <summary>
-    /// The source whose files the chosen recipes read, or null for a mix of sources.
-    /// </summary>
-    public string? Variant { get; init; }
-
-    public bool AlreadyPatched { get; init; }
-
-    /// <summary>
-    /// Stock files that are missing or modified, leaving some output with no usable recipe.
-    /// </summary>
-    public IReadOnlyList<string> Problems { get; init; } = [];
-
-    public IReadOnlyList<string> SkippedComponents { get; init; } = [];
-
-    public bool CanApply => !this.AlreadyPatched && this.Problems.Count is 0;
-}
+namespace KSP.Retooled.Patch.Patcher;
 
 /// <summary>
 /// Applies a patch file to a stock install. Each output uses the first recipe whose stock files are all present with
@@ -445,56 +400,5 @@ public sealed class PatchApplier(PatchFile patch, string install)
     {
         using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20);
         return Convert.ToHexStringLower(SHA256.HashData(stream));
-    }
-}
-
-public sealed class PatchException(string message, Exception? inner = null) : Exception(message, inner);
-
-/// <summary>
-/// Write-only stream that hashes everything written through it.
-/// </summary>
-internal sealed class HashingStream(Stream inner) : Stream
-{
-    private readonly IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-    private long length;
-
-    public override bool CanRead => false;
-
-    public override bool CanSeek => false;
-
-    public override bool CanWrite => true;
-
-    // ReSharper disable once ConvertToAutoPropertyWhenPossible
-    public override long Length => this.length;
-
-    public override long Position
-    {
-        get => this.length;
-        set => throw new NotSupportedException();
-    }
-
-    public byte[] Hash() => this.hash.GetHashAndReset();
-
-    public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
-
-    public override void Write(ReadOnlySpan<byte> buffer)
-    {
-        this.hash.AppendData(buffer);
-        inner.Write(buffer);
-        this.length += buffer.Length;
-    }
-
-    public override void Flush() => inner.Flush();
-
-    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-
-    public override void SetLength(long value) => throw new NotSupportedException();
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing) this.hash.Dispose();
-        base.Dispose(disposing);
     }
 }

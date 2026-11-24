@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace KSP.Retooled.Patch;
+namespace KSP.Retooled.Patch.Utils;
 
 internal static class FileClone
 {

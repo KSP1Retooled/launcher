@@ -4,67 +4,16 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO.Enumeration;
 using System.Text;
+using KSP.Retooled.Patch.Exceptions;
+using KSP.Retooled.Patch.IO;
+using KSP.Retooled.Patch.Models.Journal;
+using KSP.Retooled.Patch.Models.Manifest;
+using KSP.Retooled.Patch.Patcher;
+using KSP.Retooled.Patch.Utils;
 using Microsoft.Win32.SafeHandles;
 using ZstdSharp;
 
-namespace KSP.Retooled.Patch.Build;
-
-/// <summary>
-/// A stock install the patch must apply to; later <see cref="Roots"/> overlay earlier ones (e.g. the game and DLC
-/// depots).
-/// </summary>
-public sealed class BuildSource
-{
-    /// <summary>
-    /// Defaults to <c>&lt;distribution&gt;-&lt;build id&gt;</c> from the install's buildID file, else the directory name.
-    /// </summary>
-    public string? Name { get; init; }
-
-    public required IReadOnlyList<string> Roots { get; init; }
-}
-
-public sealed class BuildOptions
-{
-    public required IReadOnlyList<BuildSource> Sources { get; init; }
-
-    /// <summary>
-    /// The retooled release build every source is patched into.
-    /// </summary>
-    public required string Target { get; init; }
-
-    /// <summary>
-    /// The patch file to write.
-    /// </summary>
-    public required string Output { get; init; }
-
-    /// <summary>
-    /// <c>windows</c>, <c>linux</c> or <c>macos</c>; detected from the target's player when null.
-    /// </summary>
-    public string? Platform { get; init; }
-
-    public int Jobs { get; init; } = PatchBuilder.DefaultJobs;
-
-    public int Level { get; init; } = 19;
-
-    public int Window { get; init; } = 27;
-
-    /// <summary>
-    /// Install-relative patterns ('*' spans directories) left out of every tree, on top of the defaults.
-    /// </summary>
-    public IReadOnlyList<string> Excludes { get; init; } = [];
-
-    /// <summary>
-    /// Patterns left out of the target only.
-    /// </summary>
-    public IReadOnlyList<string> TargetExcludes { get; init; } = [];
-
-    /// <summary>
-    /// Install-relative files and directories left out of every tree, which a side-by-side apply copies from the install.
-    /// </summary>
-    public IReadOnlyList<string> CopiedPaths { get; init; } = [];
-
-    public TextWriter Log { get; init; } = TextWriter.Null;
-}
+namespace KSP.Retooled.Patch;
 
 public sealed record BuildResult(PatchManifest Manifest, string Report);
 

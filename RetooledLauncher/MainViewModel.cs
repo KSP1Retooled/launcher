@@ -8,7 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Releases;
-using KSP.Retooled.Patch;
+using KSP.Retooled.Patch.Exceptions;
 
 namespace KSP.Retooled.Launcher.App;
 
@@ -459,10 +459,8 @@ public sealed partial class MainViewModel : ObservableObject
         string error = string.Empty;
         try
         {
-            found = new ReleaseCatalog(
-                                       await Source().GetReleasesAsync(refresh.Token),
-                                       LauncherInfo.IsVersionedChannel(channel)
-                                      );
+            found = new ReleaseCatalog(await Source().GetReleasesAsync(refresh.Token),
+                                       LauncherInfo.IsVersionedChannel(channel));
 
             if (found.All.Count is 0)
             {

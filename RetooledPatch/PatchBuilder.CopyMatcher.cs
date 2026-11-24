@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 
-namespace KSP.Retooled.Patch.Build;
+namespace KSP.Retooled.Patch;
 
 public static partial class PatchBuilder
 {

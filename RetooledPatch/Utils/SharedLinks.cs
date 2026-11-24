@@ -1,4 +1,6 @@
-namespace KSP.Retooled.Patch;
+using KSP.Retooled.Patch.Exceptions;
+
+namespace KSP.Retooled.Patch.Utils;
 
 /// <summary>
 /// Protects other KSP installs when patching an install in place. Replacing a file at its path preserves the

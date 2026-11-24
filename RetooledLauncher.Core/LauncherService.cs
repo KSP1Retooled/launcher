@@ -1,6 +1,8 @@
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Releases;
-using KSP.Retooled.Patch;
+using KSP.Retooled.Patch.Exceptions;
+using KSP.Retooled.Patch.Models.Journal;
+using KSP.Retooled.Patch.Patcher;
 
 namespace KSP.Retooled.Launcher;
 

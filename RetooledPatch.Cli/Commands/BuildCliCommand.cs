@@ -1,5 +1,5 @@
 ﻿using DotMake.CommandLine;
-using KSP.Retooled.Patch.Build;
+using KSP.Retooled.Patch.Patcher;
 
 namespace KSP.Retooled.Patch.Cli.Commands;
 

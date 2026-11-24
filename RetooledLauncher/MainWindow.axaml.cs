@@ -6,7 +6,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using KSP.Retooled.Launcher.Releases;
-using KSP.Retooled.Patch;
+using KSP.Retooled.Patch.Patcher;
 using Markdown.Avalonia;
 
 namespace KSP.Retooled.Launcher.App;

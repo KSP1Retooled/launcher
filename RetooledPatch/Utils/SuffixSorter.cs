@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics.X86;
 
-namespace KSP.Retooled.Patch.Build;
+namespace KSP.Retooled.Patch.Utils;
 
 /// <summary>
 /// Suffix array construction by induced sorting (SA-IS: Nong, Zhang and Chan, "Two Efficient Algorithms for Linear

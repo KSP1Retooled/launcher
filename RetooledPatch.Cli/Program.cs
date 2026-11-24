@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.CommandLine.Parsing;
 using DotMake.CommandLine;
 using KSP.Retooled.Patch.Cli.Commands;
+using KSP.Retooled.Patch.Exceptions;
 using DotMakeCli = DotMake.CommandLine.Cli;
 
 namespace KSP.Retooled.Patch.Cli;

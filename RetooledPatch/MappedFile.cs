@@ -1,6 +1,6 @@
 using System.IO.MemoryMappedFiles;
 
-namespace KSP.Retooled.Patch.Build;
+namespace KSP.Retooled.Patch;
 
 /// <summary>
 /// A read-only view of a whole file (under 2 GB) backed by the OS page cache instead of the managed heap, so scanning
