@@ -1,9 +1,7 @@
-using DotMake.CommandLine;
+﻿using DotMake.CommandLine;
 using KSP.Retooled.Patch.Build;
 
-namespace KSP.Retooled.Patch.Cli;
-
-// Every option has an explicit name, so that renaming a property can't change the command line.
+namespace KSP.Retooled.Patch.Cli.Commands;
 
 [CliCommand(Name = "build", Parent = typeof(RootCliCommand),
             Description = "Builds one patch file that turns each --source install into the --target build. "
@@ -117,105 +115,4 @@ public class BuildCliCommand
         string dirs = name is null ? value : value[(split + 1)..];
         return new BuildSource { Name = name, Roots = dirs.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) };
     }
-}
-
-[CliCommand(Name = "info", Parent = typeof(RootCliCommand),
-            Description = "Shows what a patch file contains: the platform, the source installs that it accepts, the files that it copies " +
-                          "unchanged, its compressed sections, and its DLC components.")]
-public class InfoCliCommand
-{
-    [CliOption(Name = "--patch", HelpName = "file", Description = "The patch file to describe.")]
-    public required string Patch { get; set; }
-
-    public int Run()
-    {
-        PatchManifest m = PatchFile.Open(this.Patch).Manifest;
-        Console.WriteLine(PatchFile.Describe(m));
-        foreach (Variant variant in m.Variants)
-        {
-            HashSet<int> files = [..variant.Files];
-            int alternatives = m.Outputs.Count(x => x.Recipes.FindIndex(r => r.Inputs().All(files.Contains)) > 0);
-            Console.WriteLine($"  source {variant.Id}: {variant.Files.Count} stock files, {alternatives} outputs use a recipe of its own");
-        }
-
-        foreach (string path in m.CopiedPaths)
-        {
-            Console.WriteLine($"  copied whole: {path}");
-        }
-
-        foreach (Section section in m.Sections)
-        {
-            Console.WriteLine($"  section {section.Name,-32} {section.Size / 1048576.0,10:F1} MB -> {section.Length / 1048576.0,8:F1} MB");
-        }
-
-        foreach (Component component in m.Components)
-        {
-            Console.WriteLine($"  component {component.Name}: {m.Outputs.Count(x => m.Components[x.Component] == component)} outputs, "
-                            + $"removes {component.Remove.Count} stock files");
-        }
-
-        return 0;
-    }
-}
-
-[CliCommand(Name = "check", Parent = typeof(RootCliCommand),
-            Description = "Reports which source the install matches, and whether the patch can be applied to it. This command doesn't change " +
-                          "any files. It exits with 0 if the patch can be applied, and with 1 if it can't.")]
-public class CheckCliCommand
-{
-    [CliOption(Name = "--install", HelpName = "ksp-dir", Description = "The KSP install to check.")]
-    public required string Install { get; set; }
-
-    [CliOption(Name = "--patch", HelpName = "file", Description = "The patch file to check the install against.")]
-    public required string Patch { get; set; }
-
-    public int Run()
-    {
-        InstallCheck check = new PatchApplier(PatchFile.Open(this.Patch), this.Install).Check(new ApplyOptions { Log = Console.Out });
-        foreach (string name in check.SkippedComponents) Console.WriteLine($"{name}: not installed");
-        if (check.CanApply)
-        {
-            Console.WriteLine($"{this.Install} matches {check.Variant ?? "a mix of the known sources"}; the patch applies");
-            return 0;
-        }
-
-        Console.WriteLine($"the patch does not apply to {this.Install}:\n  " + string.Join("\n  ", check.Problems));
-        return 1;
-    }
-}
-
-[CliCommand(Name = "apply", Parent = typeof(RootCliCommand), RequiredGroups = ["mode"],
-            Description = "Patches a stock install so that it becomes KSP Retooled. You must pass either --out or --in-place, but not both. " +
-                          "In either case, the command only patches a DLC if that DLC is installed.")]
-public class ApplyCliCommand
-{
-    [CliOption(Name = "--install", HelpName = "ksp-dir", Description = "The stock KSP install to patch.")]
-    public required string Install { get; set; }
-
-    [CliOption(Name = "--patch", HelpName = "file", Description = "The patch file to apply.")]
-    public required string Patch { get; set; }
-
-    [CliOption(Name = "--out", HelpName = "new-dir", Required = false, Group = "mode",
-               Description = "Writes a patched copy of the install to <new-dir>, and leaves the original install unchanged.")]
-    public string? Output { get; set; }
-
-    [CliOption(Name = "--in-place", Group = "mode",
-               Description = "Patches the install directly. Before the command replaces a stock file, it saves that file "
-                           + $"in <ksp-dir>/{InstallJournal.DIRECTORY}, so that revert can restore it later.")]
-    public bool InPlace { get; set; }
-
-    public void Run()
-    {
-        new PatchApplier(PatchFile.Open(this.Patch), this.Install).Apply(new ApplyOptions { OutputDirectory = this.Output, Log = Console.Out });
-    }
-}
-
-[CliCommand(Name = "revert", Parent = typeof(RootCliCommand),
-            Description = "Undoes an in-place apply, so that the install is stock again. Your saves and settings aren't changed.")]
-public class RevertCliCommand
-{
-    [CliOption(Name = "--install", HelpName = "ksp-dir", Description = "The install that was patched with apply --in-place.")]
-    public required string Install { get; set; }
-
-    public void Run() => PatchReverter.Revert(this.Install, Console.Out);
 }

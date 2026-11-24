@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.CommandLine.Parsing;
 using DotMake.CommandLine;
+using KSP.Retooled.Patch.Cli.Commands;
 using DotMakeCli = DotMake.CommandLine.Cli;
 
 namespace KSP.Retooled.Patch.Cli;
@@ -51,7 +52,3 @@ public static class Program
         return USAGE_ERROR;
     }
 }
-
-[CliCommand(Description = "Builds, checks, applies and reverts KSP Retooled patch files (.rtpatch).",
-            ShortFormAutoGenerate = CliNameAutoGenerate.None)]
-public class RootCliCommand;
