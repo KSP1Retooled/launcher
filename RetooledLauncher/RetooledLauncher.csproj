@@ -1,34 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>KSP.Retooled.Launcher.App</RootNamespace>
-    <AssemblyName>RetooledLauncher</AssemblyName>
-    <Product>KSP Retooled Launcher</Product>
-    <Version>0.1.0</Version>
-    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Icons/icon.ico</ApplicationIcon>
-    <InvariantGlobalization>true</InvariantGlobalization>
-    <!--
-      Trimming gives warnings for Markdown.Avalonia, but only for reflection that the launcher never reaches. The
-      reflection loads the SyntaxHigh plugin, which isn't in the Tight package. It also sorts out dependencies between
-      plugins, and we don't register any. Finally, it finds the calling assemblies so that it can resolve image paths,
-      and NoImages makes sure that no images are loaded.
-    -->
-    <PublishTrimmed>true</PublishTrimmed>
-  </PropertyGroup>
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>KSP.Retooled.Launcher.App</RootNamespace>
+        <AssemblyName>RetooledLauncher</AssemblyName>
+        <Product>KSP Retooled Launcher</Product>
+        <Version>0.1.0</Version>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <ApplicationIcon>Icons/icon.ico</ApplicationIcon>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <!--
+          Trimming gives warnings for Markdown.Avalonia, but only for reflection that the launcher never reaches. The
+          reflection loads the SyntaxHigh plugin, which isn't in the Tight package. It also sorts out dependencies between
+          plugins, and we don't register any. Finally, it finds the calling assemblies so that it can resolve image paths,
+          and NoImages makes sure that no images are loaded.
+        -->
+        <PublishTrimmed>true</PublishTrimmed>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.1.4" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="Markdown.Avalonia.Tight" Version="12.0.2" />
-    <PackageReference Include="Velopack" Version="1.2.161" />
-    <ProjectReference Include="../RetooledLauncher.Core/RetooledLauncher.Core.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Avalonia" Version="12.1.4"/>
+        <PackageReference Include="Avalonia.Desktop" Version="12.1.4"/>
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4"/>
+        <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4"/>
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2"/>
+        <PackageReference Include="Markdown.Avalonia.Tight" Version="12.0.2"/>
+        <PackageReference Include="Velopack" Version="1.2.161"/>
+        <ProjectReference Include="../RetooledLauncher.Core/RetooledLauncher.Core.csproj"/>
+    </ItemGroup>
 </Project>

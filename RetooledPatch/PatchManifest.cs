@@ -13,49 +13,69 @@ namespace KSP.Retooled.Patch;
 /// </summary>
 public sealed class PatchManifest
 {
-    public const int CurrentVersion = 3;
-    /// <summary>The oldest manifest a reader still accepts; version 3 only added <see cref="CopiedPaths"/>.</summary>
-    public const int OldestVersion = 2;
+    public const int CURRENT_VERSION = 3;
+    /// <summary>
+    /// The oldest manifest a reader still accepts; version 3 only added <see cref="CopiedPaths"/>.
+    /// </summary>
+    public const int OLDEST_VERSION = 2;
 
-    public int Version { get; set; } = CurrentVersion;
-    /// <summary><c>windows</c>, <c>linux</c> or <c>macos</c>: the player layout of the target build.</summary>
-    public string Platform { get; set; } = "";
+    public int Version { get; set; } = CURRENT_VERSION;
+
+    /// <summary>
+    /// <c>windows</c>, <c>linux</c> or <c>macos</c>: the player layout of the target build.
+    /// </summary>
+    public string Platform { get; set; } = string.Empty;
+
     /// <summary>
     /// Install-relative files and directories the patch knows nothing about: nothing in them is checked, read, replaced or
     /// removed, and a side-by-side apply copies them across whole, because the install's copy is the only one.
     /// </summary>
     public List<string> CopiedPaths { get; set; } = [];
+
     public List<SourceFile> Sources { get; set; } = [];
+
     public List<Variant> Variants { get; set; } = [];
+
     public List<Component> Components { get; set; } = [];
+
     public List<Section> Sections { get; set; } = [];
-    /// <summary>Sorted by component, then path; recipes' blobs appear in each section in this order.</summary>
+
+    /// <summary>
+    /// Sorted by component, then path; recipes' blobs appear in each section in this order.
+    /// </summary>
     public List<OutputFile> Outputs { get; set; } = [];
 
     public byte[] ToJson() => JsonSerializer.SerializeToUtf8Bytes(this, ManifestJson.Default.PatchManifest);
 
-    public static PatchManifest FromJson(ReadOnlySpan<byte> json) =>
-        JsonSerializer.Deserialize(json, ManifestJson.Default.PatchManifest) ?? throw new InvalidDataException("empty manifest");
+    public static PatchManifest FromJson(ReadOnlySpan<byte> json) => JsonSerializer.Deserialize(json, ManifestJson.Default.PatchManifest)
+                                                                  ?? throw new InvalidDataException("empty manifest");
 }
 
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, UseStringEnumConverter = true)]
-[JsonSerializable(typeof(PatchManifest))]
-[JsonSerializable(typeof(InstallJournal))]
-sealed partial class ManifestJson : JsonSerializerContext;
+[JsonSerializable(typeof(PatchManifest)), JsonSerializable(typeof(InstallJournal)), JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+                                                                                                                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                                                                                                                UseStringEnumConverter = true)]
+internal sealed partial class ManifestJson : JsonSerializerContext;
 
-/// <summary>A stock file as one or more source installs have it.</summary>
+/// <summary>
+/// A stock file as one or more source installs have it.
+/// </summary>
 public sealed class SourceFile
 {
-    public string Path { get; set; } = "";
+    public string Path { get; set; } = string.Empty;
+
     public long Size { get; set; }
-    public string Sha256 { get; set; } = "";
+
+    public string Sha256 { get; set; } = string.Empty;
 }
 
-/// <summary>One source install the patch was built from, e.g. <c>steam-03190</c>, and the <see cref="PatchManifest.Sources"/> it has.</summary>
+/// <summary>
+/// One source install the patch was built from, e.g. <c>steam-03190</c>, and the <see cref="PatchManifest.Sources"/>
+/// it has.
+/// </summary>
 public sealed class Variant
 {
-    public string Id { get; set; } = "";
+    public string Id { get; set; } = string.Empty;
+
     public List<int> Files { get; set; } = [];
 }
 
@@ -64,36 +84,58 @@ public sealed class Variant
 /// </summary>
 public sealed class Component
 {
-    public string Name { get; set; } = "";
-    /// <summary>Install-relative directory that must exist for this component to apply (a DLC); null for core.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Install-relative directory that must exist for this component to apply (a DLC); null for core.
+    /// </summary>
     public string? Requires { get; set; }
-    /// <summary>Stock files of any source that the retooled install has no counterpart for; an in-place apply removes them.</summary>
+
+    /// <summary>
+    /// Stock files of any source that the retooled install has no counterpart for; an in-place apply removes them.
+    /// </summary>
     public List<string> Remove { get; set; } = [];
-    /// <summary>Empty directories of the retooled install (stock's Missions, sounds, ...), created by every apply.</summary>
+
+    /// <summary>
+    /// Empty directories of the retooled install (stock's Missions, sounds, ...), created by every apply.
+    /// </summary>
     public List<string> Directories { get; set; } = [];
 }
 
 /// <summary>
-/// One independent zstd frame of the patch file holding raw blobs: <see cref="Offset"/> and <see cref="Length"/> locate
+/// One independent zstd frame of the patch file holding raw blobs: <see cref="Offset"/> and <see cref="Length"/>
+/// locate
 /// it in the file, <see cref="Size"/> is its decompressed length.
 /// </summary>
 public sealed class Section
 {
-    public string Name { get; set; } = "";
+    public string Name { get; set; } = string.Empty;
+
     public long Offset { get; set; }
+
     public long Length { get; set; }
+
     public long Size { get; set; }
 }
 
 public sealed class OutputFile
 {
-    public string Path { get; set; } = "";
+    public string Path { get; set; } = string.Empty;
+
     public long Size { get; set; }
-    public string Sha256 { get; set; } = "";
-    /// <summary>Index into <see cref="PatchManifest.Components"/>.</summary>
+
+    public string Sha256 { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Index into <see cref="PatchManifest.Components"/>.
+    /// </summary>
     public int Component { get; set; }
-    /// <summary>An ELF or Mach-O binary or a script, given the executable mode on Linux and macOS.</summary>
+
+    /// <summary>
+    /// An ELF or Mach-O binary or a script, given the executable mode on Linux and macOS.
+    /// </summary>
     public bool Executable { get; set; }
+
     public List<Recipe> Recipes { get; set; } = [];
 }
 
@@ -104,19 +146,33 @@ public sealed class OutputFile
 public sealed class Recipe
 {
     public int? Same { get; set; }
+
     public int? Section { get; set; }
+
     public long? Offset { get; set; }
+
     public List<Segment>? Segments { get; set; }
 
-    /// <summary>The <see cref="PatchManifest.Sources"/> this recipe reads.</summary>
-    public IEnumerable<int> Inputs() =>
-        Same is int same ? [same] : (Segments ?? []).SelectMany(s => s.Refs?.Select(r => r.File) ?? (s.File is int f ? [f] : []));
-
     [JsonIgnore]
-    public long ArchiveBytes => Segments?.Sum(s => s.ArchiveBytes) ?? 0;
+    public long ArchiveBytes => this.Segments?.Sum(s => s.ArchiveBytes) ?? 0;
+
+    /// <summary>
+    /// The <see cref="PatchManifest.Sources"/> this recipe reads.
+    /// </summary>
+    public IEnumerable<int> Inputs() => this.Same is { } same
+                                            ? [same]
+                                            : (this.Segments ?? []).SelectMany(s => s.Refs?.Select(r => r.File) ?? (s.File is { } f ? [f] : []));
 }
 
-public enum SegmentKind { Copy, BsDiff, Literal }
+public enum SegmentKind
+{
+    // TODO csavard: Also fix these enum serialization
+    // ReSharper disable InconsistentNaming
+    Copy,
+    BsDiff,
+    Literal
+    // ReSharper restore InconsistentNaming
+}
 
 /// <summary>
 /// One run of output bytes. <c>Copy</c> reads <see cref="Length"/> bytes of source <see cref="File"/> at
@@ -127,42 +183,65 @@ public enum SegmentKind { Copy, BsDiff, Literal }
 public sealed class Segment
 {
     public SegmentKind Kind { get; set; }
+
     public int? File { get; set; }
+
     public long? Offset { get; set; }
+
     public long Length { get; set; }
+
     public List<Extent>? Refs { get; set; }
+
     public long? Blob { get; set; }
 
-    public static Segment Copy(int file, long offset, long length) =>
-        new() { Kind = SegmentKind.Copy, File = file, Offset = offset, Length = length };
-
-    public static Segment Diff(List<Extent> refs, long length, long blob) =>
-        new() { Kind = SegmentKind.BsDiff, Refs = refs, Length = length, Blob = blob };
-
-    public static Segment Literal(long length) => new() { Kind = SegmentKind.Literal, Length = length };
-
-    /// <summary>Bytes this segment consumes from its section.</summary>
+    /// <summary>
+    /// Bytes this segment consumes from its section.
+    /// </summary>
     [JsonIgnore]
-    public long ArchiveBytes => Kind switch
+    public long ArchiveBytes => this.Kind switch
     {
-        SegmentKind.BsDiff => Blob ?? 0,
-        SegmentKind.Literal => Length,
-        _ => 0,
+        SegmentKind.BsDiff  => this.Blob ?? 0,
+        SegmentKind.Literal => this.Length,
+        _                   => 0
+    };
+
+    public static Segment Copy(int file, long offset, long length) => new()
+    {
+        Kind   = SegmentKind.Copy,
+        File   = file,
+        Offset = offset,
+        Length = length
+    };
+
+    public static Segment Diff(List<Extent> refs, long length, long blob) => new()
+    {
+        Kind   = SegmentKind.BsDiff,
+        Refs   = refs,
+        Length = length,
+        Blob   = blob
+    };
+
+    public static Segment Literal(long length) => new()
+    {
+        Kind   = SegmentKind.Literal,
+        Length = length
     };
 }
 
 public sealed class Extent
 {
-    public int File { get; set; }
-    public long Offset { get; set; }
-    public long Length { get; set; }
-
     public Extent() { }
 
     public Extent(int file, long offset, long length)
     {
-        File = file;
-        Offset = offset;
-        Length = length;
+        this.File   = file;
+        this.Offset = offset;
+        this.Length = length;
     }
+
+    public int File { get; set; }
+
+    public long Offset { get; set; }
+
+    public long Length { get; set; }
 }

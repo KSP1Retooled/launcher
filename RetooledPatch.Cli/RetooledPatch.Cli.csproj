@@ -1,28 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>KSP.Retooled.Patch.Cli</RootNamespace>
-    <AssemblyName>retooled-patch</AssemblyName>
-    <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- A build is a few calls to enormous methods, which would otherwise run the longest work in tier 0. -->
-    <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
-    <TieredPGO>false</TieredPGO>
-    <PackAsTool>true</PackAsTool>
-    <ToolCommandName>retooled-patch</ToolCommandName>
-    <PackageId>KSP1Retooled.Patch.Cli</PackageId>
-    <Description>The retooled-patch command, which builds, checks, applies and reverts KSP Retooled patch files.</Description>
-  </PropertyGroup>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>KSP.Retooled.Patch.Cli</RootNamespace>
+        <AssemblyName>retooled-patch</AssemblyName>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <!-- A build is a few calls to enormous methods, which would otherwise run the longest work in tier 0. -->
+        <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
+        <TieredPGO>false</TieredPGO>
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>retooled-patch</ToolCommandName>
+        <PackageId>KSP1Retooled.Patch.Cli</PackageId>
+        <Description>The retooled-patch command, which builds, checks, applies and reverts KSP Retooled patch files.</Description>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="../RetooledPatch/RetooledPatch.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../RetooledPatch/RetooledPatch.csproj"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="DotMake.CommandLine" Version="3.7.0" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="DotMake.CommandLine" Version="3.7.0"/>
+    </ItemGroup>
 
 </Project>

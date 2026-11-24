@@ -10,46 +10,46 @@ namespace KSP.Retooled.Launcher.Releases;
 /// a patch installed from either is the same release to the launcher.
 /// </summary>
 /// <param name="repository">The GitCode repository (<c>owner/name</c>).</param>
-public sealed class GitCodeReleaseSource(HttpClient http, string channel, string repository)
-    : IReleaseSource
+public sealed class GitCodeReleaseSource(HttpClient http, string channel, string repository) : IReleaseSource
 {
-    const int MaxPages = 10;
+    private const int MAX_PAGES = 10;
 
     public string Repository { get; } = repository;
 
-    public async Task<IReadOnlyList<Release>> GetReleasesAsync(
-        CancellationToken cancellation = default
-    )
+    public async Task<IReadOnlyList<Release>> GetReleasesAsync(CancellationToken cancellation = default)
     {
-        if (!GitHubReleaseSource.IsValidRepository(Repository))
-            throw new LauncherException($"'{Repository}' is not a GitCode repository (owner/name)");
-        var releases = new List<Release>();
-        int pages = 1;
-        for (int page = 1; page <= pages && page <= MaxPages; page++)
+        if (!GitHubReleaseSource.IsValidRepository(this.Repository))
         {
-            string url =
-                $"https://api.gitcode.com/api/v5/repos/{Repository}/releases?per_page=100&page={page}";
-            using var request = Request(url, "application/json");
-            using var response = await http.SendAsync(request, cancellation).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-                throw new LauncherException(
-                    $"GitCode answered {(int)response.StatusCode} {response.ReasonPhrase} for {Repository}'s releases"
-                );
-            await using var body = await response
-                .Content.ReadAsStreamAsync(cancellation)
-                .ConfigureAwait(false);
-            var items =
-                await JsonSerializer
-                    .DeserializeAsync(body, GitCodeJson.Default.ListGitCodeRelease, cancellation)
-                    .ConfigureAwait(false)
-                ?? [];
-            releases.AddRange(items.Select(r => Convert(r) with { Channel = channel }));
-            if (
-                response.Headers.TryGetValues("total_page", out var values)
-                && int.TryParse(values.FirstOrDefault(), out int total)
-            )
-                pages = total;
+            throw new LauncherException($"'{this.Repository}' is not a GitCode repository (owner/name)");
         }
+
+        List<Release> releases = [];
+        int pages = 1;
+        for (int page = 1; page <= pages && page <= MAX_PAGES; page++)
+        {
+            string url = $"https://api.gitcode.com/api/v5/repos/{this.Repository}/releases?per_page=100&page={page}";
+            using HttpRequestMessage request = Request(url, "application/json");
+            using HttpResponseMessage response = await http.SendAsync(request, cancellation).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new LauncherException($"GitCode answered {(int)response.StatusCode} {response.ReasonPhrase} for {this.Repository}'s releases");
+            }
+
+            await using Stream body = await response
+                                           .Content.ReadAsStreamAsync(cancellation)
+                                           .ConfigureAwait(false);
+
+            List<GitCodeRelease> items = await JsonSerializer.DeserializeAsync(body, GitCodeJson.Default.ListGitCodeRelease, cancellation)
+                                                             .ConfigureAwait(false) ?? [];
+
+            releases.AddRange(items.Select(r => Convert(r) with { Channel = channel }));
+            if (response.Headers.TryGetValues("total_page", out IEnumerable<string>? values)
+             && int.TryParse(values.FirstOrDefault(), out int total))
+            {
+                pages = total;
+            }
+        }
+
         return releases;
     }
 
@@ -58,52 +58,49 @@ public sealed class GitCodeReleaseSource(HttpClient http, string channel, string
         yield return Request(asset.DownloadUrl, "application/octet-stream");
     }
 
-    /// <summary>Where GitCode serves the file <paramref name="name"/> of the release tagged <paramref name="tag"/>.</summary>
-    public string DownloadUrl(string tag, string name) =>
-        $"https://gitcode.com/{Repository}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}";
+    /// <summary>
+    /// Where GitCode serves the file <paramref name="name"/> of the release tagged <paramref name="tag"/>.
+    /// </summary>
+    public string DownloadUrl(string tag, string name) => $"https://gitcode.com/{this.Repository}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}";
 
-    /// <summary>Whether <paramref name="asset"/> was listed by GitCode rather than GitHub.</summary>
-    public static bool IsGitCodeAsset(ReleaseAsset asset) =>
-        Uri.TryCreate(asset.DownloadUrl, UriKind.Absolute, out var uri)
-        && (uri.Host == "gitcode.com" || uri.Host.EndsWith(".gitcode.com", StringComparison.Ordinal));
+    /// <summary>
+    /// Whether <paramref name="asset"/> was listed by GitCode rather than GitHub.
+    /// </summary>
+    public static bool IsGitCodeAsset(ReleaseAsset asset) => Uri.TryCreate(asset.DownloadUrl, UriKind.Absolute, out Uri? uri)
+                                                          && (uri.Host is "gitcode.com" || uri.Host.EndsWith(".gitcode.com", StringComparison.Ordinal));
 
-    static HttpRequestMessage Request(string url, string accept)
+    private static HttpRequestMessage Request(string url, string accept)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        HttpRequestMessage request = new(HttpMethod.Get, url);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(accept));
-        request.Headers.UserAgent.Add(
-            new ProductInfoHeaderValue("KSPRetooledLauncher", LauncherInfo.Version)
-        );
+        request.Headers.UserAgent.Add(new ProductInfoHeaderValue("KSPRetooledLauncher", LauncherInfo.Version));
         return request;
     }
 
-    Release Convert(GitCodeRelease r) =>
-        new(
-            r.TagName,
-            r.Name ?? "",
+    private Release Convert(GitCodeRelease r) =>
+        new(r.TagName,
+            r.Name ?? string.Empty,
             r.Prerelease,
             r.CreatedAt ?? DateTimeOffset.MinValue,
-            r.Body ?? "",
-            $"https://gitcode.com/{Repository}/releases/{Uri.EscapeDataString(r.TagName)}",
+            r.Body ?? string.Empty,
+            $"https://gitcode.com/{this.Repository}/releases/{Uri.EscapeDataString(r.TagName)}",
             [
-                .. (r.Assets ?? [])
-                    // the rest are archives of the source that GitCode adds to every release
-                    .Where(a => a.Type == "attach")
-                    .Select(a => new ReleaseAsset(
-                        a.Name,
-                        a.Size ?? 0,
-                        a.BrowserDownloadUrl,
-                        a.BrowserDownloadUrl,
-                        GitHubReleaseSource.Sha256(a.Digest)
-                    )),
+                ..(r.Assets ?? [])
+                  // the rest are archives of the source that GitCode adds to every release
+                 .Where(a => a.Type is "attach")
+                 .Select(a => new ReleaseAsset(a.Name,
+                                               a.Size ?? 0,
+                                               a.BrowserDownloadUrl,
+                                               a.BrowserDownloadUrl,
+                                               GitHubReleaseSource.Sha256(a.Digest)))
             ]
-        );
+           );
 }
 
-sealed class GitCodeRelease
+internal sealed class GitCodeRelease
 {
     [JsonPropertyName("tag_name")]
-    public string TagName { get; set; } = "";
+    public string TagName { get; set; } = string.Empty;
 
     [JsonPropertyName("name")]
     public string? Name { get; set; }
@@ -121,10 +118,10 @@ sealed class GitCodeRelease
     public List<GitCodeAsset>? Assets { get; set; }
 }
 
-sealed class GitCodeAsset
+internal sealed class GitCodeAsset
 {
     [JsonPropertyName("name")]
-    public string Name { get; set; } = "";
+    public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName("type")]
     public string? Type { get; set; }
@@ -133,11 +130,11 @@ sealed class GitCodeAsset
     public long? Size { get; set; }
 
     [JsonPropertyName("browser_download_url")]
-    public string BrowserDownloadUrl { get; set; } = "";
+    public string BrowserDownloadUrl { get; set; } = string.Empty;
 
     [JsonPropertyName("digest")]
     public string? Digest { get; set; }
 }
 
 [JsonSerializable(typeof(List<GitCodeRelease>))]
-sealed partial class GitCodeJson : JsonSerializerContext;
+internal sealed partial class GitCodeJson : JsonSerializerContext;

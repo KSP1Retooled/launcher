@@ -10,14 +10,15 @@ public sealed class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (this.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var window = new MainWindow();
-            var model = new MainViewModel(LauncherSettings.Load(), window);
-            window.DataContext = model;
-            desktop.MainWindow = window;
-            window.Opened += async (_, _) => await model.StartAsync();
+            MainWindow window = new();
+            MainViewModel model = new(LauncherSettings.Load(), window);
+            window.DataContext =  model;
+            desktop.MainWindow =  window;
+            window.Opened      += async (_, _) => await model.StartAsync();
         }
+
         base.OnFrameworkInitializationCompleted();
     }
 }
