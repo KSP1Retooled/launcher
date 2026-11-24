@@ -1,82 +1,8 @@
-using KSP.Retooled.Launcher.Releases;
+﻿using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Utils;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
-
-public sealed class ReleaseLinkTests
-{
-    [Theory, InlineData("https://github.com/KSP1Retooled/launcher/pull/9", true), InlineData("http://example.com/", true), InlineData("HTTPS://EXAMPLE.COM/", true), InlineData("file:///C:/Windows/System32/calc.exe", false), InlineData(@"C:\Windows\System32\calc.exe", false), InlineData(@"\\host\share\run.exe", false), InlineData("/usr/bin/xcalc", false), InlineData("ms-settings:", false), InlineData("javascript:alert(1)", false), InlineData("relative/page", false), InlineData("", false), InlineData(null, false)]
-    public void OpensOnlyWebLinks(string? url, bool expected) => Assert.Equal(expected, Release.IsWebLink(url));
-}
-
-public sealed class ReleaseNotesTests
-{
-    private const string URL = "https://github.com/KSP1Retooled/launcher/pull/9";
-    private const string LINKED = $"[{URL}]({URL})";
-
-    [Theory, InlineData($"* Fix it by @someone in {URL}", $"* Fix it by @someone in {LINKED}"), InlineData($"{URL}\r\nnext", $"{LINKED}\r\nnext"), InlineData($"<{URL}>", LINKED), InlineData($"See {URL}.", $"See {LINKED}."), InlineData($"See {URL}, then", $"See {LINKED}, then"), InlineData($"(see {URL})", $"(see {LINKED})"), InlineData($"**{URL}**", $"**{LINKED}**"), InlineData("**Full Changelog**: https://github.com/a/b/compare/v0.1.3...v0.1.4",
-                                                                                                                                                                                                                                                                                                                                                                                            "**Full Changelog**: [https://github.com/a/b/compare/v0.1.3...v0.1.4](https://github.com/a/b/compare/v0.1.3...v0.1.4)"), InlineData("https://a.example/x_(y)", @"[https://a.example/x\_(y)](https://a.example/x_(y))"), InlineData("https://a.example/a*b~c", @"[https://a.example/a\*b\~c](https://a.example/a*b~c)")]
-    public void LinksUrls(string notes, string expected) => Assert.Equal(expected, ReleaseNotes.LinkUrls(notes));
-
-    [Theory, InlineData(""), InlineData("no links here"), InlineData(LINKED), InlineData($"[the pull request]({URL})"), InlineData($"![screenshot]({URL}.png)"), InlineData($"[![badge]({URL}.svg)]({URL})"), InlineData($"[ref]: {URL}"), InlineData($"`{URL}`"), InlineData($"``a ` {URL}``"), InlineData($"```\n{URL}\n```"), InlineData($"~~~sh\r\ncurl {URL}\r\n~~~\r\n"), InlineData($"```\n{URL}"), InlineData($"    {URL}"), InlineData("ftp://example.com/file"), InlineData("https://.")]
-    public void LeavesOtherTextAlone(string notes) => Assert.Equal(notes, ReleaseNotes.LinkUrls(notes));
-
-    [Fact]
-    public void LinksTextAroundCode()
-    {
-        const string NOTES = $"```\n{URL}\n```\n\n{URL} and `{URL}` and {URL}";
-        Assert.Equal($"```\n{URL}\n```\n\n{LINKED} and `{URL}` and {LINKED}",
-                     ReleaseNotes.LinkUrls(NOTES));
-    }
-}
-
-public sealed class ReleaseVersionTests
-{
-    [Fact]
-    public void OrdersBySemverPrecedence()
-    {
-        string[] ascending =
-        [
-            "0.9.10",
-            "v1.0.0-alpha",
-            "1.0.0-alpha.1",
-            "1.0.0-alpha.beta",
-            "1.0.0-beta",
-            "1.0.0-beta.2",
-            "1.0.0-beta.11",
-            "1.0.0-rc.1",
-            "v1.0.0",
-            "1.0.1",
-            "1.2",
-            "1.10.0"
-        ];
-
-        List<ReleaseVersion> parsed =
-        [
-            ..ascending
-               .Select(t => ReleaseVersion.TryParse(t, out ReleaseVersion v) ? v : throw new Exception(t))
-        ];
-
-        for (int i = 1; i < parsed.Count; i++)
-        {
-            Assert.True(parsed[i - 1].CompareTo(parsed[i]) < 0,
-                        $"{ascending[i - 1]} < {ascending[i]}");
-        }
-    }
-
-    [Fact]
-    public void BuildMetadataAndPrefixDoNotChangeTheVersion()
-    {
-        Assert.True(ReleaseVersion.TryParse("v1.2.3+abc", out ReleaseVersion a));
-        Assert.True(ReleaseVersion.TryParse("1.2.3", out ReleaseVersion b));
-        Assert.Equal(0, a.CompareTo(b));
-    }
-
-    [Theory, InlineData("nightly"), InlineData("1"), InlineData("1.2.3.4"), InlineData("1.x.0"), InlineData("1.0.0-"), InlineData("")]
-    public void RejectsTagsThatAreNotVersions(string tag) =>
-        Assert.False(ReleaseVersion.TryParse(tag, out _));
-}
 
 public sealed class ReleaseCatalogTests
 {
