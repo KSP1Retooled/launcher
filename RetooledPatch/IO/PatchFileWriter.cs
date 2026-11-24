@@ -21,7 +21,7 @@ public sealed class PatchFileWriter : IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(windowLog, PatchFile.MAX_WINDOW_LOG);
         (this.level, this.windowLog, this.workers) = (level, windowLog, workers);
-        this.file                                  = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 1 << 20);
+        this.file = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 1 << 20);
         this.file.Write(new byte[PatchFile.HEADER_SIZE]);
     }
 

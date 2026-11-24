@@ -63,13 +63,11 @@ public static class LauncherInfo
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData,
                                                Environment.SpecialFolderOption.Create),
                      "KSPRetooled",
-                     "Launcher"
-                    );
+                     "Launcher");
 
-    public static bool IsBuiltInChannel(string channel) =>
-        channel.Equals(DEFAULT_REPOSITORY, StringComparison.OrdinalIgnoreCase)
-     || channel.Equals(DEBUG_CHANNEL, StringComparison.OrdinalIgnoreCase)
-     || channel.Equals(EXPERIMENTAL_CHANNEL, StringComparison.OrdinalIgnoreCase);
+    public static bool IsBuiltInChannel(string channel) => channel.Equals(DEFAULT_REPOSITORY, StringComparison.OrdinalIgnoreCase)
+                                                        || channel.Equals(DEBUG_CHANNEL, StringComparison.OrdinalIgnoreCase)
+                                                        || channel.Equals(EXPERIMENTAL_CHANNEL, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Whether the channel's releases are versions, each replacing the ones before it, rather than separate builds.

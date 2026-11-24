@@ -1,4 +1,4 @@
-﻿using System.Transactions;
+using System.Transactions;
 using ChinhDo.Transactions;
 using KSP.Retooled.Patch.Exceptions;
 using KSP.Retooled.Patch.Models.Journal;
@@ -38,7 +38,7 @@ internal sealed class InstallCommit(string install, InstallJournal journal, Dict
                                 staged.Select(o => o.Path)
                                       .Concat(removeArray)
                                       .Concat(requested)
-                                      .Append(Utils.GameSettingsFile.FILE_NAME),
+                                      .Append(GameSettingsFile.FILE_NAME),
                                 log);
 
             Plan(staged, removeArray, requested);
@@ -134,14 +134,14 @@ internal sealed class InstallCommit(string install, InstallJournal journal, Dict
 
         foreach (string directory in directories) files.CreateDirectory(Full(directory));
 
-        if (language is not null && Utils.GameSettingsFile.WithLanguage(install, language) is { } settings)
+        if (language is not null && GameSettingsFile.WithLanguage(install, language) is { } settings)
         {
             // Stage a replacement to preserve the settings of any install that shares the original file.
-            string staged = Path.Combine(staging, Utils.GameSettingsFile.FILE_NAME);
+            string staged = Path.Combine(staging, GameSettingsFile.FILE_NAME);
             File.WriteAllText(staged, settings);
-            files.Delete(Full(Utils.GameSettingsFile.FILE_NAME));
-            files.Move(staged, Full(Utils.GameSettingsFile.FILE_NAME));
-            log.WriteLine($"set LANGUAGE = {language} in {Utils.GameSettingsFile.FILE_NAME}");
+            files.Delete(Full(GameSettingsFile.FILE_NAME));
+            files.Move(staged, Full(GameSettingsFile.FILE_NAME));
+            log.WriteLine($"set LANGUAGE = {language} in {GameSettingsFile.FILE_NAME}");
         }
 
         // last, so a rollback that stops short leaves the journal saying the apply didn't finish

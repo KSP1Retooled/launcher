@@ -39,8 +39,7 @@ public sealed class BsDiffTests
     }
 
     [Theory, InlineData(0, 0), InlineData(0, 1000), InlineData(1000, 0), InlineData(5000, 5000), InlineData(1, 70_000)]
-    public void UnrelatedAndEmptyInputs(int oldLength, int newLength) =>
-        RoundTrip(Random(oldLength, oldLength), Random(newLength + 7, newLength));
+    public void UnrelatedAndEmptyInputs(int oldLength, int newLength) => RoundTrip(Random(oldLength, oldLength), Random(newLength + 7, newLength));
 
     [Fact]
     public void RepetitiveData()

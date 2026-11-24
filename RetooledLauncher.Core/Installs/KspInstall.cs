@@ -75,8 +75,8 @@ public static class KspInstall
                                        ? InstallStatus.RETOOLED
                                        : InstallStatus.INTERRUPTED)
             {
-                BuildId  = ReadBuildId(full),
-                Release  = ReadMarker(full),
+                BuildId = ReadBuildId(full),
+                Release = ReadMarker(full),
                 Platform = journal.Platform
             };
         }
@@ -85,7 +85,7 @@ public static class KspInstall
         bool ksp = Directory.Exists(Path.Combine(full, "GameData", "Squad")) && platform is not null;
         return new InstallInfo(full, ksp ? InstallStatus.STOCK : InstallStatus.NOT_KSP)
         {
-            BuildId  = ksp ? ReadBuildId(full) : null,
+            BuildId = ksp ? ReadBuildId(full) : null,
             Platform = ksp ? platform : null
         };
     }

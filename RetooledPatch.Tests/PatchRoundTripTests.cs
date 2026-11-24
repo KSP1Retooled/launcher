@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using KSP.Retooled.Patch.Cli;
 using KSP.Retooled.Patch.Exceptions;
 using KSP.Retooled.Patch.Install;
@@ -125,9 +125,8 @@ public sealed class PatchRoundTripTests : IDisposable
         File.WriteAllBytes(path, bytes);
     }
 
-    private static Dictionary<string, string> Tree(string dir) =>
-        Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
-                 .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'), PatchApplier.Sha256Hex, StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, string> Tree(string dir) => Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+                                                                           .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'), PatchApplier.Sha256Hex, StringComparer.OrdinalIgnoreCase);
 
     private static List<string> Directories(string dir) =>
     [
@@ -234,7 +233,7 @@ public sealed class PatchRoundTripTests : IDisposable
         PatchReverter.Revert(this.Gog);
         Dictionary<string, string> expected = new(this.gogTree, StringComparer.OrdinalIgnoreCase)
         {
-            ["saves/career/persistent.sfs"]  = Tree(this.Gog)["saves/career/persistent.sfs"],
+            ["saves/career/persistent.sfs"] = Tree(this.Gog)["saves/career/persistent.sfs"],
             ["saves/default/persistent.sfs"] = Tree(this.Gog)["saves/default/persistent.sfs"]
         };
 

@@ -20,6 +20,8 @@ namespace KSP.Retooled.Launcher.Tests;
 public sealed class LauncherServiceTests : IDisposable
 {
     private const string PLATFORM = "windows";
+
+    private static readonly string[] SourceArray = ["v1.0.0", "v1.1.0", "v2.0.0"];
     private readonly ReleaseCatalog catalog;
     private readonly FakePatches patches = new();
     private readonly string root = Path.Combine(Path.GetTempPath(),
@@ -89,8 +91,6 @@ public sealed class LauncherServiceTests : IDisposable
     private string Stock => Path.Combine(this.root, "stock");
 
     private string BackupFolder => Path.Combine(this.Install, SavesBackup.BACKUP_FOLDER);
-
-    private static readonly string[] SourceArray = ["v1.0.0", "v1.1.0", "v2.0.0"];
 
     public void Dispose()
     {
@@ -601,12 +601,9 @@ public sealed class LauncherServiceTests : IDisposable
         Assert.EndsWith(@"\Kerbal Space Program", inspected, StringComparison.Ordinal);
     }
 
-    private static void AssertTree(
-        Dictionary<string, string> expected,
-        Dictionary<string, string> actual
-    ) =>
-        Assert.Equal(expected.OrderBy(p => p.Key, StringComparer.Ordinal),
-                     actual.OrderBy(p => p.Key, StringComparer.Ordinal));
+    private static void AssertTree(Dictionary<string, string> expected,
+                                   Dictionary<string, string> actual) => Assert.Equal(expected.OrderBy(p => p.Key, StringComparer.Ordinal),
+                                                                                      actual.OrderBy(p => p.Key, StringComparer.Ordinal));
 
     private static void Write(string dir, string relative, byte[] bytes)
     {
@@ -625,10 +622,9 @@ public sealed class LauncherServiceTests : IDisposable
         }
     }
 
-    private static Dictionary<string, string> Tree(string dir) =>
-        Directory
-           .EnumerateFiles(dir, "*", SearchOption.AllDirectories)
-           .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'),
-                         PatchApplier.Sha256Hex,
-                         StringComparer.Ordinal);
+    private static Dictionary<string, string> Tree(string dir) => Directory
+                                                                 .EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+                                                                 .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'),
+                                                                               PatchApplier.Sha256Hex,
+                                                                               StringComparer.Ordinal);
 }

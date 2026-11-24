@@ -83,8 +83,7 @@ public sealed class MirroredReleaseSource(GitHubReleaseSource github,
                    : onGitHub.Concat(Fallback(onGitCode));
 
         // built lazily, so that the second host is only named once the first has failed
-        IEnumerable<HttpRequestMessage> Copy(IReleaseSource host, string url) =>
-            host.AssetRequests(release, asset with { DownloadUrl = url, ApiUrl = url });
+        IEnumerable<HttpRequestMessage> Copy(IReleaseSource host, string url) => host.AssetRequests(release, asset with { DownloadUrl = url, ApiUrl = url });
 
         IEnumerable<HttpRequestMessage> Fallback(IEnumerable<HttpRequestMessage> requests)
         {

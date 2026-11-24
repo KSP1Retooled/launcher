@@ -28,9 +28,7 @@ public static partial class InstallLocator
     public static IReadOnlyList<InstallInfo> Find()
     {
         List<InstallInfo> found = [];
-        HashSet<string> seen = new(
-                                   OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase
-                                  );
+        HashSet<string> seen = new(OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
 
         foreach (string candidate in Candidates())
         {

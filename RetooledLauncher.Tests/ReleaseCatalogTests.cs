@@ -49,39 +49,30 @@ public sealed class ReleaseCatalogTests
     }
 
     // 1.1.0-beta.1 came out after 1.0.0 but is a pre-release; 0.9.0 is older than both
-    private static ReleaseCatalog Catalog() =>
-        new([
-            Make("v0.9.0", day: 0),
-            Make("v1.1.0-beta.1", true, 20),
-            Make("v1.0.0", day: 10)
-        ]);
+    private static ReleaseCatalog Catalog() => new([
+        Make("v0.9.0", day: 0),
+        Make("v1.1.0-beta.1", true, 20),
+        Make("v1.0.0", day: 10)
+    ]);
 
     [Fact]
-    public void ListsNewestFirst() =>
-        Assert.Equal(["v1.1.0-beta.1", "v1.0.0", "v0.9.0"], Catalog().All.Select(r => r.Tag));
+    public void ListsNewestFirst() => Assert.Equal(["v1.1.0-beta.1", "v1.0.0", "v0.9.0"], Catalog().All.Select(r => r.Tag));
 
     [Fact]
     public void HidesPrereleasesUnlessOptedIn()
     {
-        Assert.Equal(
-                     ["v1.0.0", "v0.9.0"],
-                     Catalog().Visible(false).Select(r => r.Tag)
-                    );
+        Assert.Equal(["v1.0.0", "v0.9.0"],
+                     Catalog().Visible(false).Select(r => r.Tag));
 
-        Assert.Equal(
-                     ["v1.1.0-beta.1", "v1.0.0", "v0.9.0"],
-                     Catalog().Visible(true).Select(r => r.Tag)
-                    );
+        Assert.Equal(["v1.1.0-beta.1", "v1.0.0", "v0.9.0"],
+                     Catalog().Visible(true).Select(r => r.Tag));
     }
 
     [Fact]
-    public void AnInstalledPrereleaseStaysListed() =>
-        Assert.Contains(
-                        "v1.1.0-beta.1",
-                        Catalog()
-                           .Visible(false, "v1.1.0-beta.1")
-                           .Select(r => r.Tag)
-                       );
+    public void AnInstalledPrereleaseStaysListed() => Assert.Contains("v1.1.0-beta.1",
+                                                                      Catalog()
+                                                                         .Visible(false, "v1.1.0-beta.1")
+                                                                         .Select(r => r.Tag));
 
     [Fact]
     public void LatestHonoursTheOptIn()
@@ -106,10 +97,8 @@ public sealed class ReleaseCatalogTests
     public void StableUsersAreNotOfferedPrereleaseUpgrades()
     {
         Assert.Null(Catalog().UpgradeFor("v1.0.0", "windows", false));
-        Assert.Equal(
-                     "v1.1.0-beta.1",
-                     Catalog().UpgradeFor("v1.0.0", "windows", true)?.Tag
-                    );
+        Assert.Equal("v1.1.0-beta.1",
+                     Catalog().UpgradeFor("v1.0.0", "windows", true)?.Tag);
     }
 
     [Fact]
@@ -121,16 +110,12 @@ public sealed class ReleaseCatalogTests
         ]);
 
         Assert.True(catalog.OnlyPrereleases);
-        Assert.Equal(
-                     ["v1.0.0-beta.2", "v1.0.0-beta.1"],
-                     catalog.Visible(false).Select(r => r.Tag)
-                    );
+        Assert.Equal(["v1.0.0-beta.2", "v1.0.0-beta.1"],
+                     catalog.Visible(false).Select(r => r.Tag));
 
         Assert.Equal("v1.0.0-beta.2", catalog.Latest("windows", false)?.Tag);
-        Assert.Equal(
-                     "v1.0.0-beta.2",
-                     catalog.UpgradeFor("v1.0.0-beta.1", "windows", false)?.Tag
-                    );
+        Assert.Equal("v1.0.0-beta.2",
+                     catalog.UpgradeFor("v1.0.0-beta.1", "windows", false)?.Tag);
 
         Assert.False(Catalog().OnlyPrereleases);
         Assert.False(ReleaseCatalog.Empty.OnlyPrereleases);
@@ -144,10 +129,8 @@ public sealed class ReleaseCatalogTests
             Make("v1.1.0", day: 5)
         ]);
 
-        Assert.Equal(
-                     "v1.1.0",
-                     catalog.UpgradeFor("v1.1.0-beta.1", "windows", false)?.Tag
-                    );
+        Assert.Equal("v1.1.0",
+                     catalog.UpgradeFor("v1.1.0-beta.1", "windows", false)?.Tag);
     }
 
     [Fact]
@@ -249,9 +232,7 @@ public sealed class ReleaseCatalogTests
         ]);
 
         Assert.Equal(["nightly-c", "nightly-b", "v1.0.0"], catalog.All.Select(r => r.Tag));
-        Assert.Equal(
-                     InstallAction.UPGRADE,
-                     catalog.ActionFor(catalog.Find("nightly-c")!, "nightly-b")
-                    );
+        Assert.Equal(InstallAction.UPGRADE,
+                     catalog.ActionFor(catalog.Find("nightly-c")!, "nightly-b"));
     }
 }

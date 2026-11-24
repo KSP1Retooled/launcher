@@ -38,10 +38,10 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(LauncherSettings settings, IDialogs dialogs)
     {
         this.settings = settings;
-        this.dialogs  = dialogs;
-        this.updater  = new LauncherUpdater(this.token);
+        this.dialogs = dialogs;
+        this.updater = new LauncherUpdater(this.token);
         Append(Title);
-        this.InstallPath        = settings.InstallPath is { } saved ? KspInstall.Inspect(saved).Path : string.Empty;
+        this.InstallPath = settings.InstallPath is { } saved ? KspInstall.Inspect(saved).Path : string.Empty;
         this.IncludePrereleases = settings.IncludePrereleases;
         foreach (string channel in settings.AllChannels)
         {
@@ -259,8 +259,7 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             IReadOnlyList<Release> releases = await new GitHubReleaseSource(this.http,
-                                                                            LauncherInfo.REPOSITORY, this.token, this.metadata
-                                                                           ).GetReleasesAsync(timeout.Token);
+                                                                            LauncherInfo.REPOSITORY, this.token, this.metadata).GetReleasesAsync(timeout.Token);
 
             this.LauncherUpdate = new ReleaseCatalog(releases).NewerThan(LauncherInfo.Version);
         }

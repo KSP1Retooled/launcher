@@ -8,22 +8,15 @@ namespace KSP.Retooled.Launcher.Tests;
 public sealed class GameStarterTests
 {
     [Theory, InlineData(null), InlineData(""), InlineData("  \t ")]
-    public void NoArgumentsSplitToNone(string? commandLine) =>
-        Assert.Empty(GameStarter.SplitArguments(commandLine));
+    public void NoArgumentsSplitToNone(string? commandLine) => Assert.Empty(GameStarter.SplitArguments(commandLine));
 
     [Fact]
-    public void ArgumentsAreSplitAtWhitespace() =>
-        Assert.Equal(
-                     ["-popupwindow", "-screen-width", "1920"],
-                     GameStarter.SplitArguments("  -popupwindow -screen-width\t1920 ")
-                    );
+    public void ArgumentsAreSplitAtWhitespace() => Assert.Equal(["-popupwindow", "-screen-width", "1920"],
+                                                                GameStarter.SplitArguments("  -popupwindow -screen-width\t1920 "));
 
     [Fact]
-    public void QuotesKeepWhitespaceAndAreRemoved() =>
-        Assert.Equal(
-                     ["-logFile", @"C:\my logs\ksp.log", "--name=Jeb Kerman", string.Empty],
-                     GameStarter.SplitArguments("""-logFile "C:\my logs\ksp.log" --name="Jeb Kerman" "" """)
-                    );
+    public void QuotesKeepWhitespaceAndAreRemoved() => Assert.Equal(["-logFile", @"C:\my logs\ksp.log", "--name=Jeb Kerman", string.Empty],
+                                                                    GameStarter.SplitArguments("""-logFile "C:\my logs\ksp.log" --name="Jeb Kerman" "" """));
 
     [Theory, InlineData("windows"), InlineData("linux")]
     public void ThePlayerIsGivenTheArguments(string platform)
@@ -39,10 +32,8 @@ public sealed class GameStarterTests
     public void OnMacosTheArgumentsFollowArgs()
     {
         string app = Path.Combine("install", "KSP.app");
-        Assert.Equal(
-                     ["-a", app, "--args", "-a", "b c"],
-                     GameStarter.StartInfo("install", "macos", "-a \"b c\"").ArgumentList
-                    );
+        Assert.Equal(["-a", app, "--args", "-a", "b c"],
+                     GameStarter.StartInfo("install", "macos", "-a \"b c\"").ArgumentList);
 
         Assert.Equal(["-a", app], GameStarter.StartInfo("install", "macos", " ").ArgumentList);
     }

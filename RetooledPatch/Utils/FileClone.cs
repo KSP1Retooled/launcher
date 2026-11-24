@@ -21,7 +21,7 @@ internal static class FileClone
         {
             if (OperatingSystem.IsWindows())
             {
-                return CreateHardLink(destination, source, IntPtr.Zero);
+                return CreateHardLink(destination, source, nint.Zero);
             }
 
             return link(source, destination) is 0;
@@ -33,7 +33,7 @@ internal static class FileClone
     }
 
     [DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern bool CreateHardLink(string fileName, string existingFileName, IntPtr securityAttributes);
+    private static extern bool CreateHardLink(string fileName, string existingFileName, nint securityAttributes);
 
     [DllImport("libc", SetLastError = true)]
     private static extern int link(string existing, string link);

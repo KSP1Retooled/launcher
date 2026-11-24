@@ -117,7 +117,7 @@ public static partial class PatchBuilder
                 {
                     chunks.Add((start, length));
                     start = i + 1;
-                    h     = 0;
+                    h = 0;
                 }
             }
 

@@ -174,7 +174,7 @@ public static partial class PatchBuilder
         {
             manifest.Outputs.Add(new OutputFile
             {
-                Path       = target.relative, Size         = target.size, Sha256 = target.Hash, Component = target.component,
+                Path = target.relative, Size = target.size, Sha256 = target.Hash, Component = target.component,
                 Executable = IsExecutable(target), Recipes = [..recipes[target].Select(r => r.Recipe)]
             });
         }
@@ -183,9 +183,9 @@ public static partial class PatchBuilder
         [
             ..Components.Select((c, i) => new Component
             {
-                Name        = c.Name,
-                Requires    = c.Requires,
-                Remove      = RemovedStockFiles(sources, targetFiles, i),
+                Name = c.Name,
+                Requires = c.Requires,
+                Remove = RemovedStockFiles(sources, targetFiles, i),
                 Directories = [..emptyDirectories.Where(d => ComponentOf(d + "/") == i)]
             })
         ];
@@ -467,8 +467,6 @@ public static partial class PatchBuilder
         }
     }
 
-
-
     /// <summary>
     /// The stock window a target window is diffed against: same relative position, padded a quarter chunk each side.
     /// </summary>
@@ -500,7 +498,7 @@ public static partial class PatchBuilder
         // Sorting is limited by memory bandwidth, so a job for every hardware thread sorts no faster than one per core
         // and holds twice the memory. Half the jobs is the closest to that the runtime can tell.
         ParallelOptions windowOptions = new() { MaxDegreeOfParallelism = Math.Max(1, jobs / 2) };
-        ParallelOptions gapOptions = new() { MaxDegreeOfParallelism    = jobs };
+        ParallelOptions gapOptions = new() { MaxDegreeOfParallelism = jobs };
 
         // Unbuffered, so that workers take the largest windows first rather than ranges of the list.
         Parallel.ForEach(Partitioner.Create(ordered, EnumerablePartitionerOptions.NoBuffering), windowOptions, job =>
@@ -652,7 +650,7 @@ public static partial class PatchBuilder
             foreach (PlannedRecipe planned in recipes.Where(r => r.SectionName == name && r.Recipe.ArchiveBytes > 0))
             {
                 planned.Recipe.Section = index;
-                planned.Recipe.Offset  = stream.Position;
+                planned.Recipe.Offset = stream.Position;
                 WriteBlobs(planned.PlannedOutput, stream, buffer);
             }
 

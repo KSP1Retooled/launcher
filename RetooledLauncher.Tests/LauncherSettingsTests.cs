@@ -12,14 +12,11 @@ public sealed class LauncherSettingsTests : IDisposable
     public void Dispose() => File.Delete(this.file);
 
     [Fact]
-    public void OffersTheDefaultChannelFirstAndOnlyOnce() =>
-        Assert.Equal(
-                     [LauncherInfo.DEFAULT_REPOSITORY, LauncherInfo.DEBUG_CHANNEL, LauncherInfo.EXPERIMENTAL_CHANNEL, "a/b"],
-                     new LauncherSettings
-                     {
-                         Channels = ["a/b", "A/B", LauncherInfo.DEFAULT_REPOSITORY]
-                     }.AllChannels
-                    );
+    public void OffersTheDefaultChannelFirstAndOnlyOnce() => Assert.Equal([LauncherInfo.DEFAULT_REPOSITORY, LauncherInfo.DEBUG_CHANNEL, LauncherInfo.EXPERIMENTAL_CHANNEL, "a/b"],
+                                                                          new LauncherSettings
+                                                                          {
+                                                                              Channels = ["a/b", "A/B", LauncherInfo.DEFAULT_REPOSITORY]
+                                                                          }.AllChannels);
 
     [Fact]
     public void ThePreferredMirrorIsSavedByName()
@@ -35,10 +32,8 @@ public sealed class LauncherSettingsTests : IDisposable
     public void TheLaunchArgumentsAreSaved()
     {
         new LauncherSettings { LaunchArguments = "-popupwindow -logFile \"my log.txt\"" }.Save(this.file);
-        Assert.Equal(
-                     "-popupwindow -logFile \"my log.txt\"",
-                     LauncherSettings.Load(this.file).LaunchArguments
-                    );
+        Assert.Equal("-popupwindow -logFile \"my log.txt\"",
+                     LauncherSettings.Load(this.file).LaunchArguments);
 
         File.WriteAllText(this.file, "{}");
         Assert.Null(LauncherSettings.Load(this.file).LaunchArguments);
@@ -48,10 +43,8 @@ public sealed class LauncherSettingsTests : IDisposable
     public void ARepositoryFromBeforeChannelsIsStillOffered()
     {
         File.WriteAllText(this.file, """{ "repository": "o/r" }""");
-        Assert.Equal(
-                     [LauncherInfo.DEFAULT_REPOSITORY, LauncherInfo.DEBUG_CHANNEL, LauncherInfo.EXPERIMENTAL_CHANNEL, "o/r"],
-                     LauncherSettings.Load(this.file).AllChannels
-                    );
+        Assert.Equal([LauncherInfo.DEFAULT_REPOSITORY, LauncherInfo.DEBUG_CHANNEL, LauncherInfo.EXPERIMENTAL_CHANNEL, "o/r"],
+                     LauncherSettings.Load(this.file).AllChannels);
     }
 
     [Fact]

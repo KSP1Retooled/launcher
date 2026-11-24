@@ -43,7 +43,7 @@ public static class GameStarter
                 : new ProcessStartInfo(player, args);
 
         start.WorkingDirectory = install;
-        start.UseShellExecute  = false;
+        start.UseShellExecute = false;
         return start;
     }
 
@@ -61,7 +61,7 @@ public static class GameStarter
         {
             if (c is '"')
             {
-                quoted  = !quoted;
+                quoted = !quoted;
                 started = true;
             }
             else if (char.IsWhiteSpace(c) && !quoted)

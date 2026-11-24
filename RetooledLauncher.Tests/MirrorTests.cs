@@ -27,17 +27,14 @@ public sealed class MirrorTests
                                          """;
 
     [Theory, InlineData("KSP1Retooled/retooled", "ksp1retooled/retooled"), InlineData("ksp1retooled/RETOOLED", "ksp1retooled/retooled"), InlineData("o/r", null)]
-    public void OnlyTheDEFAULT_REPOSITORYHasAMirror(string repository, string? mirror) =>
-        Assert.Equal(mirror, LauncherInfo.MirrorOf(repository));
+    public void OnlyTheDEFAULT_REPOSITORYHasAMirror(string repository, string? mirror) => Assert.Equal(mirror, LauncherInfo.MirrorOf(repository));
 
     [Fact]
     public void AChannelWithoutAMirrorIsListedFromGitHubAlone()
     {
         HttpClient client = new(new FakeHttp());
         Assert.IsType<GitHubReleaseSource>(MirroredReleaseSource.For(client, "o/r"));
-        Assert.IsType<MirroredReleaseSource>(
-                                             MirroredReleaseSource.For(client, LauncherInfo.DEBUG_CHANNEL)
-                                            );
+        Assert.IsType<MirroredReleaseSource>(MirroredReleaseSource.For(client, LauncherInfo.DEBUG_CHANNEL));
     }
 
     [Fact]
@@ -46,13 +43,9 @@ public sealed class MirrorTests
         FakeHttp http = new();
         http.Json(GIT_CODE_LIST, GIT_CODE_JSON);
 
-        Release release = Assert.Single(
-                                        await new GitCodeReleaseSource(
-                                                                       new HttpClient(http),
+        Release release = Assert.Single(await new GitCodeReleaseSource(new HttpClient(http),
                                                                        LauncherInfo.DEBUG_CHANNEL,
-                                                                       LauncherInfo.DEFAULT_MIRROR
-                                                                      ).GetReleasesAsync()
-                                       );
+                                                                       LauncherInfo.DEFAULT_MIRROR).GetReleasesAsync());
 
         Assert.Equal(LauncherInfo.DEBUG_CHANNEL, release.Channel);
         Assert.True(release.Prerelease);
@@ -104,8 +97,7 @@ public sealed class MirrorTests
         LauncherException error = await Assert.ThrowsAsync<LauncherException>(() =>
                                                                                   MirroredReleaseSource
                                                                                      .For(new HttpClient(http), LauncherInfo.DEFAULT_REPOSITORY)
-                                                                                     .GetReleasesAsync()
-                                                                             );
+                                                                                     .GetReleasesAsync());
 
         Assert.Contains("no route to host", error.Message);
         Assert.Contains("gitcode.com/ksp1retooled/retooled", error.Message);
@@ -154,13 +146,11 @@ public sealed class MirrorTests
 
         Release release = new("v1", string.Empty, false, default, string.Empty, string.Empty, [asset]);
 
-        Assert.Equal(
-                     [
+        Assert.Equal([
                          "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
                          "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch"
                      ],
-                     source.AssetRequests(release, asset).Select(r => r.RequestUri!.ToString())
-                    );
+                     source.AssetRequests(release, asset).Select(r => r.RequestUri!.ToString()));
     }
 
     [Fact]
@@ -180,8 +170,7 @@ public sealed class MirrorTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                                                                     MirroredReleaseSource
                                                                        .For(new HttpClient(http), LauncherInfo.DEFAULT_REPOSITORY)
-                                                                       .GetReleasesAsync(cancel.Token)
-                                                               );
+                                                                       .GetReleasesAsync(cancel.Token));
 
         Assert.Single(http.requests);
     }

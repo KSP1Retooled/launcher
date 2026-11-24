@@ -25,12 +25,11 @@ public sealed class SavesBackupRecord
     /// <summary>
     /// The version of <paramref name="info"/>'s saves: what is installed before anything changes.
     /// </summary>
-    public static SavesBackupRecord For(InstallInfo info) =>
-        info.Status == InstallStatus.STOCK
-            ? new SavesBackupRecord { Version = SavesBackup.STOCK_VERSION, Stock = true }
-            : new SavesBackupRecord
-            {
-                Version = info.Release?.Tag ?? string.Empty,
-                Channel = info.Release?.Channel
-            };
+    public static SavesBackupRecord For(InstallInfo info) => info.Status == InstallStatus.STOCK
+                                                                 ? new SavesBackupRecord { Version = SavesBackup.STOCK_VERSION, Stock = true }
+                                                                 : new SavesBackupRecord
+                                                                 {
+                                                                     Version = info.Release?.Tag ?? string.Empty,
+                                                                     Channel = info.Release?.Channel
+                                                                 };
 }

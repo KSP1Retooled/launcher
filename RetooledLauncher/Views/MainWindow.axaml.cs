@@ -20,7 +20,7 @@ public sealed partial class MainWindow : Window, IDialogs
         AvaloniaXamlLoader.Load(this);
         this.FindControl<MarkdownScrollViewer>("NotesView")!.Plugins = new MdAvPlugins
         {
-            PathResolver     = new NoImages(),
+            PathResolver = new NoImages(),
             HyperlinkCommand = new AsyncRelayCommand<string>(url => Release.IsWebLink(url) ? OpenUrlAsync(url!) : Task.CompletedTask)
         };
     }
@@ -35,8 +35,8 @@ public sealed partial class MainWindow : Window, IDialogs
     {
         IReadOnlyList<IStorageFile> files = await this.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title          = title,
-            AllowMultiple  = false,
+            Title = title,
+            AllowMultiple = false,
             FileTypeFilter = [new FilePickerFileType("KSP game") { Patterns = players }]
         });
 
@@ -47,7 +47,7 @@ public sealed partial class MainWindow : Window, IDialogs
     {
         IReadOnlyList<IStorageFile> files = await this.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title         = title,
+            Title = title,
             AllowMultiple = false,
             FileTypeFilter =
             [
@@ -76,7 +76,7 @@ public sealed partial class MainWindow : Window, IDialogs
 
     public async Task<bool> OpenUrlAsync(string url) => Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) && await this.Launcher.LaunchUriAsync(uri);
 
-    public async Task<bool> ShowSettingsAsync(ViewModels.SettingsViewModel settings) => await new SettingsWindow { DataContext = settings }.ShowDialog<bool>(this);
+    public async Task<bool> ShowSettingsAsync(SettingsViewModel settings) => await new SettingsWindow { DataContext = settings }.ShowDialog<bool>(this);
 
     /// <summary>
     /// A small modal message box, with <paramref name="input"/> under the message: true when <paramref name="accept"/>
@@ -90,25 +90,25 @@ public sealed partial class MainWindow : Window, IDialogs
     {
         Window dialog = new()
         {
-            Title                 = title,
-            Width                 = 460,
-            SizeToContent         = SizeToContent.Height,
-            CanResize             = false,
+            Title = title,
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
 
         StackPanel buttons = new()
         {
-            Orientation         = Orientation.Horizontal,
-            Spacing             = 8,
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Right
         };
 
         Button ok = new()
         {
-            Content   = accept,
+            Content = accept,
             IsDefault = true,
-            Classes   = { "accent" }
+            Classes = { "accent" }
         };
 
         ok.Click += (_, _) => dialog.Close(true);
@@ -122,13 +122,13 @@ public sealed partial class MainWindow : Window, IDialogs
         buttons.Children.Add(ok);
         StackPanel content = new()
         {
-            Margin  = new Thickness(20),
+            Margin = new Thickness(20),
             Spacing = 16,
             Children =
             {
                 new SelectableTextBlock
                 {
-                    Text         = message,
+                    Text = message,
                     TextWrapping = TextWrapping.Wrap
                 },
                 buttons

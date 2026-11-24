@@ -79,22 +79,20 @@ public sealed class GitCodeReleaseSource(HttpClient http, string channel, string
         return request;
     }
 
-    private Release Convert(GitCodeRelease r) =>
-        new(r.TagName,
-            r.Name ?? string.Empty,
-            r.Prerelease,
-            r.CreatedAt ?? DateTimeOffset.MinValue,
-            r.Body ?? string.Empty,
-            $"https://gitcode.com/{this.Repository}/releases/{Uri.EscapeDataString(r.TagName)}",
-            [
-                ..(r.Assets ?? [])
-                  // the rest are archives of the source that GitCode adds to every release
-                 .Where(a => a.Type is "attach")
-                 .Select(a => new ReleaseAsset(a.Name,
-                                               a.Size ?? 0,
-                                               a.BrowserDownloadUrl,
-                                               a.BrowserDownloadUrl,
-                                               GitHubReleaseSource.Sha256(a.Digest)))
-            ]
-           );
+    private Release Convert(GitCodeRelease r) => new(r.TagName,
+                                                     r.Name ?? string.Empty,
+                                                     r.Prerelease,
+                                                     r.CreatedAt ?? DateTimeOffset.MinValue,
+                                                     r.Body ?? string.Empty,
+                                                     $"https://gitcode.com/{this.Repository}/releases/{Uri.EscapeDataString(r.TagName)}",
+                                                     [
+                                                         ..(r.Assets ?? [])
+                                                           // the rest are archives of the source that GitCode adds to every release
+                                                          .Where(a => a.Type is "attach")
+                                                          .Select(a => new ReleaseAsset(a.Name,
+                                                                                        a.Size ?? 0,
+                                                                                        a.BrowserDownloadUrl,
+                                                                                        a.BrowserDownloadUrl,
+                                                                                        GitHubReleaseSource.Sha256(a.Digest)))
+                                                     ]);
 }

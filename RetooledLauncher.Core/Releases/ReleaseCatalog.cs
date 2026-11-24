@@ -106,8 +106,7 @@ public sealed class ReleaseCatalog(IEnumerable<Release> releases, bool versioned
         return this.All.FirstOrDefault(r =>
                                            (prereleases || !r.Prerelease)
                                         && ReleaseVersion.TryParse(r.Tag, out ReleaseVersion v)
-                                        && v.CompareTo(current) > 0
-                                      );
+                                        && v.CompareTo(current) > 0);
     }
 
     /// <param name="target">The release to install</param>
