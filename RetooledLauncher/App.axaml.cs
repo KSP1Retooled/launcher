@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using KSP.Retooled.Launcher.Settings;
 
 namespace KSP.Retooled.Launcher.App;
 
@@ -12,8 +13,8 @@ public sealed class App : Application
     {
         if (this.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            MainWindow window = new();
-            MainViewModel model = new(LauncherSettings.Load(), window);
+            Views.MainWindow window = new();
+            ViewModels.MainViewModel model = new(LauncherSettings.Load(), window);
             window.DataContext =  model;
             desktop.MainWindow =  window;
             window.Opened      += async (_, _) => await model.StartAsync();

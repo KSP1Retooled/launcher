@@ -1,42 +1,17 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using KSP.Retooled.Launcher.Exceptions;
 using KSP.Retooled.Launcher.Installs;
+using KSP.Retooled.Launcher.Installs.Saves;
 using KSP.Retooled.Launcher.Releases;
+using KSP.Retooled.Launcher.Tests.Mocking;
+using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch;
-using KSP.Retooled.Patch.Build;
+using KSP.Retooled.Patch.Models.Journal;
+using KSP.Retooled.Patch.Patcher;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
-
-/// <summary>
-/// Serves patch files built by the test, by tag.
-/// </summary>
-internal sealed class FakePatches : IPatchProvider
-{
-    public readonly Dictionary<string, string> files = [];
-    public readonly List<string> kept = [];
-
-    public Task<string> GetPatchAsync(
-        Release release,
-        string platform,
-        IProgress<LauncherProgress>? progress,
-        CancellationToken cancellation
-    ) => this.files.TryGetValue(release.Tag, out string? path)
-             ? Task.FromResult(path)
-             : throw new LauncherException($"no patch for {release.Tag}");
-
-    public Task<string> ImportAsync(
-        string file,
-        IProgress<LauncherProgress>? progress,
-        CancellationToken cancellation
-    ) => Task.FromResult(file);
-
-    public void Prune(IEnumerable<string> keep)
-    {
-        this.kept.Clear();
-        this.kept.AddRange(keep);
-    }
-}
 
 /// <summary>
 /// A stock install and two Retooled builds of it, turned into real patch files, driven through install, upgrade,

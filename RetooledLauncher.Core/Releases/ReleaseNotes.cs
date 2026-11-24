@@ -65,17 +65,15 @@ public static partial class ReleaseNotes
     /// Everything a URL can appear in, earliest first, so that code and links match before the URLs in them.
     /// </summary>
     /// TODO csavard: fix this ungodly abomination that apprently breaks the regex generation limit
-    [GeneratedRegex(
-                       """
-                       ^[ ]{0,3}(?<fence>`{3,}|~{3,})[\s\S]*?(?:^[ ]{0,3}\k<fence>|\z)  # fenced code
-                       | ^(?:[ ]{4}|\t).*$                                              # indented code
-                       | ^[ ]{0,3}\[[^\]\n]+\]:.*$                                      # link reference definition
-                       | (?<!`)(?<ticks>`+)(?!`).+?(?<!`)\k<ticks>(?!`)                 # code span
-                       | !?\[(?:[^\[\]\n]|\[[^\]\n]*\](?:\([^)\n]*\))?)*\]\([^\n]*?\)   # link or image, perhaps of an image
-                       | <(?<autolink>https?://[^\s<>]+)>
-                       | (?<![\w/:.@+-])(?<bare>https?://[^\s<>\[\]`]+)
-                       """,
-                       RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace
-                   )]
+    [GeneratedRegex("""
+                    ^[ ]{0,3}(?<fence>`{3,}|~{3,})[\s\S]*?(?:^[ ]{0,3}\k<fence>|\z)  # fenced code
+                    | ^(?:[ ]{4}|\t).*$                                              # indented code
+                    | ^[ ]{0,3}\[[^\]\n]+\]:.*$                                      # link reference definition
+                    | (?<!`)(?<ticks>`+)(?!`).+?(?<!`)\k<ticks>(?!`)                 # code span
+                    | !?\[(?:[^\[\]\n]|\[[^\]\n]*\](?:\([^)\n]*\))?)*\]\([^\n]*?\)   # link or image, perhaps of an image
+                    | <(?<autolink>https?://[^\s<>]+)>
+                    | (?<![\w/:.@+-])(?<bare>https?://[^\s<>\[\]`]+)
+                    """,
+                    RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace)]
     private static partial Regex Markup();
 }

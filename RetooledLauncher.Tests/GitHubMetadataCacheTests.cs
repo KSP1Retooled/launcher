@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
+using KSP.Retooled.Launcher.Exceptions;
 using KSP.Retooled.Launcher.Releases;
+using KSP.Retooled.Launcher.Releases.GitHub;
+using KSP.Retooled.Launcher.Tests.Mocking;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
