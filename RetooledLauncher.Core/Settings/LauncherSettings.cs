@@ -1,7 +1,20 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using KSP.Retooled.Launcher.Utils;
 
-namespace KSP.Retooled.Launcher;
+namespace KSP.Retooled.Launcher.Settings;
+
+/// <summary>
+/// The hosts that carry the default channel's releases.
+/// </summary>
+public enum ReleaseMirror
+{
+    // TODO csavard: proper json converter for these enums
+    // ReSharper disable InconsistentNaming
+    GitHub,
+    GitCode
+    // ReSharper restore InconsistentNaming
+}
 
 /// <summary>
 /// The launcher's choices, in <c>settings.json</c> under <see cref="LauncherInfo.DataDirectory"/>.
@@ -32,7 +45,7 @@ public sealed class LauncherSettings
 
     /// <summary>
     /// The command line arguments the game is started with, as the user typed them, or null for none. See
-    /// <see cref="Installs.GameStarter.SplitArguments"/>.
+    /// <see cref="GameStarter.SplitArguments"/>.
     /// </summary>
     public string? LaunchArguments { get; set; }
 
@@ -58,10 +71,8 @@ public sealed class LauncherSettings
         {
             if (File.Exists(file))
             {
-                return JsonSerializer.Deserialize(
-                                                  File.ReadAllBytes(file),
-                                                  SettingsJson.Default.LauncherSettings
-                                                 ) ?? new LauncherSettings();
+                return JsonSerializer.Deserialize(File.ReadAllBytes(file), SettingsJsonContext.Default.LauncherSettings)
+                    ?? new LauncherSettings();
             }
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException) { }
@@ -73,23 +84,7 @@ public sealed class LauncherSettings
     {
         file ??= DefaultFile;
         Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-        File.WriteAllBytes($"{file}.tmp", JsonSerializer.SerializeToUtf8Bytes(this, SettingsJson.Default.LauncherSettings));
+        File.WriteAllBytes($"{file}.tmp", JsonSerializer.SerializeToUtf8Bytes(this, SettingsJsonContext.Default.LauncherSettings));
         File.Move(file + ".tmp", file, true);
     }
 }
-
-/// <summary>
-/// The hosts that carry the default channel's releases.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ReleaseMirror>))]
-public enum ReleaseMirror
-{
-    // TODO csavard: proper json converter for these enums
-    // ReSharper disable InconsistentNaming
-    GitHub,
-    GitCode
-    // ReSharper restore InconsistentNaming
-}
-
-[JsonSerializable(typeof(LauncherSettings)), JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
-internal sealed partial class SettingsJson : JsonSerializerContext;

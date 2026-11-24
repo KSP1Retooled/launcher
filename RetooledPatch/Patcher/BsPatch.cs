@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Numerics;
 
-namespace KSP.Retooled.Patch.Utils;
+namespace KSP.Retooled.Patch.Patcher;
 
 /// <summary>
 /// Applies a raw bsdiff patch (Colin Percival's algorithm, BSD-2-Clause; see THIRD_PARTY_NOTICES.md). The layout is

@@ -1,8 +1,10 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Releases.GitHub;
+using KSP.Retooled.Launcher.Utils;
 
-namespace KSP.Retooled.Launcher.Releases;
+namespace KSP.Retooled.Launcher.Releases.GitCode;
 
 /// <summary>
 /// Lists the releases of a GitCode (gitcode.com) repository that mirrors a GitHub one. Its API answers anonymously in
@@ -39,7 +41,7 @@ public sealed class GitCodeReleaseSource(HttpClient http, string channel, string
                                            .Content.ReadAsStreamAsync(cancellation)
                                            .ConfigureAwait(false);
 
-            List<GitCodeRelease> items = await JsonSerializer.DeserializeAsync(body, GitCodeJson.Default.ListGitCodeRelease, cancellation)
+            List<GitCodeRelease> items = await JsonSerializer.DeserializeAsync(body, GitCodeJsonContext.Default.ListGitCodeRelease, cancellation)
                                                              .ConfigureAwait(false) ?? [];
 
             releases.AddRange(items.Select(r => Convert(r) with { Channel = channel }));
@@ -96,45 +98,3 @@ public sealed class GitCodeReleaseSource(HttpClient http, string channel, string
             ]
            );
 }
-
-internal sealed class GitCodeRelease
-{
-    [JsonPropertyName("tag_name")]
-    public string TagName { get; set; } = string.Empty;
-
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
-
-    [JsonPropertyName("prerelease")]
-    public bool Prerelease { get; set; }
-
-    [JsonPropertyName("created_at")]
-    public DateTimeOffset? CreatedAt { get; set; }
-
-    [JsonPropertyName("body")]
-    public string? Body { get; set; }
-
-    [JsonPropertyName("assets")]
-    public List<GitCodeAsset>? Assets { get; set; }
-}
-
-internal sealed class GitCodeAsset
-{
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    [JsonPropertyName("type")]
-    public string? Type { get; set; }
-
-    [JsonPropertyName("size")]
-    public long? Size { get; set; }
-
-    [JsonPropertyName("browser_download_url")]
-    public string BrowserDownloadUrl { get; set; } = string.Empty;
-
-    [JsonPropertyName("digest")]
-    public string? Digest { get; set; }
-}
-
-[JsonSerializable(typeof(List<GitCodeRelease>))]
-internal sealed partial class GitCodeJson : JsonSerializerContext;

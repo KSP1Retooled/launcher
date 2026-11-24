@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using KSP.Retooled.Patch.Patcher;
 
 namespace KSP.Retooled.Patch.Utils;
 

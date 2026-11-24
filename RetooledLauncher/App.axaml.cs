@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using KSP.Retooled.Launcher.Settings;
 
 namespace KSP.Retooled.Launcher.App;
 

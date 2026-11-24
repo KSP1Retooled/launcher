@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using KSP.Retooled.Launcher.Releases;
+using KSP.Retooled.Launcher.Utils;
 using Velopack;
 using Velopack.Sources;
 

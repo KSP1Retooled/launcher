@@ -1,33 +1,9 @@
 using System.Security.Cryptography;
+using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Releases;
+using KSP.Retooled.Launcher.Utils;
 
-namespace KSP.Retooled.Launcher.Releases;
-
-/// <summary>
-/// Where the launcher gets a release's patch file from.
-/// </summary>
-public interface IPatchProvider
-{
-    /// <summary>
-    /// A local path to <paramref name="release"/>'s patch for <paramref name="platform"/>, downloading it if needed.
-    /// </summary>
-    Task<string> GetPatchAsync(Release release,
-                               string platform,
-                               IProgress<LauncherProgress>? progress,
-                               CancellationToken cancellation);
-
-    /// <summary>
-    /// A path to a copy of the patch file <paramref name="file"/> that outlives the original, so it is still there to
-    /// roll back to when the user has moved or rebuilt it.
-    /// </summary>
-    Task<string> ImportAsync(string file,
-                             IProgress<LauncherProgress>? progress,
-                             CancellationToken cancellation);
-
-    /// <summary>
-    /// Drops every cached patch but the files in <paramref name="keep"/>, paths this provider returned.
-    /// </summary>
-    void Prune(IEnumerable<string> keep);
-}
+namespace KSP.Retooled.Launcher.Patches;
 
 /// <summary>
 /// Downloads patch files into <c>&lt;cache&gt;/&lt;channel&gt;@&lt;tag&gt;@&lt;sha256 prefix&gt;/</c> and keeps them,
@@ -41,8 +17,7 @@ public interface IPatchProvider
 /// <c>&lt;cache&gt;/local@&lt;sha256&gt;/</c>: by content, because a rebuilt
 /// file of the same name must not overwrite the copy of the installed one.
 /// </summary>
-public sealed class PatchCache(HttpClient http, IReleaseSource source, string directory)
-    : IPatchProvider
+public sealed class PatchCache(HttpClient http, IReleaseSource source, string directory) : IPatchProvider
 {
     public string Directory { get; } = directory;
 

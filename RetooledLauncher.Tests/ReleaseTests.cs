@@ -1,4 +1,5 @@
 using KSP.Retooled.Launcher.Releases;
+using KSP.Retooled.Launcher.Utils;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;

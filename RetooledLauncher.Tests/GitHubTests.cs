@@ -2,9 +2,16 @@ using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using KSP.Retooled.Launcher.Exceptions;
 using KSP.Retooled.Launcher.Installs;
+using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
+using KSP.Retooled.Launcher.Releases.GitCode;
+using KSP.Retooled.Launcher.Releases.GitHub;
+using KSP.Retooled.Launcher.Settings;
+using KSP.Retooled.Launcher.Utils;
 using Xunit;
+using InstallLocator = KSP.Retooled.Launcher.Installs.InstallLocator;
 
 namespace KSP.Retooled.Launcher.Tests;
 

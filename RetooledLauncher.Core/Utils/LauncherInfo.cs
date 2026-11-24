@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace KSP.Retooled.Launcher;
+namespace KSP.Retooled.Launcher.Utils;
 
 public static class LauncherInfo
 {
@@ -90,8 +90,3 @@ public static class LauncherInfo
                                                              ? DEFAULT_MIRROR
                                                              : null;
 }
-
-/// <summary>
-/// A failure to show the user as is.
-/// </summary>
-public sealed class LauncherException(string message, Exception? inner = null) : Exception(message, inner);

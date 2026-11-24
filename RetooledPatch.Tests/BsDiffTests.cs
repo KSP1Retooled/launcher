@@ -1,4 +1,5 @@
-﻿using KSP.Retooled.Patch.Utils;
+﻿using KSP.Retooled.Patch.Patcher;
+using KSP.Retooled.Patch.Utils;
 using Xunit;
 using ZstdSharp;
 

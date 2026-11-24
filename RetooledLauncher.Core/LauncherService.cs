@@ -1,18 +1,14 @@
+using KSP.Retooled.Launcher.Exceptions;
 using KSP.Retooled.Launcher.Installs;
+using KSP.Retooled.Launcher.Installs.Saves;
+using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
+using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch.Exceptions;
 using KSP.Retooled.Patch.Models.Journal;
 using KSP.Retooled.Patch.Patcher;
 
 namespace KSP.Retooled.Launcher;
-
-/// <summary>
-/// What the launcher is doing: <see cref="Done"/> of <see cref="Total"/> (0 when unknown) in <see cref="Stage"/>.
-/// </summary>
-public readonly record struct LauncherProgress(string Stage, long Done = 0, long Total = 0)
-{
-    public double? Fraction => this.Total > 0 ? Math.Clamp((double)this.Done / this.Total, 0, 1) : null;
-}
 
 /// <summary>
 /// Installs, changes and removes KSP Retooled on a KSP install. Patches are built against stock, so moving between

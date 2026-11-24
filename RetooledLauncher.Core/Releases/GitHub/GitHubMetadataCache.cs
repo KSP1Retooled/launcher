@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace KSP.Retooled.Launcher.Releases;
+namespace KSP.Retooled.Launcher.Releases.GitHub;
 
 /// <summary>
 /// Shares release metadata across channels. Only anonymous metadata is persisted.
@@ -25,13 +25,13 @@ public sealed class GitHubMetadataCache(string? directory = null, TimeProvider? 
 
     internal Scope ForToken(string? token) => this.scopes.GetOrAdd(token ?? string.Empty, _ => new Scope());
 
-    internal Metadata Load(string repository, bool anonymous)
+    internal GitHubMetadata Load(string repository, bool anonymous)
     {
-        if (directory is null || !anonymous) return new Metadata();
+        if (directory is null || !anonymous) return new GitHubMetadata();
 
         try
         {
-            Metadata? stored = JsonSerializer.Deserialize(File.ReadAllText(PathFor(repository)), GitHubJson.Default.Metadata);
+            GitHubMetadata? stored = JsonSerializer.Deserialize(File.ReadAllText(PathFor(repository)), GitHubJsonContext.Default.GitHubMetadata);
             if (stored?.Pages is not null
              && stored.Pages.Values.All(p => p?.Items is not null && p.Items.All(r => r is not null)))
             {
@@ -40,10 +40,10 @@ public sealed class GitHubMetadataCache(string? directory = null, TimeProvider? 
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { }
 
-        return new Metadata();
+        return new GitHubMetadata();
     }
 
-    internal void Save(string repository, bool anonymous, Metadata metadata)
+    internal void Save(string repository, bool anonymous, GitHubMetadata gitHubMetadata)
     {
         if (directory is null || !anonymous)
         {
@@ -55,7 +55,7 @@ public sealed class GitHubMetadataCache(string? directory = null, TimeProvider? 
         try
         {
             Directory.CreateDirectory(directory);
-            File.WriteAllText(partial, JsonSerializer.Serialize(metadata, GitHubJson.Default.Metadata));
+            File.WriteAllText(partial, JsonSerializer.Serialize(gitHubMetadata, GitHubJsonContext.Default.GitHubMetadata));
             File.Move(partial, path, true);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
@@ -75,23 +75,7 @@ public sealed class GitHubMetadataCache(string? directory = null, TimeProvider? 
     internal sealed class Scope
     {
         public readonly SemaphoreSlim gate = new(1);
-        public readonly Dictionary<string, Metadata> repositories = new(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, GitHubMetadata> repositories = new(StringComparer.OrdinalIgnoreCase);
         public DateTimeOffset retryAt;
     }
-}
-
-internal sealed class Metadata
-{
-    public DateTimeOffset CheckedAt { get; set; }
-
-    public Dictionary<string, MetadataPage?> Pages { get; set; } = [];
-}
-
-internal sealed class MetadataPage
-{
-    public string? ETag { get; set; }
-
-    public string? Next { get; set; }
-
-    public List<GitHubRelease?> Items { get; set; } = [];
 }

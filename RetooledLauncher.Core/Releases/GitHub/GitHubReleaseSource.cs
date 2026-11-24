@@ -1,30 +1,17 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Utils;
 
-namespace KSP.Retooled.Launcher.Releases;
-
-public interface IReleaseSource
-{
-    Task<IReadOnlyList<Release>> GetReleasesAsync(CancellationToken cancellation = default);
-
-    /// <summary>
-    /// Requests for <paramref name="asset"/> of <paramref name="release"/>, which this source listed, to try in turn.
-    /// </summary>
-    IEnumerable<HttpRequestMessage> AssetRequests(Release release, ReleaseAsset asset);
-}
+namespace KSP.Retooled.Launcher.Releases.GitHub;
 
 /// <summary>
 /// Lists a GitHub repository's published releases (drafts are dropped) through the REST API, following pagination.
 /// A token (e.g. <c>GITHUB_TOKEN</c>) is only needed for a private repository or to lift the anonymous rate limit.
 /// </summary>
-/// <param name="channel">A repository, with <see cref="LauncherInfo.DebugSuffix"/> for its debug patches.</param>
-public sealed class GitHubReleaseSource(HttpClient http,
-                                        string channel,
-                                        string? token = null,
-                                        GitHubMetadataCache? cache = null)
-    : IReleaseSource
+/// <param name="channel">A repository, with <see cref="LauncherInfo.DEBUG_SUFFIX"/> for its debug patches.</param>
+public sealed class GitHubReleaseSource(HttpClient http, string channel, string? token = null, GitHubMetadataCache? cache = null) : IReleaseSource
 {
     private const int MAX_PAGES = 10;
     private readonly GitHubMetadataCache metadata = cache ?? GitHubMetadataCache.For(http);
@@ -43,7 +30,7 @@ public sealed class GitHubReleaseSource(HttpClient http,
         await scope.gate.WaitAsync(cancellation).ConfigureAwait(false);
         try
         {
-            if (!scope.repositories.TryGetValue(this.Repository, out Metadata? stored))
+            if (!scope.repositories.TryGetValue(this.Repository, out GitHubMetadata? stored))
             {
                 scope.repositories[this.Repository] = stored = this.metadata.Load(this.Repository, string.IsNullOrEmpty(token)
                                                                                  );
@@ -64,7 +51,7 @@ public sealed class GitHubReleaseSource(HttpClient http,
                 throw new LauncherException($"GitHub's rate limit was reached; try again after {scope.retryAt:u}");
             }
 
-            Metadata updated = new();
+            GitHubMetadata updated = new();
             string? url = $"https://api.github.com/repos/{this.Repository}/releases?per_page=100";
             for (int page = 0; url is not null && page < MAX_PAGES; page++)
             {
@@ -77,7 +64,7 @@ public sealed class GitHubReleaseSource(HttpClient http,
                     throw new LauncherException("GitHub returned an invalid pagination URL");
                 }
 
-                stored.Pages.TryGetValue(url, out MetadataPage? previous);
+                stored.Pages.TryGetValue(url, out GitHubMetadataPage? previous);
                 using HttpRequestMessage request = Request(HttpMethod.Get, url, "application/vnd.github+json");
                 if (previous?.ETag is { } etag)
                 {
@@ -86,7 +73,7 @@ public sealed class GitHubReleaseSource(HttpClient http,
 
                 using HttpResponseMessage response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation).ConfigureAwait(false);
                 ObserveRateLimit(scope, response);
-                MetadataPage current;
+                GitHubMetadataPage current;
                 if (response.StatusCode == HttpStatusCode.NotModified && previous is not null)
                 {
                     current = previous;
@@ -99,11 +86,11 @@ public sealed class GitHubReleaseSource(HttpClient http,
                     }
 
                     await using Stream body = await response.Content.ReadAsStreamAsync(cancellation).ConfigureAwait(false);
-                    current = new MetadataPage
+                    current = new GitHubMetadataPage
                     {
                         ETag = response.Headers.ETag?.ToString(),
                         Next = NextPage(response),
-                        Items = await JsonSerializer.DeserializeAsync(body, GitHubJson.Default.ListGitHubRelease, cancellation)
+                        Items = await JsonSerializer.DeserializeAsync(body, GitHubJsonContext.Default.ListGitHubRelease, cancellation)
                                                     .ConfigureAwait(false) ?? []
                     };
                 }
@@ -132,7 +119,7 @@ public sealed class GitHubReleaseSource(HttpClient http,
         yield return AssetRequest(asset);
     }
 
-    private IReadOnlyList<Release> Releases(Metadata stored) =>
+    private IReadOnlyList<Release> Releases(GitHubMetadata stored) =>
     [
         // TODO csavard: handle possible nulls here
         ..stored.Pages.Values
@@ -274,54 +261,3 @@ public sealed class GitHubReleaseSource(HttpClient http,
             ? digest[7..].ToLowerInvariant()
             : null;
 }
-
-internal sealed class GitHubRelease
-{
-    [JsonPropertyName("tag_name")]
-    public string TagName { get; set; } = string.Empty;
-
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
-
-    [JsonPropertyName("draft")]
-    public bool Draft { get; set; }
-
-    [JsonPropertyName("prerelease")]
-    public bool Prerelease { get; set; }
-
-    [JsonPropertyName("created_at")]
-    public DateTimeOffset? CreatedAt { get; set; }
-
-    [JsonPropertyName("published_at")]
-    public DateTimeOffset? PublishedAt { get; set; }
-
-    [JsonPropertyName("body")]
-    public string? Body { get; set; }
-
-    [JsonPropertyName("html_url")]
-    public string? HtmlUrl { get; set; }
-
-    [JsonPropertyName("assets")]
-    public List<GitHubAsset>? Assets { get; set; }
-}
-
-internal sealed class GitHubAsset
-{
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    [JsonPropertyName("size")]
-    public long Size { get; set; }
-
-    [JsonPropertyName("url")]
-    public string Url { get; set; } = string.Empty;
-
-    [JsonPropertyName("browser_download_url")]
-    public string BrowserDownloadUrl { get; set; } = string.Empty;
-
-    [JsonPropertyName("digest")]
-    public string? Digest { get; set; }
-}
-
-[JsonSerializable(typeof(List<GitHubRelease>)), JsonSerializable(typeof(Metadata))]
-internal sealed partial class GitHubJson : JsonSerializerContext;

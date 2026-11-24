@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using KSP.Retooled.Launcher.Settings;
+using KSP.Retooled.Launcher.Utils;
 
 namespace KSP.Retooled.Launcher.App;
 

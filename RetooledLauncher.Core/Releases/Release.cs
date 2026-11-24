@@ -1,26 +1,12 @@
+using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch.Patcher;
 
 namespace KSP.Retooled.Launcher.Releases;
 
 /// <summary>
-/// A file attached to a release; <see cref="Sha256"/> is GitHub's asset digest when it has one.
-/// </summary>
-public sealed record ReleaseAsset(string Name,
-                                  long Size,
-                                  string DownloadUrl,
-                                  string ApiUrl,
-                                  string? Sha256);
-
-/// <summary>
 /// A published release of KSP Retooled. <see cref="Prerelease"/> is GitHub's flag, not a guess from the tag.
 /// </summary>
-public sealed record Release(string Tag,
-                             string Name,
-                             bool Prerelease,
-                             DateTimeOffset Published,
-                             string Notes,
-                             string PageUrl,
-                             IReadOnlyList<ReleaseAsset> Assets)
+public sealed record Release(string Tag, string Name, bool Prerelease, DateTimeOffset Published, string Notes, string PageUrl, IReadOnlyList<ReleaseAsset> Assets)
 {
     /// <summary>
     /// When the release was created, which orders the catalog; a draft is created before it is published.

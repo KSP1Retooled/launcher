@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Text;
+using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Installs;
 
-namespace KSP.Retooled.Launcher.Installs;
+namespace KSP.Retooled.Launcher.Utils;
 
 public static class GameStarter
 {

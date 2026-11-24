@@ -6,8 +6,13 @@ using System.Text.Json;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using KSP.Retooled.Launcher.Exceptions;
 using KSP.Retooled.Launcher.Installs;
+using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
+using KSP.Retooled.Launcher.Releases.GitHub;
+using KSP.Retooled.Launcher.Settings;
+using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch.Exceptions;
 
 namespace KSP.Retooled.Launcher.App;

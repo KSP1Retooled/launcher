@@ -1,7 +1,11 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using KSP.Retooled.Launcher.Exceptions;
 using KSP.Retooled.Launcher.Installs;
+using KSP.Retooled.Launcher.Installs.Saves;
+using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
+using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch;
 using KSP.Retooled.Patch.Models.Journal;
 using KSP.Retooled.Patch.Patcher;

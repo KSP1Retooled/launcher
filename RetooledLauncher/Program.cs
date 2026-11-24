@@ -1,4 +1,5 @@
 using Avalonia;
+using KSP.Retooled.Launcher.Utils;
 using Velopack;
 
 namespace KSP.Retooled.Launcher.App;
