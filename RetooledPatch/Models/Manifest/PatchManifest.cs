@@ -44,8 +44,8 @@ public sealed class PatchManifest
     /// </summary>
     public List<OutputFile> Outputs { get; set; } = [];
 
-    public byte[] ToJson() => JsonSerializer.SerializeToUtf8Bytes(this, ManifestJson.Default.PatchManifest);
+    public byte[] ToJson() => JsonSerializer.SerializeToUtf8Bytes(this, PatcherJsonContext.Default.PatchManifest);
 
-    public static PatchManifest FromJson(ReadOnlySpan<byte> json) => JsonSerializer.Deserialize(json, ManifestJson.Default.PatchManifest)
+    public static PatchManifest FromJson(ReadOnlySpan<byte> json) => JsonSerializer.Deserialize(json, PatcherJsonContext.Default.PatchManifest)
                                                                   ?? throw new InvalidDataException("empty manifest");
 }

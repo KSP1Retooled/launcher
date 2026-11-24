@@ -60,7 +60,7 @@ public sealed class InstallJournal
         string path = Path.Combine(install, FILE_NAME);
         if (!File.Exists(path)) return null;
 
-        return JsonSerializer.Deserialize(File.ReadAllBytes(path), ManifestJson.Default.InstallJournal)
+        return JsonSerializer.Deserialize(File.ReadAllBytes(path), PatcherJsonContext.Default.InstallJournal)
             ?? throw new InvalidDataException($"{path} is empty");
     }
 
@@ -68,7 +68,7 @@ public sealed class InstallJournal
     {
         string path = Path.Combine(install, FILE_NAME);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllBytes(path + ".tmp", JsonSerializer.SerializeToUtf8Bytes(this, ManifestJson.Default.InstallJournal));
+        File.WriteAllBytes(path + ".tmp", JsonSerializer.SerializeToUtf8Bytes(this, PatcherJsonContext.Default.InstallJournal));
         File.Move(path + ".tmp", path, true);
     }
 
