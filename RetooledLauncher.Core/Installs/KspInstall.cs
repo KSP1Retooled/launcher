@@ -16,11 +16,11 @@ public static class KspInstall
     /// </summary>
     public static string Player(Platform platform) => platform switch
     {
-        Platform.WINDOWS     => "KSP_x64.exe",
-        Platform.LINUX       => "KSP.x86_64",
-        Platform.MACOS       => "KSP.app",
-        Platform.UNSUPPORTED => throw new LauncherException($"Unsupported platform {platform.FastToString()}"),
-        _                    => throw new LauncherException($"Unsupported platform {platform.FastToString()}")
+        Platform.WINDOWS => "KSP_x64.exe",
+        Platform.LINUX   => "KSP.x86_64",
+        Platform.MACOS   => "KSP.app",
+        Platform.UNKNOWN => throw new LauncherException($"Unsupported platform {platform.FastToString()}"),
+        _                => throw new LauncherException($"Unsupported platform {platform.FastToString()}")
     };
 
     /// <summary>

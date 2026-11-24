@@ -11,7 +11,8 @@ namespace RetooledLauncher.Common;
 [PublicAPI]
 public enum Platform
 {
-    UNSUPPORTED,
+    [Label("Unknown", 1)]
+    UNKNOWN,
     [Label("windows")]
     [Label("Windows", 1)]
     WINDOWS,
@@ -48,7 +49,7 @@ public static class PlatformUtils
         }
         else
         {
-            CurrentPlatform = Platform.UNSUPPORTED;
+            CurrentPlatform = Platform.UNKNOWN;
         }
     }
 
@@ -78,12 +79,6 @@ public static class PlatformUtils
         /// <summary>
         /// Get the current platform being used
         /// </summary>
-        public string DisplayName => platform switch
-        {
-            Platform.WINDOWS => platform.GetLabel(1)!,
-            Platform.LINUX   => platform.GetLabel(1)!,
-            Platform.MACOS   => platform.GetLabel(1)!,
-            _                => "Unknown"
-        };
+        public string DisplayName => platform.GetLabel(1)!;
     }
 }

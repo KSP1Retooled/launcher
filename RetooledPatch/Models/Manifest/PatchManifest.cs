@@ -24,7 +24,7 @@ public sealed class PatchManifest
     /// <summary>
     /// <c>windows</c>, <c>linux</c> or <c>macos</c>: the player layout of the target build.
     /// </summary>
-    public Platform Platform { get; set; } = Platform.UNSUPPORTED;
+    public Platform Platform { get; set; } = Platform.UNKNOWN;
 
     /// <summary>
     /// Install-relative files and directories the patch knows nothing about: nothing in them is checked, read, replaced or

@@ -28,7 +28,7 @@ public sealed class InstallJournal
 
     public JournalState State { get; set; }
 
-    public Platform Platform { get; set; } = Platform.UNSUPPORTED;
+    public Platform Platform { get; set; } = Platform.UNKNOWN;
 
     /// <summary>
     /// The source install the apply matched, or null for a mix.
