@@ -15,8 +15,6 @@ using ZstdSharp;
 
 namespace KSP.Retooled.Patch;
 
-public sealed record BuildResult(PatchManifest Manifest, string Report);
-
 /// <summary>
 /// Builds one patch file that turns any of several stock installs into the same retooled build (thread #241). The
 /// first source is planned in full: an output is either identical to a stock file or a sequence of runs, copies of
@@ -115,7 +113,7 @@ public static partial class PatchBuilder
         List<string> emptyDirectories = [];
         List<FileEntry> targetFiles = Walk(targetPath, targetExcludes, emptyDirectories);
         string platform = o.Platform ?? DetectPlatform(targetPath);
-        List<SourceInstall> sources = LoadSources(o.Sources, excludes, log);
+        List<SourceInstall> sources = LoadSources(o.Sources, excludes);
         foreach (SourceInstall source in sources) CheckLayout(source, targetFiles, targetPath);
         log.WriteLine($"target {targetFiles.Count} files ({platform}); sources {string.Join(", ", sources.Select(s => $"{s.Id} ({s.Files.Count} files)"))}");
 
@@ -207,7 +205,7 @@ public static partial class PatchBuilder
         throw new PatchException($"{target} has no KSP player (KSP_x64.exe, KSP.x86_64 or KSP.app); pass the platform explicitly");
     }
 
-    private static List<SourceInstall> LoadSources(IReadOnlyList<BuildSource> sources, string[] excludes, TextWriter log)
+    private static List<SourceInstall> LoadSources(IReadOnlyList<BuildSource> sources, string[] excludes)
     {
         List<SourceInstall> loaded = [];
         foreach (BuildSource source in sources)
@@ -702,7 +700,7 @@ public static partial class PatchBuilder
 
         foreach (PlannedOutput plan in outputs.Where(p => p.same is null).OrderByDescending(p => p.segments.OfType<PlannedSegment>().Sum(s => s.Estimate)).Take(40))
         {
-            long bytes = plan.segments.OfType<PlannedSegment>().Sum(s => s!.Estimate);
+            long bytes = plan.segments.OfType<PlannedSegment>().Sum(s => s.Estimate);
             long copied = plan.segments.Where(s => s?.Segment.Kind is SegmentKind.Copy).Sum(s => s!.Segment.Length);
             string kind = plan.reference is null ? "new" : "diff";
             report.AppendLine($"    {Mb(bytes)} / {Mb(copied)} / {Mb(plan.target.size)}  {kind,-4} {plan.target.relative}");
