@@ -32,16 +32,13 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
         {
             if (!scope.repositories.TryGetValue(this.Repository, out GitHubMetadata? stored))
             {
-                scope.repositories[this.Repository] = stored = this.metadata.Load(this.Repository, string.IsNullOrEmpty(token)
-                                                                                 );
+                scope.repositories[this.Repository] = stored = this.metadata.Load(this.Repository, string.IsNullOrEmpty(token));
             }
 
             DateTimeOffset now = this.metadata.Clock.GetUtcNow();
-            if (
-                stored.Pages.Count > 0
+            if (stored.Pages?.Count > 0
              && now >= stored.CheckedAt
-             && now - stored.CheckedAt < this.metadata.Freshness
-            )
+             && now - stored.CheckedAt < this.metadata.Freshness)
             {
                 return Releases(stored);
             }
@@ -64,7 +61,11 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
                     throw new LauncherException("GitHub returned an invalid pagination URL");
                 }
 
-                stored.Pages.TryGetValue(url, out GitHubMetadataPage? previous);
+                if (stored.Pages?.TryGetValue(url, out GitHubMetadataPage? previous) is null)
+                {
+                    previous = null;
+                }
+
                 using HttpRequestMessage request = Request(HttpMethod.Get, url, "application/vnd.github+json");
                 if (previous?.ETag is { } etag)
                 {
@@ -95,8 +96,8 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
                     };
                 }
 
-                updated.Pages[url] = current;
-                url                = current.Next;
+                updated.Pages?[url] = current;
+                url = current.Next;
                 if (url is not null && this.metadata.Clock.GetUtcNow() < scope.retryAt)
                 {
                     throw new LauncherException($"GitHub's rate limit was reached; try again after {scope.retryAt:u}");
@@ -119,13 +120,13 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
         yield return AssetRequest(asset);
     }
 
-    private IReadOnlyList<Release> Releases(GitHubMetadata stored) =>
+    private IReadOnlyList<Release> Releases(GitHubMetadata stored) => stored.Pages is null ? [] :
     [
-        // TODO csavard: handle possible nulls here
         ..stored.Pages.Values
-                .SelectMany(p => p.Items)
-                .Where(r => !r.Draft)
-                .Select(r => Convert(r) with { Channel = channel })
+                .Where(p => p is not null)
+                .SelectMany(p => p!.Items)
+                .Where(r => r?.Draft is false)
+                .Select(r => Convert(r!) with { Channel = channel })
     ];
 
     private void ObserveRateLimit(GitHubMetadataCache.Scope scope, HttpResponseMessage response)

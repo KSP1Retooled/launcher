@@ -24,11 +24,11 @@ public sealed class LauncherSettingsTests : IDisposable
     [Fact]
     public void ThePreferredMirrorIsSavedByName()
     {
-        new LauncherSettings { PreferredMirror = ReleaseMirror.GitCode }.Save(this.file);
+        new LauncherSettings { PreferredMirror = ReleaseMirror.GIT_CODE }.Save(this.file);
         Assert.Contains("\"GitCode\"", File.ReadAllText(this.file));
-        Assert.Equal(ReleaseMirror.GitCode, LauncherSettings.Load(this.file).PreferredMirror);
+        Assert.Equal(ReleaseMirror.GIT_CODE, LauncherSettings.Load(this.file).PreferredMirror);
         File.WriteAllText(this.file, "{}");
-        Assert.Equal(ReleaseMirror.GitHub, LauncherSettings.Load(this.file).PreferredMirror);
+        Assert.Equal(ReleaseMirror.GIT_HUB, LauncherSettings.Load(this.file).PreferredMirror);
     }
 
     [Fact]

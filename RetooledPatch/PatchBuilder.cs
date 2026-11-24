@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO.Enumeration;
 using System.Text;
+using JetBrains.Annotations;
 using KSP.Retooled.Patch.Exceptions;
 using KSP.Retooled.Patch.IO;
 using KSP.Retooled.Patch.Models.Journal;
@@ -14,8 +15,6 @@ using Microsoft.Win32.SafeHandles;
 using ZstdSharp;
 
 namespace KSP.Retooled.Patch;
-
-public sealed record BuildResult(PatchManifest Manifest, string Report);
 
 /// <summary>
 /// Builds one patch file that turns any of several stock installs into the same retooled build (thread #241). The
@@ -115,7 +114,7 @@ public static partial class PatchBuilder
         List<string> emptyDirectories = [];
         List<FileEntry> targetFiles = Walk(targetPath, targetExcludes, emptyDirectories);
         string platform = o.Platform ?? DetectPlatform(targetPath);
-        List<SourceInstall> sources = LoadSources(o.Sources, excludes, log);
+        List<SourceInstall> sources = LoadSources(o.Sources, excludes);
         foreach (SourceInstall source in sources) CheckLayout(source, targetFiles, targetPath);
         log.WriteLine($"target {targetFiles.Count} files ({platform}); sources {string.Join(", ", sources.Select(s => $"{s.Id} ({s.Files.Count} files)"))}");
 
@@ -207,7 +206,7 @@ public static partial class PatchBuilder
         throw new PatchException($"{target} has no KSP player (KSP_x64.exe, KSP.x86_64 or KSP.app); pass the platform explicitly");
     }
 
-    private static List<SourceInstall> LoadSources(IReadOnlyList<BuildSource> sources, string[] excludes, TextWriter log)
+    private static List<SourceInstall> LoadSources(IReadOnlyList<BuildSource> sources, string[] excludes)
     {
         List<SourceInstall> loaded = [];
         foreach (BuildSource source in sources)
@@ -408,17 +407,17 @@ public static partial class PatchBuilder
         List<FileEntry> stock =
         [
             ..baseFiles.Where(Indexable)
-                       .OrderBy(f => IsCore(f) ? 0 : 1).ThenBy(f => f.relative, StringComparer.OrdinalIgnoreCase)
+                       .OrderBy(f => IsCore(f) ? 0 : 1)
+                       .ThenBy(f => f.relative, StringComparer.OrdinalIgnoreCase)
         ];
 
         using CopyMatcher matcher = new(stock);
         log.WriteLine($"  indexed {matcher.Count} chunks of {stock.Count} stock files");
 
         ConcurrentBag<DiffJob> work = [];
-        Parallel.ForEach(changed, new ParallelOptions { MaxDegreeOfParallelism = jobs }, plan =>
+        ParallelForEach(changed, jobs, plan =>
         {
             FileEntry target = plan.target;
-            // TODO csavard: handle this disposed in outside scope variable
             List<CopyRun> runs = Indexable(target) ? matcher.Match(target, s => InScope(s, target)) : [];
 
             List<PlannedSegment?> slots = [];
@@ -452,8 +451,7 @@ public static partial class PatchBuilder
                 throw new InvalidOperationException($"overlapping copy runs in {target.relative}");
             }
 
-            // TODO csavard: Handle this possible null assignment
-            plan.segments = [..slots]!;
+            plan.segments = [..slots];
 
             foreach ((long windowIndex, List<(int, long, int)> gaps) in windows)
             {
@@ -462,7 +460,14 @@ public static partial class PatchBuilder
         });
 
         return [..work];
+
+        static void ParallelForEach(List<PlannedOutput> changed, int jobs, [InstantHandle] Action<PlannedOutput> body)
+        {
+            Parallel.ForEach(changed, new ParallelOptions { MaxDegreeOfParallelism = jobs }, body);
+        }
     }
+
+
 
     /// <summary>
     /// The stock window a target window is diffed against: same relative position, padded a quarter chunk each side.
@@ -612,9 +617,9 @@ public static partial class PatchBuilder
         if (plan.same is not null) return new Recipe { Same = sourceIndex(plan.same) };
 
         Recipe recipe = new() { Segments = [] };
-        foreach ((Segment segment, _, FileEntry? fileEntry, _, _) in plan.segments)
+        foreach ((Segment segment, _, FileEntry? fileEntry, _, _) in plan.segments.OfType<PlannedSegment>())
         {
-            if (segment.Kind is SegmentKind.Copy) segment.File = sourceIndex(fileEntry!);
+            if (segment.Kind is SegmentKind.COPY) segment.File = sourceIndex(fileEntry!);
             foreach (Extent extent in segment.Refs ?? [])
             {
                 extent.File = sourceIndex(fileEntry!);
@@ -661,15 +666,15 @@ public static partial class PatchBuilder
 
     private static void WriteBlobs(PlannedOutput plan, Stream archive, byte[] buffer)
     {
-        using FileStream? target = plan.segments.Any(s => s.Segment.Kind == SegmentKind.Literal) ? File.OpenRead(plan.target.full) : null;
-        foreach (PlannedSegment planned in plan.segments)
+        using FileStream? target = plan.segments.Any(s => s?.Segment.Kind is SegmentKind.LITERAL) ? File.OpenRead(plan.target.full) : null;
+        foreach (PlannedSegment planned in plan.segments.OfType<PlannedSegment>())
         {
             if (planned.Spool is not null)
             {
                 using FileStream spool = File.OpenRead(planned.Spool);
                 spool.CopyTo(archive);
             }
-            else if (planned.Segment.Kind is SegmentKind.Literal)
+            else if (planned.Segment.Kind is SegmentKind.LITERAL)
             {
                 target!.Position = planned.TargetOffset;
                 for (long left = planned.Segment.Length; left > 0;)
@@ -689,10 +694,10 @@ public static partial class PatchBuilder
         static string Mb(long bytes) => $"{bytes / 1048576.0,10:F1} MB";
 
         List<PlannedOutput> same = [..outputs.Where(p => p.same is not null)];
-        List<PlannedSegment> segments = [..outputs.SelectMany(p => p.segments)];
-        List<PlannedSegment> copies = [..segments.Where(s => s.Segment.Kind == SegmentKind.Copy)];
-        List<PlannedSegment> diffs = [..segments.Where(s => s.Segment.Kind == SegmentKind.BsDiff)];
-        List<PlannedSegment> literals = [..segments.Where(s => s.Segment.Kind == SegmentKind.Literal)];
+        List<PlannedSegment> segments = [..outputs.SelectMany(p => p.segments.OfType<PlannedSegment>())];
+        List<PlannedSegment> copies = [..segments.Where(s => s.Segment.Kind == SegmentKind.COPY)];
+        List<PlannedSegment> diffs = [..segments.Where(s => s.Segment.Kind == SegmentKind.BS_DIFF)];
+        List<PlannedSegment> literals = [..segments.Where(s => s.Segment.Kind == SegmentKind.LITERAL)];
 
         report.AppendLine($"== {source}: {outputs.Count} outputs planned");
         report.AppendLine($"  unchanged  {same.Count,7} files {Mb(same.Sum(p => p.target.size))}");
@@ -701,10 +706,10 @@ public static partial class PatchBuilder
         report.AppendLine($"  literal    {literals.Count,7} runs  {Mb(literals.Sum(s => s.Segment.Length))} -> ~{Mb(literals.Sum(s => s.Estimate))}");
         report.AppendLine("  largest contributors (~compressed alone at level 3 / copied from stock / output size):");
 
-        foreach (PlannedOutput plan in outputs.Where(p => p.same is null).OrderByDescending(p => p.segments.Sum(s => s.Estimate)).Take(40))
+        foreach (PlannedOutput plan in outputs.Where(p => p.same is null).OrderByDescending(p => p.segments.OfType<PlannedSegment>().Sum(s => s.Estimate)).Take(40))
         {
-            long bytes = plan.segments.Sum(s => s.Estimate);
-            long copied = plan.segments.Where(s => s.Segment.Kind == SegmentKind.Copy).Sum(s => s.Segment.Length);
+            long bytes = plan.segments.OfType<PlannedSegment>().Sum(s => s.Estimate);
+            long copied = plan.segments.Where(s => s?.Segment.Kind is SegmentKind.COPY).Sum(s => s!.Segment.Length);
             string kind = plan.reference is null ? "new" : "diff";
             report.AppendLine($"    {Mb(bytes)} / {Mb(copied)} / {Mb(plan.target.size)}  {kind,-4} {plan.target.relative}");
         }
@@ -732,7 +737,7 @@ public static partial class PatchBuilder
         public readonly FileEntry target = target;
         public FileEntry? reference;
         public FileEntry? same;
-        public PlannedSegment[] segments = [];
+        public PlannedSegment?[] segments = [];
     }
 
     /// <summary>
