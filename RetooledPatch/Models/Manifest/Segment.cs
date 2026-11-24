@@ -38,7 +38,7 @@ public sealed class Segment
     [JsonIgnore]
     public long ArchiveBytes => this.Kind switch
     {
-        SegmentKind.BS_DIFF  => this.Blob ?? 0,
+        SegmentKind.BS_DIFF => this.Blob ?? 0,
         SegmentKind.LITERAL => this.Length,
         _                   => 0
     };
