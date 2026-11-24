@@ -119,7 +119,7 @@ public sealed class MirrorTests
         http.Json(GIT_CODE_LIST, GIT_CODE_JSON);
 
         IReadOnlyList<Release> releases = await MirroredReleaseSource
-                                               .For(new HttpClient(http), LauncherInfo.DEFAULT_REPOSITORY, preferred: ReleaseMirror.GitCode)
+                                               .For(new HttpClient(http), LauncherInfo.DEFAULT_REPOSITORY, preferred: ReleaseMirror.GIT_CODE)
                                                .GetReleasesAsync();
 
         Assert.Equal(["1.13.0-rc6"], releases.Select(r => r.Tag));
@@ -133,7 +133,7 @@ public sealed class MirrorTests
         http.Json(GIT_HUB_LIST, """[ { "tag_name": "v1", "assets": [] } ]""");
 
         IReadOnlyList<Release> releases = await MirroredReleaseSource
-                                               .For(new HttpClient(http), LauncherInfo.DEFAULT_REPOSITORY, preferred: ReleaseMirror.GitCode)
+                                               .For(new HttpClient(http), LauncherInfo.DEFAULT_REPOSITORY, preferred: ReleaseMirror.GIT_CODE)
                                                .GetReleasesAsync();
 
         Assert.Equal(["v1"], releases.Select(r => r.Tag));
@@ -144,7 +144,7 @@ public sealed class MirrorTests
     {
         IReleaseSource source = MirroredReleaseSource.For(new HttpClient(new FakeHttp()),
                                                           LauncherInfo.DEFAULT_REPOSITORY,
-                                                          preferred: ReleaseMirror.GitCode);
+                                                          preferred: ReleaseMirror.GIT_CODE);
 
         ReleaseAsset asset = new("retooled-linux.rtpatch",
                                  1,

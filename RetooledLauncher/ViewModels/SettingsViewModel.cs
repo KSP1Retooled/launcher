@@ -28,8 +28,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public IReadOnlyList<MirrorOption> Mirrors { get; } =
     [
-        new(ReleaseMirror.GitHub, $"GitHub (github.com/{LauncherInfo.DEFAULT_REPOSITORY})"),
-        new(ReleaseMirror.GitCode, $"GitCode (gitcode.com/{LauncherInfo.DEFAULT_MIRROR})")
+        new(ReleaseMirror.GIT_HUB, $"GitHub (github.com/{LauncherInfo.DEFAULT_REPOSITORY})"),
+        new(ReleaseMirror.GIT_CODE, $"GitCode (gitcode.com/{LauncherInfo.DEFAULT_MIRROR})")
     ];
 
     [ObservableProperty]

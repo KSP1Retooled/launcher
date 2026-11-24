@@ -9,11 +9,10 @@ namespace KSP.Retooled.Launcher.Settings;
 /// </summary>
 public enum ReleaseMirror
 {
-    // TODO csavard: proper json converter for these enums
-    // ReSharper disable InconsistentNaming
-    GitHub,
-    GitCode
-    // ReSharper restore InconsistentNaming
+    [JsonStringEnumMemberName("GitHub")]
+    GIT_HUB,
+    [JsonStringEnumMemberName("GitCode")]
+    GIT_CODE
 }
 
 /// <summary>

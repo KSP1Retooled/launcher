@@ -324,11 +324,11 @@ public sealed class PatchApplier(PatchFile patch, string install)
 
         switch (segment.Kind)
         {
-            case SegmentKind.Copy:
+            case SegmentKind.COPY:
                 CopyRange(handle(segment.File!.Value), segment.Offset!.Value, segment.Length, output);
                 break;
 
-            case SegmentKind.Literal:
+            case SegmentKind.LITERAL:
                 byte[] buffer = new byte[(int)Math.Min(segment.Length, 1 << 20)];
                 for (long left = segment.Length; left > 0;)
                 {
@@ -340,7 +340,7 @@ public sealed class PatchApplier(PatchFile patch, string install)
 
                 break;
 
-            case SegmentKind.BsDiff:
+            case SegmentKind.BS_DIFF:
                 byte[] reference = new byte[segment.Refs!.Sum(r => r.Length)];
                 int at = 0;
                 foreach (Extent extent in segment.Refs!)

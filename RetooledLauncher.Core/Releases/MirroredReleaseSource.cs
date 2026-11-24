@@ -14,7 +14,7 @@ namespace KSP.Retooled.Launcher.Releases;
 /// </summary>
 public sealed class MirroredReleaseSource(GitHubReleaseSource github,
                                           GitCodeReleaseSource gitcode,
-                                          ReleaseMirror preferred = ReleaseMirror.GitHub,
+                                          ReleaseMirror preferred = ReleaseMirror.GIT_HUB,
                                           Action<string>? log = null) : IReleaseSource
 {
     /// <summary>
@@ -22,7 +22,7 @@ public sealed class MirroredReleaseSource(GitHubReleaseSource github,
     /// </summary>
     private TimeSpan PreferredTimeout { get; } = TimeSpan.FromSeconds(30);
 
-    private bool GitCodeFirst => preferred is ReleaseMirror.GitCode;
+    private bool GitCodeFirst => preferred is ReleaseMirror.GIT_CODE;
 
     private IReleaseSource First => this.GitCodeFirst ? gitcode : github;
 
@@ -103,7 +103,7 @@ public sealed class MirroredReleaseSource(GitHubReleaseSource github,
     public static IReleaseSource For(HttpClient http,
                                      string channel,
                                      string? token = null,
-                                     ReleaseMirror preferred = ReleaseMirror.GitHub,
+                                     ReleaseMirror preferred = ReleaseMirror.GIT_HUB,
                                      Action<string>? log = null,
                                      GitHubMetadataCache? cache = null)
     {
