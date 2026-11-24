@@ -32,8 +32,7 @@ public sealed class GitHubMetadataCache(string? directory = null, TimeProvider? 
         try
         {
             GitHubMetadata? stored = JsonSerializer.Deserialize(File.ReadAllText(PathFor(repository)), GitHubJsonContext.Default.GitHubMetadata);
-            if (stored?.Pages is not null
-             && stored.Pages.Values.All(p => p?.Items is not null && p.Items.All(r => r is not null)))
+            if (stored?.Pages?.Values.All(p => p?.Items.All(r => r is not null) is true) is true)
             {
                 return stored;
             }

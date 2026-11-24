@@ -4,5 +4,5 @@ internal sealed class GitHubMetadata
 {
     public DateTimeOffset CheckedAt { get; set; }
 
-    public Dictionary<string, GitHubMetadataPage?> Pages { get; set; } = [];
+    public Dictionary<string, GitHubMetadataPage?>? Pages { get; set; } = [];
 }
