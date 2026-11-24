@@ -1,5 +1,6 @@
 using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch.Patcher;
+using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Releases;
 
@@ -24,12 +25,12 @@ public sealed record Release(string Tag, string Name, bool Prerelease, DateTimeO
     /// The release's name for a platform's patch: <c>retooled-&lt;platform&gt;.rtpatch</c>, or
     /// <c>retooled-&lt;platform&gt;-debug.rtpatch</c> for the development player's.
     /// </summary>
-    public static string PatchName(string platform, bool debug = false) => $"retooled-{platform}{(debug ? "-debug" : string.Empty)}{PatchFile.EXTENSION}";
+    public static string PatchName(Platform platform, bool debug = false) => $"retooled-{platform.Name}{(debug ? "-debug" : string.Empty)}{PatchFile.EXTENSION}";
 
     /// <summary>
     /// The name of the patch for <paramref name="platform"/> that this release's channel offers.
     /// </summary>
-    public string PatchNameFor(string platform) => PatchName(platform, LauncherInfo.IsDebugChannel(this.Channel));
+    public string PatchNameFor(Platform platform) => PatchName(platform, LauncherInfo.IsDebugChannel(this.Channel));
 
     /// <summary>
     /// Whether a link in <see cref="Notes"/> may be opened. Notes carry the titles of pull requests, so anyone who
@@ -38,5 +39,5 @@ public sealed record Release(string Tag, string Name, bool Prerelease, DateTimeO
     public static bool IsWebLink(string? url) => Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
                                               && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
 
-    public ReleaseAsset? PatchFor(string platform) => this.Assets.FirstOrDefault(a => a.Name.Equals(PatchNameFor(platform), StringComparison.OrdinalIgnoreCase));
+    public ReleaseAsset? PatchFor(Platform platform) => this.Assets.FirstOrDefault(a => a.Name.Equals(PatchNameFor(platform), StringComparison.OrdinalIgnoreCase));
 }

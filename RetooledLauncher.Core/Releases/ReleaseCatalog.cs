@@ -1,4 +1,5 @@
 using KSP.Retooled.Launcher.Utils;
+using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Releases;
 
@@ -62,9 +63,9 @@ public sealed class ReleaseCatalog(IEnumerable<Release> releases, bool versioned
     /// The newest offered release with a patch for <paramref name="platform"/>; null when the releases are not
     /// <see cref="Versioned"/>.
     /// </summary>
-    public Release? Latest(string platform, bool includePrereleases) => this.Versioned
-                                                                            ? this.All.FirstOrDefault(r => Offers(r, includePrereleases) && r.PatchFor(platform) is not null)
-                                                                            : null;
+    public Release? Latest(Platform platform, bool includePrereleases) => this.Versioned
+                                                                              ? this.All.FirstOrDefault(r => Offers(r, includePrereleases) && r.PatchFor(platform) is not null)
+                                                                              : null;
 
     /// <summary>
     /// The newest offered release that is newer than the installed one, or else the installed release if it has a new
@@ -75,7 +76,7 @@ public sealed class ReleaseCatalog(IEnumerable<Release> releases, bool versioned
     /// <param name="includePrereleases">If prereleases should also be checked</param>
     /// <param name="installedSha256">The installed patch's <see cref="Installs.InstalledRelease.Sha256"/>.</param>
     public Release? UpgradeFor(string? installedTag,
-                               string platform,
+                               Platform platform,
                                bool includePrereleases,
                                string? installedSha256 = null)
     {

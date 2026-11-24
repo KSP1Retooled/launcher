@@ -19,4 +19,8 @@
         <InternalsVisibleTo Include="RetooledPatch.Tests"/>
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\RetooledLauncher.Common\RetooledLauncher.Common.csproj" />
+    </ItemGroup>
+
 </Project>

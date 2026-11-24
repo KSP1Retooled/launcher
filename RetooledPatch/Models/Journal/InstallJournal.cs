@@ -1,5 +1,6 @@
 using System.Text.Json;
 using KSP.Retooled.Patch.Install;
+using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Patch.Models.Journal;
 
@@ -27,7 +28,7 @@ public sealed class InstallJournal
 
     public JournalState State { get; set; }
 
-    public string Platform { get; set; } = string.Empty;
+    public Platform Platform { get; set; } = Platform.UNSUPPORTED;
 
     /// <summary>
     /// The source install the apply matched, or null for a mix.

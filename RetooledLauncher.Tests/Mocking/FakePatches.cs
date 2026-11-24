@@ -1,6 +1,7 @@
 ﻿using KSP.Retooled.Launcher.Exceptions;
 using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
+using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Tests.Mocking;
 
@@ -13,7 +14,7 @@ internal sealed class FakePatches : IPatchProvider
     public readonly List<string> kept = [];
 
     public Task<string> GetPatchAsync(Release release,
-                                      string platform,
+                                      Platform platform,
                                       IProgress<LauncherProgress>? progress,
                                       CancellationToken cancellation) => this.files.TryGetValue(release.Tag, out string? path)
                                                                              ? Task.FromResult(path)

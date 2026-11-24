@@ -12,6 +12,7 @@ using KSP.Retooled.Patch.Models.Manifest;
 using KSP.Retooled.Patch.Patcher;
 using KSP.Retooled.Patch.Utils;
 using Microsoft.Win32.SafeHandles;
+using RetooledLauncher.Common;
 using ZstdSharp;
 
 namespace KSP.Retooled.Patch;
@@ -113,9 +114,13 @@ public static partial class PatchBuilder
         Stopwatch clock = Stopwatch.StartNew();
         List<string> emptyDirectories = [];
         List<FileEntry> targetFiles = Walk(targetPath, targetExcludes, emptyDirectories);
-        string platform = o.Platform ?? DetectPlatform(targetPath);
+        Platform platform = o.Platform ?? DetectPlatform(targetPath);
         List<SourceInstall> sources = LoadSources(o.Sources, excludes);
-        foreach (SourceInstall source in sources) CheckLayout(source, targetFiles, targetPath);
+        foreach (SourceInstall source in sources)
+        {
+            CheckLayout(source, targetFiles, targetPath);
+        }
+
         log.WriteLine($"target {targetFiles.Count} files ({platform}); sources {string.Join(", ", sources.Select(s => $"{s.Id} ({s.Files.Count} files)"))}");
 
         Parallel.ForEach(sources.SelectMany(s => s.Files).Concat(targetFiles),
@@ -197,11 +202,11 @@ public static partial class PatchBuilder
         return new BuildResult(manifest, report.ToString());
     }
 
-    private static string DetectPlatform(string target)
+    private static Platform DetectPlatform(string target)
     {
-        if (File.Exists(Path.Combine(target, "KSP_x64.exe"))) return "windows";
-        if (File.Exists(Path.Combine(target, "KSP.x86_64"))) return "linux";
-        if (Directory.Exists(Path.Combine(target, "KSP.app"))) return "macos";
+        if (File.Exists(Path.Combine(target, "KSP_x64.exe"))) return Platform.WINDOWS;
+        if (File.Exists(Path.Combine(target, "KSP.x86_64"))) return Platform.LINUX;
+        if (Directory.Exists(Path.Combine(target, "KSP.app"))) return Platform.MACOS;
 
         throw new PatchException($"{target} has no KSP player (KSP_x64.exe, KSP.x86_64 or KSP.app); pass the platform explicitly");
     }

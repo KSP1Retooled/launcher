@@ -1,5 +1,6 @@
 ﻿using DotMake.CommandLine;
 using KSP.Retooled.Patch.Patcher;
+using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Patch.Cli.Commands;
 
@@ -30,7 +31,7 @@ public class BuildCliCommand
 
     [CliOption(Name = "--platform", Required = false, AllowedValues = ["windows", "linux", "macos"],
                Description = "The platform that the patch is for. If you leave it out, the command looks at the game executable in --target to decide.")]
-    public string? Platform { get; set; }
+    public Platform? Platform { get; set; }
 
     [CliOption(Name = "--exclude", HelpName = "pattern", Required = false,
                Description = "Paths to leave out of every source and the target. A built-in list already leaves out saves, logs, settings.cfg " +

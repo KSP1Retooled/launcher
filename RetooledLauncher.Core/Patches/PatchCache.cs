@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using KSP.Retooled.Launcher.Exceptions;
 using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Utils;
+using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Patches;
 
@@ -22,7 +23,7 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
     public string Directory { get; } = directory;
 
     public async Task<string> GetPatchAsync(Release release,
-                                            string platform,
+                                            Platform platform,
                                             IProgress<LauncherProgress>? progress,
                                             CancellationToken cancellation)
     {

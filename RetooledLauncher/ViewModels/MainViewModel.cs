@@ -14,6 +14,7 @@ using KSP.Retooled.Launcher.Releases.GitHub;
 using KSP.Retooled.Launcher.Settings;
 using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch.Exceptions;
+using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.App.ViewModels;
 
@@ -85,7 +86,8 @@ public sealed partial class MainViewModel : ObservableObject
     public partial string Channel { get; set; }
 
     [ObservableProperty]
-    public partial InstallInfo? Install { get; private set; }
+    // ReSharper disable once MemberCanBeMadeStatic.Local
+    private partial InstallInfo? Install { get; set; }
 
     [ObservableProperty]
     public partial ReleaseItem? SelectedRelease { get; set; }
@@ -143,13 +145,13 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>
     /// The platform of the patch that the launcher applies to the install, which is the install's own platform.
     /// </summary>
-    private string PatchPlatform => KspInstall.PatchPlatform(this.Install, LauncherInfo.Platform);
+    private Platform PatchPlatform => KspInstall.PatchPlatform(this.Install, Platform.Current);
 
     /// <summary>
     /// True if the launcher can start the game itself. False when the install is for another platform, such as the
     /// Windows version of KSP on Linux, which the user starts with Proton.
     /// </summary>
-    private bool RunsHere => this.PatchPlatform == LauncherInfo.Platform;
+    private bool RunsHere => this.PatchPlatform == Platform.Current;
 
     private string Build => this.Install?.BuildId is { } id ? $" (build {id})" : string.Empty;
 
@@ -157,7 +159,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// The tooltip on the Play button. It explains why Play is turned off for an install from another platform.
     /// </summary>
     public string? PlayTip => !this.RunsHere
-                                  ? $"This is the {PlatformName(this.PatchPlatform)} version of KSP, so the launcher can't start it."
+                                  ? $"This is the {this.PatchPlatform.DisplayName} version of KSP, so the launcher can't start it."
                                   : null;
 
     private string InstalledName => this.Install?.Release switch
@@ -218,14 +220,6 @@ public sealed partial class MainViewModel : ObservableObject
     private bool CanPlay => !this.IsBusy && this.Install?.Status == InstallStatus.RETOOLED && this.RunsHere;
 
     private bool Idle => !this.IsBusy;
-
-    private static string PlatformName(string platform) => platform switch
-    {
-        "windows" => "Windows",
-        "linux"   => "Linux",
-        "macos"   => "macOS",
-        _         => platform
-    };
 
     public async Task StartAsync()
     {
@@ -339,7 +333,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         string? folder;
         // KSP.app is a folder, which Avalonia's file picker leaves out of what it returns
-        if (LauncherInfo.Platform is "macos")
+        if (Platform.Current is Platform.MACOS)
         {
             folder = await this.dialogs.PickFolderAsync("Choose your KSP 1.12.5 folder");
         }
@@ -349,8 +343,8 @@ public sealed partial class MainViewModel : ObservableObject
             List<string> names =
             [
                 ..KspInstall
-                 .PlatformsOn(LauncherInfo.Platform)
-                 .Where(p => p is not "macos")
+                 .PlatformsOn(Platform.Current)
+                 .Where(p => p is not Platform.MACOS)
                  .Select(KspInstall.Player)
             ];
 

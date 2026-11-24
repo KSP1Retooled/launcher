@@ -6,6 +6,7 @@ using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Releases.GitHub;
 using KSP.Retooled.Launcher.Tests.Mocking;
 using KSP.Retooled.Launcher.Utils;
+using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
@@ -40,32 +41,32 @@ public sealed class PatchCacheTests : IDisposable
     [Fact]
     public async Task DownloadsOnceThenReusesTheVerifiedFile()
     {
-        byte[] bytes = Encoding.UTF8.GetBytes("patch bytes");
+        byte[] bytes = [.."patch bytes"u8];
         FakeHttp http = new();
         http.Bytes("https://dl/v1", bytes);
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
         Release release = WithPatch("v1", bytes, true);
 
-        string path = await cache.GetPatchAsync(release, "linux", null, CancellationToken.None);
+        string path = await cache.GetPatchAsync(release, Platform.LINUX, null, CancellationToken.None);
         Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
-        await cache.GetPatchAsync(release, "linux", null, CancellationToken.None);
+        await cache.GetPatchAsync(release, Platform.LINUX, null, CancellationToken.None);
         Assert.Single(http.requests);
     }
 
     [Fact]
     public async Task ANewBuildOfAReleaseDoesNotOverwriteTheOldOne()
     {
-        byte[] first = Encoding.UTF8.GetBytes("first build");
-        byte[] second = Encoding.UTF8.GetBytes("second build");
+        byte[] first = [.."first build"u8];
+        byte[] second = [.."second build"u8];
         FakeHttp http = new();
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
 
         http.Bytes("https://dl/pr-1", first);
-        string old = await cache.GetPatchAsync(WithPatch("pr-1", first, true), "linux", null, CancellationToken.None);
+        string old = await cache.GetPatchAsync(WithPatch("pr-1", first, true), Platform.LINUX, null, CancellationToken.None);
         http.Bytes("https://dl/pr-1", second);
-        string rebuilt = await cache.GetPatchAsync(WithPatch("pr-1", second, true), "linux", null, CancellationToken.None);
+        string rebuilt = await cache.GetPatchAsync(WithPatch("pr-1", second, true), Platform.LINUX, null, CancellationToken.None);
 
         Assert.NotEqual(old, rebuilt);
         Assert.Equal(first, await File.ReadAllBytesAsync(old));
@@ -82,7 +83,7 @@ public sealed class PatchCacheTests : IDisposable
         PatchCache cache = new(client,
                                new GitHubReleaseSource(client, "o/r", "secret"), this.root);
 
-        await cache.GetPatchAsync(WithPatch("v1", bytes, false), "linux", null, CancellationToken.None);
+        await cache.GetPatchAsync(WithPatch("v1", bytes, false), Platform.LINUX, null, CancellationToken.None);
         HttpRequestMessage request = Assert.Single(http.requests);
         Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
         Assert.Equal("application/octet-stream", request.Headers.Accept.Single().MediaType);
@@ -117,7 +118,7 @@ public sealed class PatchCacheTests : IDisposable
                                                    Convert.ToHexStringLower(SHA256.HashData(bytes)))
                               ]) { Channel = LauncherInfo.DEFAULT_REPOSITORY };
 
-        string path = await cache.GetPatchAsync(release, "linux", null, CancellationToken.None);
+        string path = await cache.GetPatchAsync(release, Platform.LINUX, null, CancellationToken.None);
 
         Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
         Assert.Equal(2, http.requests.Count);
@@ -129,13 +130,13 @@ public sealed class PatchCacheTests : IDisposable
     public async Task RejectsADownloadThatDoesNotMatchTheDigest()
     {
         FakeHttp http = new();
-        http.Bytes("https://dl/v1", Encoding.UTF8.GetBytes("tampered!!!"));
+        http.Bytes("https://dl/v1", [.."tampered!!!"u8]);
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
 
         await Assert.ThrowsAsync<LauncherException>(() =>
-                                                        cache.GetPatchAsync(WithPatch("v1", Encoding.UTF8.GetBytes("patch bytes"), true),
-                                                                            "linux",
+                                                        cache.GetPatchAsync(WithPatch("v1", [.."patch bytes"u8], true),
+                                                                            Platform.LINUX,
                                                                             null,
                                                                             CancellationToken.None));
 
@@ -150,9 +151,9 @@ public sealed class PatchCacheTests : IDisposable
         http.Bytes("https://dl/release/v2", [2]);
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
-        string old = await cache.GetPatchAsync(WithPatch("v1", [1], false), "linux", null, CancellationToken.None);
+        string old = await cache.GetPatchAsync(WithPatch("v1", [1], false), Platform.LINUX, null, CancellationToken.None);
         string kept = await cache.GetPatchAsync(WithPatch("release/v2", [2], false),
-                                                "linux",
+                                                Platform.LINUX,
                                                 null,
                                                 CancellationToken.None);
 
@@ -171,12 +172,12 @@ public sealed class PatchCacheTests : IDisposable
         Release release = WithPatch("v1", [1, 2, 3], false);
 
         string first = await cache.GetPatchAsync(release with { Channel = "a/one" },
-                                                 "linux",
+                                                 Platform.LINUX,
                                                  null,
                                                  CancellationToken.None);
 
         string second = await cache.GetPatchAsync(release with { Channel = "a/two" },
-                                                  "linux",
+                                                  Platform.LINUX,
                                                   null,
                                                   CancellationToken.None);
 

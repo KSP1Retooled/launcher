@@ -7,6 +7,7 @@ using KSP.Retooled.Patch.Models.Journal;
 using KSP.Retooled.Patch.Models.Manifest;
 using KSP.Retooled.Patch.Patcher;
 using KSP.Retooled.Patch.Utils;
+using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Patch.Tests;
@@ -216,7 +217,11 @@ public sealed class PatchRoundTripTests : IDisposable
         List<string> directories = Directories(this.Gog);
         Applier(this.Gog).Apply(new ApplyOptions());
         Dictionary<string, string> tree = Tree(this.Gog);
-        foreach ((string path, string hash) in Shipped()) Assert.Equal(hash, tree[path]);
+        foreach ((string path, string hash) in Shipped())
+        {
+            Assert.Equal(hash, tree[path]);
+        }
+
         Assert.False(tree.ContainsKey("KSP_x64_Data/gone.assets"));
         Assert.False(tree.ContainsKey("KSP_x64_Data/Plugins/x86_64/galaxy64.dll"));
         Assert.True(tree.ContainsKey("saves/default/persistent.sfs"));
@@ -302,7 +307,11 @@ public sealed class PatchRoundTripTests : IDisposable
         Assert.Null(data.LinkTarget);
         Assert.NotNull(new DirectoryInfo(Path.Combine(data.FullName, "Linked")).LinkTarget);
         Dictionary<string, string> tree = Tree(this.Gog);
-        foreach ((string path, string hash) in Shipped()) Assert.Equal(hash, tree[path]);
+        foreach ((string path, string hash) in Shipped())
+        {
+            Assert.Equal(hash, tree[path]);
+        }
+
         Assert.False(tree.ContainsKey("KSP_x64_Data/gone.assets"));
 
         PatchReverter.Revert(this.Gog);
@@ -627,7 +636,7 @@ public sealed class PatchRoundTripTests : IDisposable
         string patch = Path.Combine(this.root, "version.rtpatch");
         using (PatchFileWriter writer = new(patch, 3, 27, 1))
         {
-            writer.Finish(new PatchManifest { Version = version, Platform = "windows" });
+            writer.Finish(new PatchManifest { Version = version, Platform = Platform.WINDOWS });
         }
 
         if (readable)

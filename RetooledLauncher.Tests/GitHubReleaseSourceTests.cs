@@ -3,6 +3,7 @@ using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Releases.GitHub;
 using KSP.Retooled.Launcher.Tests.Mocking;
 using KSP.Retooled.Launcher.Utils;
+using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
@@ -28,17 +29,17 @@ public sealed class GitHubReleaseSourceTests
         Release release = Assert.Single(await new GitHubReleaseSource(new HttpClient(http), channel).GetReleasesAsync());
 
         Assert.Equal(channel, release.Channel);
-        Assert.Equal(expected, release.PatchFor("windows")?.Name);
+        Assert.Equal(expected, release.PatchFor(Platform.WINDOWS)?.Name);
     }
 
     [Fact]
     public void AReleaseWithoutDebugPatchesCannotBeInstalledFromTheDEBUG_CHANNEL()
     {
-        ReleaseAsset asset = new(Release.PatchName("windows"), 1, "a", "a", null);
+        ReleaseAsset asset = new(Release.PatchName(Platform.WINDOWS), 1, "a", "a", null);
         Release release = new("v1.0.0", string.Empty, false, default, string.Empty, string.Empty, [asset]);
 
-        Assert.Same(asset, (release with { Channel = "o/r" }).PatchFor("windows"));
-        Assert.Null((release with { Channel = "o/r#debug" }).PatchFor("windows"));
+        Assert.Same(asset, (release with { Channel = "o/r" }).PatchFor(Platform.WINDOWS));
+        Assert.Null((release with { Channel = "o/r#debug" }).PatchFor(Platform.WINDOWS));
     }
 
     [Theory, InlineData(LauncherInfo.DEFAULT_REPOSITORY, true), InlineData(LauncherInfo.DEBUG_CHANNEL, true), InlineData(LauncherInfo.EXPERIMENTAL_CHANNEL, true), InlineData("o/r#debug", false), InlineData("o/r", false)]
@@ -73,8 +74,8 @@ public sealed class GitHubReleaseSourceTests
         Assert.False(releases[1].Prerelease);
         ReleaseAsset asset = Assert.Single(beta.Assets);
         Assert.Equal("abcdef", asset.Sha256);
-        Assert.Same(asset, beta.PatchFor("windows"));
-        Assert.Null(beta.PatchFor("linux"));
+        Assert.Same(asset, beta.PatchFor(Platform.WINDOWS));
+        Assert.Null(beta.PatchFor(Platform.LINUX));
         Assert.All(http.requests,
                    r => Assert.Contains("KSPRetooledLauncher", r.Headers.UserAgent.ToString()));
     }

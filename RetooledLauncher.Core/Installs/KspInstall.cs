@@ -1,8 +1,9 @@
 using System.Security;
 using System.Text.Json;
+using FastEnumUtility;
 using KSP.Retooled.Launcher.Exceptions;
-using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch.Models.Journal;
+using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Installs;
 
@@ -11,37 +12,33 @@ public static class KspInstall
     private const string MARKER_FILE = InstallJournal.DIRECTORY + "/launcher.json";
 
     /// <summary>
-    /// Every platform that KSP was released for.
-    /// </summary>
-    private static readonly IReadOnlyList<string> Platforms = ["windows", "linux", "macos"];
-
-    /// <summary>
     /// The player each platform's build ships, relative to the install (the Retooled build keeps stock's names).
     /// </summary>
-    public static string Player(string platform) => platform switch
+    public static string Player(Platform platform) => platform switch
     {
-        "windows" => "KSP_x64.exe",
-        "linux"   => "KSP.x86_64",
-        "macos"   => "KSP.app",
-        _         => throw new LauncherException($"unsupported platform {platform}")
+        Platform.WINDOWS     => "KSP_x64.exe",
+        Platform.LINUX       => "KSP.x86_64",
+        Platform.MACOS       => "KSP.app",
+        Platform.UNSUPPORTED => throw new LauncherException($"Unsupported platform {platform.FastToString()}"),
+        _                    => throw new LauncherException($"Unsupported platform {platform.FastToString()}")
     };
 
     /// <summary>
-    /// <see cref="Platforms"/> with <paramref name="host"/> moved to the front. If a folder has game executables for
+    /// Platforms with <paramref name="host"/> moved to the front. If a folder has game executables for
     /// more than one platform, the launcher uses the first platform in this order.
     /// </summary>
-    public static IReadOnlyList<string> PlatformsOn(string host) => [..Platforms.OrderBy(p => p != host)];
+    public static IReadOnlyList<Platform> PlatformsOn(Platform host) => [..Platform.All.OrderBy(p => p != host)];
 
     /// <summary>
     /// The platform of the patch that the launcher should apply to <paramref name="info"/>. This is the install's own
     /// platform, which can differ from the platform that the launcher runs on. For example, people run the Windows
     /// version of KSP on Linux with Proton. When the install's platform isn't known, this is <paramref name="host"/>.
     /// </summary>
-    public static string PatchPlatform(InstallInfo? info, string host) => info?.Platform ?? host;
+    public static Platform PatchPlatform(InstallInfo? info, Platform host) => info?.Platform ?? host;
 
     /// <param name="path">Install path</param>
-    /// <param name="host">The platform that the launcher runs on. The default is <see cref="LauncherInfo.Platform"/>.</param>
-    public static InstallInfo Inspect(string path, string? host = null)
+    /// <param name="host">The platform that the launcher runs on. The default is the current platform.</param>
+    public static InstallInfo Inspect(string path, Platform? host = null)
     {
         string full;
         try
@@ -70,10 +67,9 @@ public static class KspInstall
 
         if (journal is not null)
         {
-            return new InstallInfo(full,
-                                   journal.State == JournalState.APPLIED
-                                       ? InstallStatus.RETOOLED
-                                       : InstallStatus.INTERRUPTED)
+            return new InstallInfo(full, journal.State == JournalState.APPLIED
+                                             ? InstallStatus.RETOOLED
+                                             : InstallStatus.INTERRUPTED)
             {
                 BuildId = ReadBuildId(full),
                 Release = ReadMarker(full),
@@ -81,7 +77,7 @@ public static class KspInstall
             };
         }
 
-        string? platform = PlatformsOn(host ?? LauncherInfo.Platform).FirstOrDefault(p => PlayerExists(full, p));
+        Platform? platform = PlatformsOn(host ?? Platform.Current).FirstOrDefault(p => PlayerExists(full, p));
         bool ksp = Directory.Exists(Path.Combine(full, "GameData", "Squad")) && platform is not null;
         return new InstallInfo(full, ksp ? InstallStatus.STOCK : InstallStatus.NOT_KSP)
         {
@@ -90,7 +86,7 @@ public static class KspInstall
         };
     }
 
-    private static bool PlayerExists(string install, string platform)
+    private static bool PlayerExists(string install, Platform platform)
     {
         string player = Path.Combine(install, Player(platform));
         return File.Exists(player) || Directory.Exists(player);

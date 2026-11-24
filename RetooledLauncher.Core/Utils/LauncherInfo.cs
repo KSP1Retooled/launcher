@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace KSP.Retooled.Launcher.Utils;
 
@@ -46,15 +45,6 @@ public static class LauncherInfo
                                            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
                                           ?.InformationalVersion.Split('+')[0]
                                          ?? "0.0.0";
-
-    /// <summary>
-    /// <c>windows</c>, <c>linux</c> or <c>macos</c>: the patch this machine needs.
-    /// </summary>
-    public static string Platform { get; } =
-        OperatingSystem.IsWindows() ? "windows"
-        : OperatingSystem.IsMacOS() ? "macos"
-        : OperatingSystem.IsLinux() ? "linux"
-                                      : RuntimeInformation.OSDescription;
 
     /// <summary>
     /// Per-user data: <c>%LOCALAPPDATA%</c>, <c>~/Library/Application Support</c> or <c>~/.local/share</c>.

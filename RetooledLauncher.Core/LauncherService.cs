@@ -7,6 +7,7 @@ using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch.Exceptions;
 using KSP.Retooled.Patch.Models.Journal;
 using KSP.Retooled.Patch.Patcher;
+using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher;
 
@@ -17,11 +18,11 @@ namespace KSP.Retooled.Launcher;
 /// one
 /// of a channel's, or a local patch file, and moving between them works the same way.
 /// </summary>
-public sealed class LauncherService(IPatchProvider patches, string platform, TextWriter? log = null)
+public sealed class LauncherService(IPatchProvider patches, Platform platform, TextWriter? log = null)
 {
     private readonly TextWriter log = log ?? TextWriter.Null;
 
-    private string Platform { get; } = platform;
+    private Platform Platform { get; } = platform;
 
     /// <summary>
     /// Installs <paramref name="target"/>, replacing whatever is installed.

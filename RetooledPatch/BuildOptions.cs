@@ -1,4 +1,6 @@
-﻿namespace KSP.Retooled.Patch;
+﻿using RetooledLauncher.Common;
+
+namespace KSP.Retooled.Patch;
 
 public sealed class BuildOptions
 {
@@ -17,7 +19,7 @@ public sealed class BuildOptions
     /// <summary>
     /// <c>windows</c>, <c>linux</c> or <c>macos</c>; detected from the target's player when null.
     /// </summary>
-    public string? Platform { get; init; }
+    public Platform? Platform { get; init; }
 
     public int Jobs { get; init; } = PatchBuilder.DefaultJobs;
 

@@ -1,5 +1,6 @@
 ﻿using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Utils;
+using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
@@ -11,7 +12,7 @@ public sealed class ReleaseCatalogTests
     internal static Release Make(string tag,
                                  bool prerelease = false,
                                  int day = 0,
-                                 params string[] platforms)
+                                 params Platform[] platforms)
     {
         return new Release(tag,
                            string.Empty,
@@ -21,7 +22,7 @@ public sealed class ReleaseCatalogTests
                            string.Empty,
                            [
                                ..(platforms.Length is 0
-                                      ? ["windows", "linux", "macos"]
+                                      ? [..Platform.All]
                                       : platforms).Select(p => new ReleaseAsset(Release.PatchName(p),
                                                                                 10,
                                                                                 $"https://example/{tag}/{p}",
@@ -61,24 +62,21 @@ public sealed class ReleaseCatalogTests
     [Fact]
     public void HidesPrereleasesUnlessOptedIn()
     {
-        Assert.Equal(["v1.0.0", "v0.9.0"],
-                     Catalog().Visible(false).Select(r => r.Tag));
+        Assert.Equal(["v1.0.0", "v0.9.0"], Catalog().Visible(false).Select(r => r.Tag));
 
-        Assert.Equal(["v1.1.0-beta.1", "v1.0.0", "v0.9.0"],
-                     Catalog().Visible(true).Select(r => r.Tag));
+        Assert.Equal(["v1.1.0-beta.1", "v1.0.0", "v0.9.0"], Catalog().Visible(true).Select(r => r.Tag));
     }
 
     [Fact]
     public void AnInstalledPrereleaseStaysListed() => Assert.Contains("v1.1.0-beta.1",
-                                                                      Catalog()
-                                                                         .Visible(false, "v1.1.0-beta.1")
-                                                                         .Select(r => r.Tag));
+                                                                      Catalog().Visible(false, "v1.1.0-beta.1")
+                                                                               .Select(r => r.Tag));
 
     [Fact]
     public void LatestHonoursTheOptIn()
     {
-        Assert.Equal("v1.0.0", Catalog().Latest("windows", false)?.Tag);
-        Assert.Equal("v1.1.0-beta.1", Catalog().Latest("windows", true)?.Tag);
+        Assert.Equal("v1.0.0", Catalog().Latest(Platform.WINDOWS, false)?.Tag);
+        Assert.Equal("v1.1.0-beta.1", Catalog().Latest(Platform.WINDOWS, true)?.Tag);
     }
 
     [Fact]
@@ -86,19 +84,18 @@ public sealed class ReleaseCatalogTests
     {
         ReleaseCatalog catalog = new([
             Make("v1.0.0"),
-            Make("v1.1.0", day: 1, platforms: "windows")
+            Make("v1.1.0", day: 1, platforms: Platform.WINDOWS)
         ]);
 
-        Assert.Equal("v1.1.0", catalog.Latest("windows", false)?.Tag);
-        Assert.Equal("v1.0.0", catalog.Latest("linux", false)?.Tag);
+        Assert.Equal("v1.1.0", catalog.Latest(Platform.WINDOWS, false)?.Tag);
+        Assert.Equal("v1.0.0", catalog.Latest(Platform.LINUX, false)?.Tag);
     }
 
     [Fact]
     public void StableUsersAreNotOfferedPrereleaseUpgrades()
     {
-        Assert.Null(Catalog().UpgradeFor("v1.0.0", "windows", false));
-        Assert.Equal("v1.1.0-beta.1",
-                     Catalog().UpgradeFor("v1.0.0", "windows", true)?.Tag);
+        Assert.Null(Catalog().UpgradeFor("v1.0.0", Platform.WINDOWS, false));
+        Assert.Equal("v1.1.0-beta.1", Catalog().UpgradeFor("v1.0.0", Platform.WINDOWS, true)?.Tag);
     }
 
     [Fact]
@@ -110,12 +107,10 @@ public sealed class ReleaseCatalogTests
         ]);
 
         Assert.True(catalog.OnlyPrereleases);
-        Assert.Equal(["v1.0.0-beta.2", "v1.0.0-beta.1"],
-                     catalog.Visible(false).Select(r => r.Tag));
+        Assert.Equal(["v1.0.0-beta.2", "v1.0.0-beta.1"], catalog.Visible(false).Select(r => r.Tag));
 
-        Assert.Equal("v1.0.0-beta.2", catalog.Latest("windows", false)?.Tag);
-        Assert.Equal("v1.0.0-beta.2",
-                     catalog.UpgradeFor("v1.0.0-beta.1", "windows", false)?.Tag);
+        Assert.Equal("v1.0.0-beta.2", catalog.Latest(Platform.WINDOWS, false)?.Tag);
+        Assert.Equal("v1.0.0-beta.2", catalog.UpgradeFor("v1.0.0-beta.1", Platform.WINDOWS, false)?.Tag);
 
         Assert.False(Catalog().OnlyPrereleases);
         Assert.False(ReleaseCatalog.Empty.OnlyPrereleases);
@@ -130,7 +125,7 @@ public sealed class ReleaseCatalogTests
         ]);
 
         Assert.Equal("v1.1.0",
-                     catalog.UpgradeFor("v1.1.0-beta.1", "windows", false)?.Tag);
+                     catalog.UpgradeFor("v1.1.0-beta.1", Platform.WINDOWS, false)?.Tag);
     }
 
     [Fact]
@@ -185,9 +180,9 @@ public sealed class ReleaseCatalogTests
         ReleaseCatalog catalog = new([Built("pr-1", "aa"), Built("pr-2", "bb", 1)], false);
         Assert.Equal(InstallAction.REPLACE, catalog.ActionFor(catalog.Find("pr-2")!, "pr-1", "aa"));
         Assert.Equal(InstallAction.REPLACE, catalog.ActionFor(catalog.Find("pr-1")!, "pr-2", "bb"));
-        Assert.Null(catalog.Latest("windows", false));
-        Assert.Null(catalog.UpgradeFor("pr-1", "windows", false, "aa"));
-        Assert.Null(catalog.UpgradeFor(null, "windows", false));
+        Assert.Null(catalog.Latest(Platform.WINDOWS, false));
+        Assert.Null(catalog.UpgradeFor("pr-1", Platform.WINDOWS, false, "aa"));
+        Assert.Null(catalog.UpgradeFor(null, Platform.WINDOWS, false));
     }
 
     [Fact]
@@ -196,9 +191,9 @@ public sealed class ReleaseCatalogTests
         ReleaseCatalog catalog = new([Built("pr-1", "bb"), Built("pr-2", "cc", 1)], false);
         Release installed = catalog.Find("pr-1")!;
         Assert.Equal(InstallAction.UPDATE, catalog.ActionFor(installed, "pr-1", "aa"));
-        Assert.Same(installed, catalog.UpgradeFor("pr-1", "windows", false, "aa"));
+        Assert.Same(installed, catalog.UpgradeFor("pr-1", Platform.WINDOWS, false, "aa"));
         Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(installed, "pr-1", "BB"));
-        Assert.Null(catalog.UpgradeFor("pr-1", "windows", false, "bb"));
+        Assert.Null(catalog.UpgradeFor("pr-1", Platform.WINDOWS, false, "bb"));
         // installed by an older launcher, or from a release that published no digests
         Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(installed, "pr-1"));
         Assert.Equal(InstallAction.REINSTALL, catalog.ActionFor(Make("pr-1"), "pr-1", "aa"));
@@ -208,9 +203,9 @@ public sealed class ReleaseCatalogTests
     public void ANewerVersionComesBeforeANewBuildOfTheInstalledOne()
     {
         ReleaseCatalog catalog = new([Built("v1.0.0", "bb"), Built("v1.1.0", "cc", 1)]);
-        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.0.0", "windows", true, "aa")?.Tag);
-        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.1.0", "windows", true, "aa")?.Tag);
-        Assert.Null(catalog.UpgradeFor("v1.1.0", "windows", true, "cc"));
+        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.0.0", Platform.WINDOWS, true, "aa")?.Tag);
+        Assert.Equal("v1.1.0", catalog.UpgradeFor("v1.1.0", Platform.WINDOWS, true, "aa")?.Tag);
+        Assert.Null(catalog.UpgradeFor("v1.1.0", Platform.WINDOWS, true, "cc"));
     }
 
     [Fact]

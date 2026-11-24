@@ -10,6 +10,7 @@
     <ItemGroup>
         <ProjectReference Include="../RetooledPatch/RetooledPatch.csproj"/>
         <InternalsVisibleTo Include="RetooledLauncher.Tests"/>
+        <ProjectReference Include="..\RetooledLauncher.Common\RetooledLauncher.Common.csproj" />
     </ItemGroup>
 
     <ItemGroup>

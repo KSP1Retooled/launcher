@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Utils;
+using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
@@ -18,8 +19,8 @@ public sealed class GameStarterTests
     public void QuotesKeepWhitespaceAndAreRemoved() => Assert.Equal(["-logFile", @"C:\my logs\ksp.log", "--name=Jeb Kerman", string.Empty],
                                                                     GameStarter.SplitArguments("""-logFile "C:\my logs\ksp.log" --name="Jeb Kerman" "" """));
 
-    [Theory, InlineData("windows"), InlineData("linux")]
-    public void ThePlayerIsGivenTheArguments(string platform)
+    [Theory, InlineData(Platform.WINDOWS), InlineData(Platform.LINUX)]
+    public void ThePlayerIsGivenTheArguments(Platform platform)
     {
         ProcessStartInfo start = GameStarter.StartInfo("install", platform, "-a \"b c\"");
         Assert.Equal(Path.Combine("install", KspInstall.Player(platform)), start.FileName);
@@ -33,8 +34,8 @@ public sealed class GameStarterTests
     {
         string app = Path.Combine("install", "KSP.app");
         Assert.Equal(["-a", app, "--args", "-a", "b c"],
-                     GameStarter.StartInfo("install", "macos", "-a \"b c\"").ArgumentList);
+                     GameStarter.StartInfo("install", Platform.MACOS, "-a \"b c\"").ArgumentList);
 
-        Assert.Equal(["-a", app], GameStarter.StartInfo("install", "macos", " ").ArgumentList);
+        Assert.Equal(["-a", app], GameStarter.StartInfo("install", Platform.MACOS, " ").ArgumentList);
     }
 }
