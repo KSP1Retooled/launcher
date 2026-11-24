@@ -452,8 +452,7 @@ public static partial class PatchBuilder
                 throw new InvalidOperationException($"overlapping copy runs in {target.relative}");
             }
 
-            // TODO csavard: Handle this possible null assignment
-            plan.segments = [..slots]!;
+            plan.segments = [..slots];
 
             foreach ((long windowIndex, List<(int, long, int)> gaps) in windows)
             {
@@ -612,7 +611,7 @@ public static partial class PatchBuilder
         if (plan.same is not null) return new Recipe { Same = sourceIndex(plan.same) };
 
         Recipe recipe = new() { Segments = [] };
-        foreach ((Segment segment, _, FileEntry? fileEntry, _, _) in plan.segments)
+        foreach ((Segment segment, _, FileEntry? fileEntry, _, _) in plan.segments.OfType<PlannedSegment>())
         {
             if (segment.Kind is SegmentKind.Copy) segment.File = sourceIndex(fileEntry!);
             foreach (Extent extent in segment.Refs ?? [])
@@ -661,8 +660,8 @@ public static partial class PatchBuilder
 
     private static void WriteBlobs(PlannedOutput plan, Stream archive, byte[] buffer)
     {
-        using FileStream? target = plan.segments.Any(s => s.Segment.Kind == SegmentKind.Literal) ? File.OpenRead(plan.target.full) : null;
-        foreach (PlannedSegment planned in plan.segments)
+        using FileStream? target = plan.segments.Any(s => s?.Segment.Kind is SegmentKind.Literal) ? File.OpenRead(plan.target.full) : null;
+        foreach (PlannedSegment planned in plan.segments.OfType<PlannedSegment>())
         {
             if (planned.Spool is not null)
             {
@@ -689,7 +688,7 @@ public static partial class PatchBuilder
         static string Mb(long bytes) => $"{bytes / 1048576.0,10:F1} MB";
 
         List<PlannedOutput> same = [..outputs.Where(p => p.same is not null)];
-        List<PlannedSegment> segments = [..outputs.SelectMany(p => p.segments)];
+        List<PlannedSegment> segments = [..outputs.SelectMany(p => p.segments.OfType<PlannedSegment>())];
         List<PlannedSegment> copies = [..segments.Where(s => s.Segment.Kind == SegmentKind.Copy)];
         List<PlannedSegment> diffs = [..segments.Where(s => s.Segment.Kind == SegmentKind.BsDiff)];
         List<PlannedSegment> literals = [..segments.Where(s => s.Segment.Kind == SegmentKind.Literal)];
@@ -701,10 +700,10 @@ public static partial class PatchBuilder
         report.AppendLine($"  literal    {literals.Count,7} runs  {Mb(literals.Sum(s => s.Segment.Length))} -> ~{Mb(literals.Sum(s => s.Estimate))}");
         report.AppendLine("  largest contributors (~compressed alone at level 3 / copied from stock / output size):");
 
-        foreach (PlannedOutput plan in outputs.Where(p => p.same is null).OrderByDescending(p => p.segments.Sum(s => s.Estimate)).Take(40))
+        foreach (PlannedOutput plan in outputs.Where(p => p.same is null).OrderByDescending(p => p.segments.OfType<PlannedSegment>().Sum(s => s.Estimate)).Take(40))
         {
-            long bytes = plan.segments.Sum(s => s.Estimate);
-            long copied = plan.segments.Where(s => s.Segment.Kind == SegmentKind.Copy).Sum(s => s.Segment.Length);
+            long bytes = plan.segments.OfType<PlannedSegment>().Sum(s => s!.Estimate);
+            long copied = plan.segments.Where(s => s?.Segment.Kind is SegmentKind.Copy).Sum(s => s!.Segment.Length);
             string kind = plan.reference is null ? "new" : "diff";
             report.AppendLine($"    {Mb(bytes)} / {Mb(copied)} / {Mb(plan.target.size)}  {kind,-4} {plan.target.relative}");
         }
@@ -732,7 +731,7 @@ public static partial class PatchBuilder
         public readonly FileEntry target = target;
         public FileEntry? reference;
         public FileEntry? same;
-        public PlannedSegment[] segments = [];
+        public PlannedSegment?[] segments = [];
     }
 
     /// <summary>
