@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO.Enumeration;
 using System.Text;
+using JetBrains.Annotations;
 using KSP.Retooled.Patch.Exceptions;
 using KSP.Retooled.Patch.IO;
 using KSP.Retooled.Patch.Models.Journal;
@@ -406,17 +407,17 @@ public static partial class PatchBuilder
         List<FileEntry> stock =
         [
             ..baseFiles.Where(Indexable)
-                       .OrderBy(f => IsCore(f) ? 0 : 1).ThenBy(f => f.relative, StringComparer.OrdinalIgnoreCase)
+                       .OrderBy(f => IsCore(f) ? 0 : 1)
+                       .ThenBy(f => f.relative, StringComparer.OrdinalIgnoreCase)
         ];
 
         using CopyMatcher matcher = new(stock);
         log.WriteLine($"  indexed {matcher.Count} chunks of {stock.Count} stock files");
 
         ConcurrentBag<DiffJob> work = [];
-        Parallel.ForEach(changed, new ParallelOptions { MaxDegreeOfParallelism = jobs }, plan =>
+        ParallelForEach(changed, jobs, plan =>
         {
             FileEntry target = plan.target;
-            // TODO csavard: handle this disposed in outside scope variable
             List<CopyRun> runs = Indexable(target) ? matcher.Match(target, s => InScope(s, target)) : [];
 
             List<PlannedSegment?> slots = [];
@@ -459,7 +460,14 @@ public static partial class PatchBuilder
         });
 
         return [..work];
+
+        static void ParallelForEach(List<PlannedOutput> changed, int jobs, [InstantHandle] Action<PlannedOutput> body)
+        {
+            Parallel.ForEach(changed, new ParallelOptions { MaxDegreeOfParallelism = jobs }, body);
+        }
     }
+
+
 
     /// <summary>
     /// The stock window a target window is diffed against: same relative position, padded a quarter chunk each side.
