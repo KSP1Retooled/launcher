@@ -47,10 +47,11 @@ resharper_csharp_brace_style = next_line
 # Always use braces when a statement is multiline
 csharp_prefer_braces = when_multiline:suggestion
 
+# Braces: required for loops, required for multiline statements otherwise
 resharper_csharp_braces_for_ifelse = required_for_multiline_statement
-resharper_csharp_braces_for_for = required_for_multiline_statement
-resharper_csharp_braces_for_foreach = required_for_multiline_statement
-resharper_csharp_braces_for_while = required_for_multiline_statement
+resharper_csharp_braces_for_for = required
+resharper_csharp_braces_for_foreach = required
+resharper_csharp_braces_for_while = required
 resharper_csharp_braces_for_lock = required_for_multiline_statement
 resharper_csharp_braces_for_using = required_for_multiline_statement
 
@@ -61,21 +62,27 @@ dotnet_style_predefined_type_for_member_access = true:suggestion
 resharper_csharp_builtin_type_reference_style = use_keyword
 resharper_csharp_builtin_type_reference_for_member_access_style = use_keyword
 
-# Only keep one empty line within the code
-resharper_csharp_keep_blank_lines_in_code = 1
-resharper_csharp_keep_blank_lines_in_declarations = 1
-
-# Prefer string.Empty over ""
+# Empty string: use string.Empty
 resharper_empty_string = string_empty
 resharper_arrange_empty_string_highlighting = suggestion
-
-# Empty lines between properties
-resharper_csharp_blank_lines_around_property = 1
 
 # Prefer 'is' for comparisons
 csharp_style_prefer_pattern_matching = true:suggestion
 
+# Expression-bodied members
+resharper_csharp_prefer_expression_bodied_constructors = true
+resharper_csharp_prefer_expression_bodied_methods = true
+resharper_csharp_prefer_expression_bodied_operators = true
+resharper_csharp_prefer_expression_bodied_local_functions = true
+resharper_csharp_prefer_expression_bodied_accessors = true
+
+# Attributes: always on the same line
+resharper_csharp_attribute_style = join
+
+# ----------------------------------------------------------------------
 # Indentation
+# ----------------------------------------------------------------------
+
 indent_style = space
 indent_size = 4
 tab_width = 4
@@ -84,6 +91,93 @@ trim_trailing_whitespace = true
 resharper_csharp_indent_style = space
 resharper_csharp_indent_size = 4
 resharper_csharp_tab_width = 4
+resharper_csharp_indent_labels = usual_indent
+resharper_csharp_outdent_statement_labels = true
+resharper_csharp_indent_nested_for_statement = true
+resharper_csharp_indent_nested_foreach_statement = true
+resharper_csharp_indent_nested_while_statement = true
+
+# ----------------------------------------------------------------------
+# Alignment
+# ----------------------------------------------------------------------
+
+resharper_csharp_align_first_arg_by_paren = true
+resharper_csharp_align_linq_query = true
+resharper_csharp_align_multiline_arguments = true
+resharper_csharp_align_multiline_binary_patterns = true
+resharper_csharp_align_multiline_method_calls = true
+resharper_csharp_align_multiline_expressions = true
+resharper_csharp_align_multiline_base_list = true
+resharper_csharp_align_multiline_for_statement = true
+resharper_csharp_align_multiline_parameter_list = true
+resharper_csharp_align_multiple_declaration = true
+resharper_csharp_align_multiline_type_parameter_constraints = true
+resharper_csharp_align_multiline_type_parameter_list = true
+resharper_csharp_align_tuple_components = true
+resharper_csharp_allow_far_alignment = false
+
+# ----------------------------------------------------------------------
+# Outdenting
+# ----------------------------------------------------------------------
+
+resharper_csharp_indent_binary_ops = outdent
+resharper_csharp_indent_binary_pattern_ops = outdent
+resharper_csharp_indent_commas = outdent
+resharper_csharp_indent_dots = outdent
+
+# ----------------------------------------------------------------------
+# Wrapping
+# ----------------------------------------------------------------------
+
+resharper_csharp_wrap_line_length = 180
+resharper_csharp_wrap_lines = false
+resharper_csharp_wrap_before_binary_operator = true
+resharper_csharp_while_on_new_line = true
+
+# ----------------------------------------------------------------------
+# Spacing
+# ----------------------------------------------------------------------
+
+resharper_csharp_stick_comment = false
+resharper_csharp_space_within_slice_pattern = false
+resharper_csharp_space_within_spread_pattern = false
+
+# ----------------------------------------------------------------------
+# Parentheses
+# ----------------------------------------------------------------------
+
+resharper_csharp_parentheses_for_same_type_operations = true
+
+# ----------------------------------------------------------------------
+# Empty lines
+# ----------------------------------------------------------------------
+
+resharper_csharp_keep_blank_lines_in_code = 1
+resharper_csharp_keep_blank_lines_in_declarations = 1
+resharper_csharp_blank_lines_around_property = 1
+resharper_csharp_blank_lines_around_field = 0
+resharper_csharp_blank_lines_around_method_declaration = 1
+resharper_csharp_blank_lines_around_local_method = 1
+resharper_csharp_blank_lines_after_statements = 1
+resharper_csharp_blank_lines_after_control_statements = 1
+resharper_csharp_blank_lines_around_switch_section = 1
+resharper_csharp_blank_lines_around_multiline_switch_section = 1
+resharper_csharp_blank_lines_inside_region = 0
+
+# ----------------------------------------------------------------------
+# Empty blocks
+# ----------------------------------------------------------------------
+
+resharper_csharp_empty_blocks_style = together_same_line
+
+# ----------------------------------------------------------------------
+# Misc
+# ----------------------------------------------------------------------
+
+resharper_csharp_max_attribute_length_on_same_line = 180
+resharper_csharp_max_enum_members_on_line = 5
+resharper_csharp_insert_final_newline = true
+resharper_csharp_treat_case_statement_with_break_as_simple = false
 
 # ----------------------------------------------------------------------
 # Naming styles
