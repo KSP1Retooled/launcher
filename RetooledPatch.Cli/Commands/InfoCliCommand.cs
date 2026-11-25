@@ -5,16 +5,16 @@ using KSP.Retooled.Patch.Patcher;
 namespace KSP.Retooled.Patch.Cli.Commands;
 
 [CliCommand(Name = "info", Parent = typeof(RootCliCommand),
-            Description = "Shows what a patch file contains: the platform, the source installs that it accepts, the files that it copies " +
-                          "unchanged, its compressed sections, and its DLC components.")]
-public class InfoCliCommand
+            Description = "Shows what a patch file contains: the platform, the source installs that it accepts, "
+                        + "the files that it copies unchanged, its compressed sections, and its DLC components.")]
+public sealed class InfoCliCommand
 {
-    [CliOption(Name = "--patch", HelpName = "file", Description = "The patch file to describe.")]
-    public required string Patch { get; set; }
+    [CliOption(Name = "--patch", HelpName = "file", Description = "The patch file to describe.", ValidationRules = CliValidationRules.ExistingFile)]
+    public required FileInfo Patch { get; set; }
 
     public int Run()
     {
-        PatchManifest m = PatchFile.Open(this.Patch).Manifest;
+        PatchManifest m = PatchFile.Open(this.Patch.FullName).Manifest;
         Console.WriteLine(PatchFile.Describe(m));
         foreach (Variant variant in m.Variants)
         {

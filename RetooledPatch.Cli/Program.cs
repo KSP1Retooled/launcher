@@ -7,17 +7,20 @@ using DotMakeCli = DotMake.CommandLine.Cli;
 
 namespace KSP.Retooled.Patch.Cli;
 
-public static class Program
+internal static class Program
 {
     /// <summary>
     /// The exit code for a bad command line, a bad install or a bad patch file.
     /// </summary>
     private const int USAGE_ERROR = 2;
 
-    public static int Main(string[] args)
+    internal static int Main(string[] args)
     {
+        Console.Title = "KSP Retooled CLI";
+
         CliRunnableResult result = DotMakeCli.Parse<RootCliCommand>(args);
         ParseResult parse = result.ParseResult;
+
         // Help and --version clear parse errors, so a command can show its help even when its required options are missing.
         if (parse.Errors.Count > 0 && parse.Action is not { ClearsParseErrors: true })
         {
@@ -25,11 +28,11 @@ public static class Program
             {
                 Console.Error.WriteLine(error.Message);
             }
+            Console.Error.Flush();
 
             Command command = parse.CommandResult.Command;
             string name = command.Parents.Any() ? $"retooled-patch {command.Name}" : "retooled-patch";
-            Console.Error.WriteLine($"To see the options, run '{name} --help'.");
-            return USAGE_ERROR;
+            return Fail($"To see the options, run '{name} --help'.");
         }
 
         try
@@ -39,8 +42,14 @@ public static class Program
         catch (Exception e) when (e is PatchException or InvalidDataException or IOException)
         {
             // A bad install or patch file is the user's problem to fix, so it doesn't need a stack trace.
-            Console.Error.WriteLine(e.Message);
-            return USAGE_ERROR;
+            return Fail($"[{e.GetType().Name}] {e.Message}");
+        }
+        catch (Exception e)
+        {
+            // Unknown error
+            Console.Error.WriteLine($"Unexpected error: [{e.GetType().Name}] {e.Message}\n{e.StackTrace}");
+            Console.Error.Flush();
+            return 1;
         }
     }
 
@@ -50,6 +59,7 @@ public static class Program
     internal static int Fail(string message)
     {
         Console.Error.WriteLine(message);
+        Console.Error.Flush();
         return USAGE_ERROR;
     }
 }

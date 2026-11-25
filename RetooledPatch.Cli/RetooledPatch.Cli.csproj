@@ -19,6 +19,7 @@
 
     <ItemGroup>
         <ProjectReference Include="../RetooledPatch/RetooledPatch.csproj"/>
+        <InternalsVisibleTo Include="RetooledPatch.Tests" />
     </ItemGroup>
 
     <ItemGroup>

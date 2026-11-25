@@ -93,7 +93,7 @@ public static partial class PatchBuilder
     /// <summary>
     /// One job per logical core, unless that would need more memory than this machine or container has.
     /// </summary>
-    internal static int DefaultJobs => (int)Math.Clamp(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / JOB_MEMORY,
+    public static int DefaultJobs => (int)Math.Clamp(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / JOB_MEMORY,
                                                        1, Environment.ProcessorCount);
 
     public static BuildResult Build(BuildOptions o)

@@ -4,6 +4,10 @@ namespace KSP.Retooled.Patch;
 
 public sealed class BuildOptions
 {
+    public const int DEFAULT_LEVEL = 19;
+
+    public const int DEFAULT_WINDOW = 27;
+
     public required IReadOnlyList<BuildSource> Sources { get; init; }
 
     /// <summary>
@@ -23,9 +27,9 @@ public sealed class BuildOptions
 
     public int Jobs { get; init; } = PatchBuilder.DefaultJobs;
 
-    public int Level { get; init; } = 19;
+    public int Level { get; init; } = DEFAULT_LEVEL;
 
-    public int Window { get; init; } = 27;
+    public int Window { get; init; } = DEFAULT_WINDOW;
 
     /// <summary>
     /// Install-relative patterns ('*' spans directories) left out of every tree, on top of the defaults.
