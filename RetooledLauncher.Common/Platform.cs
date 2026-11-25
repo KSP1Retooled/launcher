@@ -4,6 +4,7 @@ using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 using FastEnumUtility;
 using JetBrains.Annotations;
+using KSP.Retooled.Launcher.Common.Converters;
 using KSP.Retooled.Launcher.Common.Exceptions;
 
 namespace KSP.Retooled.Launcher.Common;
@@ -11,35 +12,31 @@ namespace KSP.Retooled.Launcher.Common;
 /// <summary>
 /// Launcher target platform
 /// </summary>
-[PublicAPI]
+[PublicAPI, JsonConverter(typeof(PlatformJsonConverter))]
 public enum Platform
 {
     /// <summary>
     /// Unknown/undefined platform
     /// </summary>
     [Label("Unknown")]
-    [JsonStringEnumMemberName("unknown")]
     UNKNOWN,
     /// <summary>
     /// Windows platform
     /// </summary>
     [EnumMember(Value = "windows")]
     [Label("Windows"), Label("KSP_x64.exe", 1)]
-    [JsonStringEnumMemberName("windows")]
     WINDOWS,
     /// <summary>
     /// Linux platform
     /// </summary>
     [EnumMember(Value = "linux")]
     [Label("Linux"), Label("KSP.x86_64", 1)]
-    [JsonStringEnumMemberName("linux")]
     LINUX,
     /// <summary>
     /// MacOS platform
     /// </summary>
     [EnumMember(Value = "macos")]
     [Label("macOS"), Label("KSP.app", 1)]
-    [JsonStringEnumMemberName("macos")]
     MACOS
 }
 
