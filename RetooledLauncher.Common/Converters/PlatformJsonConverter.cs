@@ -7,7 +7,7 @@ namespace KSP.Retooled.Launcher.Common.Converters;
 /// <summary>
 /// Platform Json converter, reads/writes unknown platforms as an empty string
 /// </summary>
-internal sealed class PlatformJsonConverter : JsonConverter<Platform>
+public sealed class PlatformJsonConverter : JsonConverter<Platform>
 {
     /// <inheritdoc />
     public override Platform Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
