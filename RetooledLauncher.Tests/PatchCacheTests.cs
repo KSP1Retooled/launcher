@@ -1,12 +1,12 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Releases.GitHub;
 using KSP.Retooled.Launcher.Tests.Mocking;
 using KSP.Retooled.Launcher.Utils;
-using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;

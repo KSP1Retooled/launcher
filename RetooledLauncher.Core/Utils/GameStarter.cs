@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Text;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Installs;
-using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Utils;
 

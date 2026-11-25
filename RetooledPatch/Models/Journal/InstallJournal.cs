@@ -1,6 +1,6 @@
 using System.Text.Json;
+using KSP.Retooled.Launcher.Common;
 using KSP.Retooled.Patch.Install;
-using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Patch.Models.Journal;
 

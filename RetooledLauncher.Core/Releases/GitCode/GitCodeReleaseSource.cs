@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Releases.GitHub;
 using KSP.Retooled.Launcher.Utils;
 

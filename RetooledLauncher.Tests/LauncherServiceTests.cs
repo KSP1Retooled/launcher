@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Installs.Saves;
 using KSP.Retooled.Launcher.Releases;
@@ -9,7 +10,6 @@ using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch;
 using KSP.Retooled.Patch.Models.Journal;
 using KSP.Retooled.Patch.Patcher;
-using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
@@ -25,8 +25,7 @@ public sealed class LauncherServiceTests : IDisposable
     private static readonly string[] SourceArray = ["v1.0.0", "v1.1.0", "v2.0.0"];
     private readonly ReleaseCatalog catalog;
     private readonly FakePatches patches = new();
-    private readonly string root = Path.Combine(Path.GetTempPath(),
-                                                $"retooled-launcher-{Guid.NewGuid():N}");
+    private readonly string root = Path.Combine(Path.GetTempPath(), $"retooled-launcher-{Guid.NewGuid():N}");
     private readonly Dictionary<string, string> stockTree;
 
     public LauncherServiceTests()

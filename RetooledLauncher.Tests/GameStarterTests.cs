@@ -1,7 +1,7 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
+using KSP.Retooled.Launcher.Common;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Utils;
-using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;

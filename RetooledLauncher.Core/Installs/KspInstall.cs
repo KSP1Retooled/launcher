@@ -1,9 +1,8 @@
 using System.Security;
 using System.Text.Json;
 using FastEnumUtility;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
 using KSP.Retooled.Patch.Models.Journal;
-using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Installs;
 

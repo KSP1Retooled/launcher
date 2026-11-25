@@ -1,4 +1,4 @@
-﻿using KSP.Retooled.Launcher.Exceptions;
+﻿using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Releases.GitCode;
 using KSP.Retooled.Launcher.Releases.GitHub;

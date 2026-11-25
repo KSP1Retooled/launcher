@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO.Enumeration;
 using System.Text;
 using JetBrains.Annotations;
+using KSP.Retooled.Launcher.Common;
 using KSP.Retooled.Patch.Exceptions;
 using KSP.Retooled.Patch.IO;
 using KSP.Retooled.Patch.Models.Journal;
@@ -12,7 +13,6 @@ using KSP.Retooled.Patch.Models.Manifest;
 using KSP.Retooled.Patch.Patcher;
 using KSP.Retooled.Patch.Utils;
 using Microsoft.Win32.SafeHandles;
-using RetooledLauncher.Common;
 using ZstdSharp;
 
 namespace KSP.Retooled.Patch;

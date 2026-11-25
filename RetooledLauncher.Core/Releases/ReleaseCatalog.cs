@@ -1,5 +1,5 @@
+using KSP.Retooled.Launcher.Common;
 using KSP.Retooled.Launcher.Utils;
-using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Releases;
 

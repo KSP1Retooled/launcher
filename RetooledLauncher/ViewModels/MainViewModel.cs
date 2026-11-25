@@ -6,7 +6,8 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KSP.Retooled.Launcher.App.Updater;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
@@ -14,7 +15,6 @@ using KSP.Retooled.Launcher.Releases.GitHub;
 using KSP.Retooled.Launcher.Settings;
 using KSP.Retooled.Launcher.Utils;
 using KSP.Retooled.Patch.Exceptions;
-using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.App.ViewModels;
 
@@ -310,22 +310,27 @@ public sealed partial class MainViewModel : ObservableObject
         _ = RefreshAsync();
     }
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnReleaseErrorChanged(string value) => OnPropertyChanged(nameof(this.HasReleaseError));
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnLauncherUpdateChanged(Release? value)
     {
         OnPropertyChanged(nameof(this.HasLauncherUpdate));
         OnPropertyChanged(nameof(this.LauncherUpdateNotice));
     }
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnDownloadedLauncherChanged(string? value)
     {
         OnPropertyChanged(nameof(this.HasDownloadedLauncher));
         OnPropertyChanged(nameof(this.LauncherUpdateNotice));
     }
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnSelectedReleaseChanged(ReleaseItem? value) => Changed();
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnIsBusyChanged(bool value) => Changed();
 
     [RelayCommand(CanExecute = nameof(Idle))]

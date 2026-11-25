@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Utils;
-using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Patches;
 

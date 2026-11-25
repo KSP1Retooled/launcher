@@ -1,4 +1,5 @@
 using System.Text;
+using KSP.Retooled.Launcher.Common;
 using KSP.Retooled.Patch.Cli;
 using KSP.Retooled.Patch.Exceptions;
 using KSP.Retooled.Patch.Install;
@@ -7,7 +8,6 @@ using KSP.Retooled.Patch.Models.Journal;
 using KSP.Retooled.Patch.Models.Manifest;
 using KSP.Retooled.Patch.Patcher;
 using KSP.Retooled.Patch.Utils;
-using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Patch.Tests;

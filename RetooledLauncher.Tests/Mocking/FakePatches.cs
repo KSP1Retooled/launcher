@@ -1,7 +1,7 @@
-﻿using KSP.Retooled.Launcher.Exceptions;
+﻿using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
-using RetooledLauncher.Common;
 
 namespace KSP.Retooled.Launcher.Tests.Mocking;
 

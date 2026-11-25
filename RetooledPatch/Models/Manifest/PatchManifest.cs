@@ -1,5 +1,5 @@
 using System.Text.Json;
-using RetooledLauncher.Common;
+using KSP.Retooled.Launcher.Common;
 
 namespace KSP.Retooled.Patch.Models.Manifest;
 

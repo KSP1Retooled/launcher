@@ -1,4 +1,4 @@
-﻿namespace KSP.Retooled.Launcher.Exceptions;
+﻿namespace KSP.Retooled.Launcher.Common.Exceptions;
 
 /// <summary>
 /// A failure to show the user as is.

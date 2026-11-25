@@ -1,9 +1,9 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 using FastEnumUtility;
 using JetBrains.Annotations;
 
-namespace RetooledLauncher.Common;
+namespace KSP.Retooled.Launcher.Common;
 
 /// <summary>
 /// Launcher target platform

@@ -1,6 +1,6 @@
-﻿using KSP.Retooled.Launcher.Releases;
+﻿using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Utils;
-using RetooledLauncher.Common;
 using Xunit;
 
 namespace KSP.Retooled.Launcher.Tests;
