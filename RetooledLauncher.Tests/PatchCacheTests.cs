@@ -1,6 +1,7 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Releases.GitHub;
@@ -12,10 +13,8 @@ namespace KSP.Retooled.Launcher.Tests;
 
 public sealed class PatchCacheTests : IDisposable
 {
-    private readonly string root = Path.Combine(
-                                                Path.GetTempPath(),
-                                                "retooled-launcher-" + Guid.NewGuid().ToString("N")
-                                               );
+    private readonly string root = Path.Combine(Path.GetTempPath(),
+                                                "retooled-launcher-" + Guid.NewGuid().ToString("N"));
 
     public void Dispose()
     {
@@ -25,54 +24,49 @@ public sealed class PatchCacheTests : IDisposable
         }
     }
 
-    private static Release WithPatch(string tag, byte[] bytes, bool digest) =>
-        new(
-            tag,
-            string.Empty,
-            false,
-            DateTimeOffset.UnixEpoch,
-            string.Empty,
-            string.Empty,
-            [
-                new ReleaseAsset(
-                                 "retooled-linux.rtpatch",
-                                 bytes.Length,
-                                 $"https://dl/{tag}",
-                                 $"https://api/{tag}",
-                                 digest ? Convert.ToHexStringLower(SHA256.HashData(bytes)) : null
-                                )
-            ]
-           );
+    private static Release WithPatch(string tag, byte[] bytes, bool digest) => new(tag,
+                                                                                   string.Empty,
+                                                                                   false,
+                                                                                   DateTimeOffset.UnixEpoch,
+                                                                                   string.Empty,
+                                                                                   string.Empty,
+                                                                                   [
+                                                                                       new ReleaseAsset("retooled-linux.rtpatch",
+                                                                                                        bytes.Length,
+                                                                                                        $"https://dl/{tag}",
+                                                                                                        $"https://api/{tag}",
+                                                                                                        digest ? Convert.ToHexStringLower(SHA256.HashData(bytes)) : null)
+                                                                                   ]);
 
     [Fact]
     public async Task DownloadsOnceThenReusesTheVerifiedFile()
     {
-        byte[] bytes = Encoding.UTF8.GetBytes("patch bytes");
+        byte[] bytes = [.."patch bytes"u8];
         FakeHttp http = new();
         http.Bytes("https://dl/v1", bytes);
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
         Release release = WithPatch("v1", bytes, true);
 
-        string path = await cache.GetPatchAsync(release, "linux", null, CancellationToken.None);
+        string path = await cache.GetPatchAsync(release, Platform.LINUX, null, CancellationToken.None);
         Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
-        await cache.GetPatchAsync(release, "linux", null, CancellationToken.None);
+        await cache.GetPatchAsync(release, Platform.LINUX, null, CancellationToken.None);
         Assert.Single(http.requests);
     }
 
     [Fact]
     public async Task ANewBuildOfAReleaseDoesNotOverwriteTheOldOne()
     {
-        byte[] first = Encoding.UTF8.GetBytes("first build");
-        byte[] second = Encoding.UTF8.GetBytes("second build");
+        byte[] first = [.."first build"u8];
+        byte[] second = [.."second build"u8];
         FakeHttp http = new();
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
 
         http.Bytes("https://dl/pr-1", first);
-        string old = await cache.GetPatchAsync(WithPatch("pr-1", first, true), "linux", null, CancellationToken.None);
+        string old = await cache.GetPatchAsync(WithPatch("pr-1", first, true), Platform.LINUX, null, CancellationToken.None);
         http.Bytes("https://dl/pr-1", second);
-        string rebuilt = await cache.GetPatchAsync(WithPatch("pr-1", second, true), "linux", null, CancellationToken.None);
+        string rebuilt = await cache.GetPatchAsync(WithPatch("pr-1", second, true), Platform.LINUX, null, CancellationToken.None);
 
         Assert.NotEqual(old, rebuilt);
         Assert.Equal(first, await File.ReadAllBytesAsync(old));
@@ -86,12 +80,10 @@ public sealed class PatchCacheTests : IDisposable
         FakeHttp http = new();
         http.Bytes("https://api/v1", bytes);
         HttpClient client = new(http);
-        PatchCache cache = new(
-                               client,
-                               new GitHubReleaseSource(client, "o/r", "secret"), this.root
-                              );
+        PatchCache cache = new(client,
+                               new GitHubReleaseSource(client, "o/r", "secret"), this.root);
 
-        await cache.GetPatchAsync(WithPatch("v1", bytes, false), "linux", null, CancellationToken.None);
+        await cache.GetPatchAsync(WithPatch("v1", bytes, false), Platform.LINUX, null, CancellationToken.None);
         HttpRequestMessage request = Assert.Single(http.requests);
         Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
         Assert.Equal("application/octet-stream", request.Headers.Accept.Single().MediaType);
@@ -105,36 +97,28 @@ public sealed class PatchCacheTests : IDisposable
         http.routes["https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch"] =
             () => throw new HttpRequestException("connection reset");
 
-        http.Bytes(
-                   "https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
-                   bytes
-                  );
+        http.Bytes("https://gitcode.com/ksp1retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
+                   bytes);
 
         HttpClient client = new(http);
-        PatchCache cache = new(
-                               client,
-                               MirroredReleaseSource.For(client, LauncherInfo.DEFAULT_REPOSITORY, "secret"), this.root
-                              );
+        PatchCache cache = new(client,
+                               MirroredReleaseSource.For(client, LauncherInfo.DEFAULT_REPOSITORY, "secret"), this.root);
 
-        Release release = new(
-                              "v1",
+        Release release = new("v1",
                               string.Empty,
                               false,
                               DateTimeOffset.UnixEpoch,
                               string.Empty,
                               string.Empty,
                               [
-                                  new ReleaseAsset(
-                                                   "retooled-linux.rtpatch",
+                                  new ReleaseAsset("retooled-linux.rtpatch",
                                                    bytes.Length,
                                                    "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
                                                    "https://github.com/KSP1Retooled/retooled/releases/download/v1/retooled-linux.rtpatch",
-                                                   Convert.ToHexStringLower(SHA256.HashData(bytes))
-                                                  )
-                              ]
-                             ) { Channel = LauncherInfo.DEFAULT_REPOSITORY };
+                                                   Convert.ToHexStringLower(SHA256.HashData(bytes)))
+                              ]) { Channel = LauncherInfo.DEFAULT_REPOSITORY };
 
-        string path = await cache.GetPatchAsync(release, "linux", null, CancellationToken.None);
+        string path = await cache.GetPatchAsync(release, Platform.LINUX, null, CancellationToken.None);
 
         Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
         Assert.Equal(2, http.requests.Count);
@@ -146,18 +130,15 @@ public sealed class PatchCacheTests : IDisposable
     public async Task RejectsADownloadThatDoesNotMatchTheDigest()
     {
         FakeHttp http = new();
-        http.Bytes("https://dl/v1", Encoding.UTF8.GetBytes("tampered!!!"));
+        http.Bytes("https://dl/v1", [.."tampered!!!"u8]);
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
 
         await Assert.ThrowsAsync<LauncherException>(() =>
-                                                        cache.GetPatchAsync(
-                                                                            WithPatch("v1", Encoding.UTF8.GetBytes("patch bytes"), true),
-                                                                            "linux",
+                                                        cache.GetPatchAsync(WithPatch("v1", [.."patch bytes"u8], true),
+                                                                            Platform.LINUX,
                                                                             null,
-                                                                            CancellationToken.None
-                                                                           )
-                                                   );
+                                                                            CancellationToken.None));
 
         Assert.Empty(Directory.EnumerateFiles(this.root, "*", SearchOption.AllDirectories));
     }
@@ -170,13 +151,11 @@ public sealed class PatchCacheTests : IDisposable
         http.Bytes("https://dl/release/v2", [2]);
         HttpClient client = new(http);
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
-        string old = await cache.GetPatchAsync(WithPatch("v1", [1], false), "linux", null, CancellationToken.None);
-        string kept = await cache.GetPatchAsync(
-                                                WithPatch("release/v2", [2], false),
-                                                "linux",
+        string old = await cache.GetPatchAsync(WithPatch("v1", [1], false), Platform.LINUX, null, CancellationToken.None);
+        string kept = await cache.GetPatchAsync(WithPatch("release/v2", [2], false),
+                                                Platform.LINUX,
                                                 null,
-                                                CancellationToken.None
-                                               );
+                                                CancellationToken.None);
 
         cache.Prune([kept]);
         Assert.False(File.Exists(old));
@@ -192,19 +171,15 @@ public sealed class PatchCacheTests : IDisposable
         PatchCache cache = new(client, new GitHubReleaseSource(client, "o/r"), this.root);
         Release release = WithPatch("v1", [1, 2, 3], false);
 
-        string first = await cache.GetPatchAsync(
-                                                 release with { Channel = "a/one" },
-                                                 "linux",
+        string first = await cache.GetPatchAsync(release with { Channel = "a/one" },
+                                                 Platform.LINUX,
                                                  null,
-                                                 CancellationToken.None
-                                                );
+                                                 CancellationToken.None);
 
-        string second = await cache.GetPatchAsync(
-                                                  release with { Channel = "a/two" },
-                                                  "linux",
+        string second = await cache.GetPatchAsync(release with { Channel = "a/two" },
+                                                  Platform.LINUX,
                                                   null,
-                                                  CancellationToken.None
-                                                 );
+                                                  CancellationToken.None);
 
         Assert.NotEqual(first, second);
         Assert.Equal(2, http.requests.Count);
@@ -216,11 +191,9 @@ public sealed class PatchCacheTests : IDisposable
         Directory.CreateDirectory(this.root);
         string file = Path.Combine(this.root, "mine.rtpatch");
         HttpClient client = new(new FakeHttp());
-        PatchCache cache = new(
-                               client,
+        PatchCache cache = new(client,
                                new GitHubReleaseSource(client, "o/r"),
-                               Path.Combine(this.root, "cache")
-                              );
+                               Path.Combine(this.root, "cache"));
 
         File.WriteAllBytes(file, [1, 2, 3]);
         string first = await cache.ImportAsync(file, null, CancellationToken.None);

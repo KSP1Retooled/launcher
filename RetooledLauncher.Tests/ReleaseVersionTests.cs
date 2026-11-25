@@ -46,6 +46,5 @@ public sealed class ReleaseVersionTests
     }
 
     [Theory, InlineData("nightly"), InlineData("1"), InlineData("1.2.3.4"), InlineData("1.x.0"), InlineData("1.0.0-"), InlineData("")]
-    public void RejectsTagsThatAreNotVersions(string tag) =>
-        Assert.False(ReleaseVersion.TryParse(tag, out _));
+    public void RejectsTagsThatAreNotVersions(string tag) => Assert.False(ReleaseVersion.TryParse(tag, out _));
 }

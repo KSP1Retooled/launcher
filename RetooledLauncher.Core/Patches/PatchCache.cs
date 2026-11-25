@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Releases;
 using KSP.Retooled.Launcher.Utils;
 
@@ -22,7 +23,7 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
     public string Directory { get; } = directory;
 
     public async Task<string> GetPatchAsync(Release release,
-                                            string platform,
+                                            Platform platform,
                                             IProgress<LauncherProgress>? progress,
                                             CancellationToken cancellation)
     {
@@ -139,20 +140,16 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
                 HttpResponseMessage response;
                 try
                 {
-                    response = await http.SendAsync(
-                                                    request,
+                    response = await http.SendAsync(request,
                                                     HttpCompletionOption.ResponseHeadersRead,
-                                                    cancellation
-                                                   )
+                                                    cancellation)
                                          .ConfigureAwait(false);
                 }
                 catch (Exception e)
                     when (MirroredReleaseSource.IsUnreachable(e, cancellation))
                 {
-                    first ??= new LauncherException(
-                                                    $"downloading {asset.Name} of {release.Tag} failed: {e.Message}",
-                                                    e
-                                                   );
+                    first ??= new LauncherException($"downloading {asset.Name} of {release.Tag} failed: {e.Message}",
+                                                    e);
 
                     continue;
                 }
@@ -162,9 +159,7 @@ public sealed class PatchCache(HttpClient http, IReleaseSource source, string di
                     return response;
                 }
 
-                first ??= new LauncherException(
-                                                $"downloading {asset.Name} of {release.Tag} failed: {(int)response.StatusCode} {response.ReasonPhrase}"
-                                               );
+                first ??= new LauncherException($"downloading {asset.Name} of {release.Tag} failed: {(int)response.StatusCode} {response.ReasonPhrase}");
 
                 response.Dispose();
             }

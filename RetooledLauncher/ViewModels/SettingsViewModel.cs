@@ -13,7 +13,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 {
     public SettingsViewModel(LauncherSettings settings)
     {
-        this.SelectedMirror  = this.Mirrors.First(m => m.Value == settings.PreferredMirror);
+        this.SelectedMirror = this.Mirrors.First(m => m.Value == settings.PreferredMirror);
         this.LaunchArguments = settings.LaunchArguments ?? string.Empty;
     }
 

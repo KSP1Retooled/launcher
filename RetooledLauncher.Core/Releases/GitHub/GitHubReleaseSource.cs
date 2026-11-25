@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Utils;
 
 namespace KSP.Retooled.Launcher.Releases.GitHub;
@@ -104,7 +104,7 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
                 }
             }
 
-            updated.CheckedAt                   = this.metadata.Clock.GetUtcNow();
+            updated.CheckedAt = this.metadata.Clock.GetUtcNow();
             scope.repositories[this.Repository] = updated;
             this.metadata.Save(this.Repository, string.IsNullOrEmpty(token), updated);
             return Releases(updated);
@@ -187,28 +187,25 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
     /// <summary>
     /// Where GitHub serves the file <paramref name="name"/> of the release tagged <paramref name="tag"/>.
     /// </summary>
-    public string DownloadUrl(string tag, string name) =>
-        $"https://github.com/{this.Repository}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}";
+    public string DownloadUrl(string tag, string name) => $"https://github.com/{this.Repository}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}";
 
     public static bool IsValidRepository(string repository)
     {
         string[] parts = repository.Split('/');
         return parts.Length == 2
             && parts.All(p =>
-                             p.Length > 0 && p.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.')
-                        );
+                             p.Length > 0 && p.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.'));
     }
 
-    private static string Describe(HttpResponseMessage response, string repository) =>
-        (int)response.StatusCode switch
-        {
-            404 =>
-                $"GitHub has no repository {repository}, or it is private and needs a GITHUB_TOKEN",
-            401        => "GitHub rejected the token in GITHUB_TOKEN",
-            403 or 429 => "GitHub's rate limit was reached; try again later or set GITHUB_TOKEN",
-            _ =>
-                $"GitHub answered {(int)response.StatusCode} {response.ReasonPhrase} for {repository}'s releases"
-        };
+    private static string Describe(HttpResponseMessage response, string repository) => (int)response.StatusCode switch
+    {
+        404 =>
+            $"GitHub has no repository {repository}, or it is private and needs a GITHUB_TOKEN",
+        401        => "GitHub rejected the token in GITHUB_TOKEN",
+        403 or 429 => "GitHub's rate limit was reached; try again later or set GITHUB_TOKEN",
+        _ =>
+            $"GitHub answered {(int)response.StatusCode} {response.ReasonPhrase} for {repository}'s releases"
+    };
 
     private static string? NextPage(HttpResponseMessage response)
     {
@@ -234,31 +231,27 @@ public sealed class GitHubReleaseSource(HttpClient http, string channel, string?
         return null;
     }
 
-    private static Release Convert(GitHubRelease r) =>
-        new(r.TagName,
-            r.Name ?? string.Empty,
-            r.Prerelease,
-            r.PublishedAt ?? r.CreatedAt ?? DateTimeOffset.MinValue,
-            r.Body ?? string.Empty,
-            r.HtmlUrl ?? string.Empty,
-            [
-                ..(r.Assets ?? []).Select(a => new ReleaseAsset(
-                                                                a.Name,
-                                                                a.Size,
-                                                                a.BrowserDownloadUrl,
-                                                                a.Url,
-                                                                Sha256(a.Digest)
-                                                               ))
-            ])
-        {
-            Created = r.CreatedAt ?? r.PublishedAt ?? DateTimeOffset.MinValue
-        };
+    private static Release Convert(GitHubRelease r) => new(r.TagName,
+                                                           r.Name ?? string.Empty,
+                                                           r.Prerelease,
+                                                           r.PublishedAt ?? r.CreatedAt ?? DateTimeOffset.MinValue,
+                                                           r.Body ?? string.Empty,
+                                                           r.HtmlUrl ?? string.Empty,
+                                                           [
+                                                               ..(r.Assets ?? []).Select(a => new ReleaseAsset(a.Name,
+                                                                                                               a.Size,
+                                                                                                               a.BrowserDownloadUrl,
+                                                                                                               a.Url,
+                                                                                                               Sha256(a.Digest)))
+                                                           ])
+    {
+        Created = r.CreatedAt ?? r.PublishedAt ?? DateTimeOffset.MinValue
+    };
 
     /// <summary>
     /// GitHub (and GitCode) report digests as <c>sha256:&lt;hex&gt;</c>.
     /// </summary>
-    internal static string? Sha256(string? digest) =>
-        digest is not null && digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
-            ? digest[7..].ToLowerInvariant()
-            : null;
+    internal static string? Sha256(string? digest) => digest is not null && digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
+                                                          ? digest[7..].ToLowerInvariant()
+                                                          : null;
 }

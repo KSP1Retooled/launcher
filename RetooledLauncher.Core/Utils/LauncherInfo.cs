@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace KSP.Retooled.Launcher.Utils;
 
@@ -48,28 +47,17 @@ public static class LauncherInfo
                                          ?? "0.0.0";
 
     /// <summary>
-    /// <c>windows</c>, <c>linux</c> or <c>macos</c>: the patch this machine needs.
-    /// </summary>
-    public static string Platform { get; } =
-        OperatingSystem.IsWindows() ? "windows"
-        : OperatingSystem.IsMacOS() ? "macos"
-        : OperatingSystem.IsLinux() ? "linux"
-                                      : RuntimeInformation.OSDescription;
-
-    /// <summary>
     /// Per-user data: <c>%LOCALAPPDATA%</c>, <c>~/Library/Application Support</c> or <c>~/.local/share</c>.
     /// </summary>
     public static string DataDirectory { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData,
                                                Environment.SpecialFolderOption.Create),
                      "KSPRetooled",
-                     "Launcher"
-                    );
+                     "Launcher");
 
-    public static bool IsBuiltInChannel(string channel) =>
-        channel.Equals(DEFAULT_REPOSITORY, StringComparison.OrdinalIgnoreCase)
-     || channel.Equals(DEBUG_CHANNEL, StringComparison.OrdinalIgnoreCase)
-     || channel.Equals(EXPERIMENTAL_CHANNEL, StringComparison.OrdinalIgnoreCase);
+    public static bool IsBuiltInChannel(string channel) => channel.Equals(DEFAULT_REPOSITORY, StringComparison.OrdinalIgnoreCase)
+                                                        || channel.Equals(DEBUG_CHANNEL, StringComparison.OrdinalIgnoreCase)
+                                                        || channel.Equals(EXPERIMENTAL_CHANNEL, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Whether the channel's releases are versions, each replacing the ones before it, rather than separate builds.

@@ -10,10 +10,11 @@
     <ItemGroup>
         <ProjectReference Include="../RetooledPatch/RetooledPatch.csproj"/>
         <InternalsVisibleTo Include="RetooledLauncher.Tests"/>
+        <ProjectReference Include="..\RetooledLauncher.Common\RetooledLauncher.Common.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
-      <PackageReference Include="JetBrains.ExternalAnnotations" Version="10.2.172" />
+        <PackageReference Include="JetBrains.Annotations" Version="2026.2.0"/>
+        <PackageReference Include="JetBrains.ExternalAnnotations" Version="10.2.172"/>
     </ItemGroup>
 </Project>

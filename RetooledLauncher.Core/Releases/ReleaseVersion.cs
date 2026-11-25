@@ -10,9 +10,9 @@ public sealed class ReleaseVersion : IComparable<ReleaseVersion>
 {
     private ReleaseVersion(int major, int minor, int patch, string[] prerelease)
     {
-        this.Major         = major;
-        this.Minor         = minor;
-        this.Patch         = patch;
+        this.Major = major;
+        this.Minor = minor;
+        this.Patch = patch;
         this.PrereleaseIds = prerelease;
     }
 

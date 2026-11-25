@@ -6,7 +6,8 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KSP.Retooled.Launcher.App.Updater;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Patches;
 using KSP.Retooled.Launcher.Releases;
@@ -38,10 +39,10 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(LauncherSettings settings, IDialogs dialogs)
     {
         this.settings = settings;
-        this.dialogs  = dialogs;
-        this.updater  = new LauncherUpdater(this.token);
+        this.dialogs = dialogs;
+        this.updater = new LauncherUpdater(this.token);
         Append(Title);
-        this.InstallPath        = settings.InstallPath is { } saved ? KspInstall.Inspect(saved).Path : string.Empty;
+        this.InstallPath = settings.InstallPath is { } saved ? KspInstall.Inspect(saved).Path : string.Empty;
         this.IncludePrereleases = settings.IncludePrereleases;
         foreach (string channel in settings.AllChannels)
         {
@@ -85,7 +86,8 @@ public sealed partial class MainViewModel : ObservableObject
     public partial string Channel { get; set; }
 
     [ObservableProperty]
-    public partial InstallInfo? Install { get; private set; }
+    // ReSharper disable once MemberCanBeMadeStatic.Local
+    private partial InstallInfo? Install { get; set; }
 
     [ObservableProperty]
     public partial ReleaseItem? SelectedRelease { get; set; }
@@ -143,13 +145,13 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>
     /// The platform of the patch that the launcher applies to the install, which is the install's own platform.
     /// </summary>
-    private string PatchPlatform => KspInstall.PatchPlatform(this.Install, LauncherInfo.Platform);
+    private Platform PatchPlatform => KspInstall.PatchPlatform(this.Install, Platform.Current);
 
     /// <summary>
     /// True if the launcher can start the game itself. False when the install is for another platform, such as the
     /// Windows version of KSP on Linux, which the user starts with Proton.
     /// </summary>
-    private bool RunsHere => this.PatchPlatform == LauncherInfo.Platform;
+    private bool RunsHere => this.PatchPlatform == Platform.Current;
 
     private string Build => this.Install?.BuildId is { } id ? $" (build {id})" : string.Empty;
 
@@ -157,7 +159,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// The tooltip on the Play button. It explains why Play is turned off for an install from another platform.
     /// </summary>
     public string? PlayTip => !this.RunsHere
-                                  ? $"This is the {PlatformName(this.PatchPlatform)} version of KSP, so the launcher can't start it."
+                                  ? $"This is the {this.PatchPlatform.DisplayName} version of KSP, so the launcher can't start it."
                                   : null;
 
     private string InstalledName => this.Install?.Release switch
@@ -219,14 +221,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     private bool Idle => !this.IsBusy;
 
-    private static string PlatformName(string platform) => platform switch
-    {
-        "windows" => "Windows",
-        "linux"   => "Linux",
-        "macos"   => "macOS",
-        _         => platform
-    };
-
     public async Task StartAsync()
     {
         Task update = CheckForLauncherUpdateAsync();
@@ -259,8 +253,7 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             IReadOnlyList<Release> releases = await new GitHubReleaseSource(this.http,
-                                                                            LauncherInfo.REPOSITORY, this.token, this.metadata
-                                                                           ).GetReleasesAsync(timeout.Token);
+                                                                            LauncherInfo.REPOSITORY, this.token, this.metadata).GetReleasesAsync(timeout.Token);
 
             this.LauncherUpdate = new ReleaseCatalog(releases).NewerThan(LauncherInfo.Version);
         }
@@ -317,22 +310,27 @@ public sealed partial class MainViewModel : ObservableObject
         _ = RefreshAsync();
     }
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnReleaseErrorChanged(string value) => OnPropertyChanged(nameof(this.HasReleaseError));
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnLauncherUpdateChanged(Release? value)
     {
         OnPropertyChanged(nameof(this.HasLauncherUpdate));
         OnPropertyChanged(nameof(this.LauncherUpdateNotice));
     }
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnDownloadedLauncherChanged(string? value)
     {
         OnPropertyChanged(nameof(this.HasDownloadedLauncher));
         OnPropertyChanged(nameof(this.LauncherUpdateNotice));
     }
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnSelectedReleaseChanged(ReleaseItem? value) => Changed();
 
+    // ReSharper disable once UnusedParameterInPartialMethod
     partial void OnIsBusyChanged(bool value) => Changed();
 
     [RelayCommand(CanExecute = nameof(Idle))]
@@ -340,7 +338,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         string? folder;
         // KSP.app is a folder, which Avalonia's file picker leaves out of what it returns
-        if (LauncherInfo.Platform is "macos")
+        if (Platform.Current is Platform.MACOS)
         {
             folder = await this.dialogs.PickFolderAsync("Choose your KSP 1.12.5 folder");
         }
@@ -350,9 +348,9 @@ public sealed partial class MainViewModel : ObservableObject
             List<string> names =
             [
                 ..KspInstall
-                 .PlatformsOn(LauncherInfo.Platform)
-                 .Where(p => p is not "macos")
-                 .Select(KspInstall.Player)
+                 .PlatformsOn(Platform.Current)
+                 .Where(p => p is not Platform.MACOS)
+                 .Select(p => p.PlayerName)
             ];
 
             string? player = await this.dialogs.PickPlayerAsync($"Select {string.Join(" or ", names)} in your KSP 1.12.5 folder", names);

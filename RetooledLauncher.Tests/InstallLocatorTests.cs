@@ -23,10 +23,8 @@ public sealed class InstallLocatorTests
                            }
                            """;
 
-        Assert.Equal(
-                     [@"C:\Program Files (x86)\Steam", @"D:\SteamLibrary"],
-                     InstallLocator.ParseLibraryFolders(VDF)
-                    );
+        Assert.Equal([@"C:\Program Files (x86)\Steam", @"D:\SteamLibrary"],
+                     InstallLocator.ParseLibraryFolders(VDF));
     }
 
     [Fact]
@@ -42,10 +40,8 @@ public sealed class InstallLocatorTests
                            }
                            """;
 
-        Assert.Equal(
-                     [@"D:\SteamLibrary", "/mnt/games/steam"],
-                     InstallLocator.ParseLibraryFolders(VDF)
-                    );
+        Assert.Equal([@"D:\SteamLibrary", "/mnt/games/steam"],
+                     InstallLocator.ParseLibraryFolders(VDF));
     }
 
     [Fact]
@@ -69,10 +65,8 @@ public sealed class InstallLocatorTests
                             }
                             """;
 
-        Assert.Equal(
-                     ["/home/kerbal/Games/Heroic/Kerbal Space Program"],
-                     InstallLocator.ParseHeroicInstalls(JSON, "1429864849")
-                    );
+        Assert.Equal(["/home/kerbal/Games/Heroic/Kerbal Space Program"],
+                     InstallLocator.ParseHeroicInstalls(JSON, "1429864849"));
 
         Assert.Empty(InstallLocator.ParseHeroicInstalls("not json", "1429864849"));
         Assert.Empty(InstallLocator.ParseHeroicInstalls("[]", "1429864849"));
@@ -82,20 +76,14 @@ public sealed class InstallLocatorTests
     public void MapsWindowsPathsIntoWinePrefixes()
     {
         const string PREFIX = "/home/kerbal/.wine";
-        Assert.Equal(
-                     Path.Combine(PREFIX, "drive_c", "Program Files (x86)", "Steam"),
-                     InstallLocator.WindowsPathInPrefix(PREFIX, @"C:\Program Files (x86)\Steam")
-                    );
+        Assert.Equal(Path.Combine(PREFIX, "drive_c", "Program Files (x86)", "Steam"),
+                     InstallLocator.WindowsPathInPrefix(PREFIX, @"C:\Program Files (x86)\Steam"));
 
-        Assert.Equal(
-                     Path.Combine(PREFIX, "dosdevices", "d:", "SteamLibrary"),
-                     InstallLocator.WindowsPathInPrefix(PREFIX, @"D:\SteamLibrary")
-                    );
+        Assert.Equal(Path.Combine(PREFIX, "dosdevices", "d:", "SteamLibrary"),
+                     InstallLocator.WindowsPathInPrefix(PREFIX, @"D:\SteamLibrary"));
 
-        Assert.Equal(
-                     Path.Combine("/", "mnt", "games"),
-                     InstallLocator.WindowsPathInPrefix(PREFIX, "z:/mnt/games/")
-                    );
+        Assert.Equal(Path.Combine("/", "mnt", "games"),
+                     InstallLocator.WindowsPathInPrefix(PREFIX, "z:/mnt/games/"));
 
         Assert.Null(InstallLocator.WindowsPathInPrefix(PREFIX, "/mnt/games"));
     }
@@ -103,20 +91,12 @@ public sealed class InstallLocatorTests
     [Fact]
     public void ReadsHeroicAndMinigalaxyInstallFolders()
     {
-        Assert.Equal(
-                     "/data/games",
-                     InstallLocator.ParseHeroicInstallFolder(
-                                                             """{ "defaultSettings": { "defaultInstallPath": "/data/games" } }"""
-                                                            )
-                    );
+        Assert.Equal("/data/games",
+                     InstallLocator.ParseHeroicInstallFolder("""{ "defaultSettings": { "defaultInstallPath": "/data/games" } }"""));
 
         Assert.Null(InstallLocator.ParseHeroicInstallFolder("{}"));
-        Assert.Equal(
-                     "/home/kerbal/GOG Games",
-                     InstallLocator.ParseMinigalaxyInstallFolder(
-                                                                 """{ "install_dir": "/home/kerbal/GOG Games" }"""
-                                                                )
-                    );
+        Assert.Equal("/home/kerbal/GOG Games",
+                     InstallLocator.ParseMinigalaxyInstallFolder("""{ "install_dir": "/home/kerbal/GOG Games" }"""));
 
         Assert.Null(InstallLocator.ParseMinigalaxyInstallFolder("garbage"));
     }

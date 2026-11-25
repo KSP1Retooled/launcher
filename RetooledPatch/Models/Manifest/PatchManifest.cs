@@ -1,4 +1,5 @@
 using System.Text.Json;
+using KSP.Retooled.Launcher.Common;
 
 namespace KSP.Retooled.Patch.Models.Manifest;
 
@@ -23,7 +24,7 @@ public sealed class PatchManifest
     /// <summary>
     /// <c>windows</c>, <c>linux</c> or <c>macos</c>: the player layout of the target build.
     /// </summary>
-    public string Platform { get; set; } = string.Empty;
+    public Platform Platform { get; set; } = Platform.UNKNOWN;
 
     /// <summary>
     /// Install-relative files and directories the patch knows nothing about: nothing in them is checked, read, replaced or

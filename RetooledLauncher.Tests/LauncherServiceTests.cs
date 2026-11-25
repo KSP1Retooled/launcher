@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Installs.Saves;
 using KSP.Retooled.Launcher.Releases;
@@ -19,11 +20,12 @@ namespace KSP.Retooled.Launcher.Tests;
 /// </summary>
 public sealed class LauncherServiceTests : IDisposable
 {
-    private const string PLATFORM = "windows";
+    private const Platform PLATFORM = Platform.WINDOWS;
+
+    private static readonly string[] SourceArray = ["v1.0.0", "v1.1.0", "v2.0.0"];
     private readonly ReleaseCatalog catalog;
     private readonly FakePatches patches = new();
-    private readonly string root = Path.Combine(Path.GetTempPath(),
-                                                $"retooled-launcher-{Guid.NewGuid():N}");
+    private readonly string root = Path.Combine(Path.GetTempPath(), $"retooled-launcher-{Guid.NewGuid():N}");
     private readonly Dictionary<string, string> stockTree;
 
     public LauncherServiceTests()
@@ -89,8 +91,6 @@ public sealed class LauncherServiceTests : IDisposable
     private string Stock => Path.Combine(this.root, "stock");
 
     private string BackupFolder => Path.Combine(this.Install, SavesBackup.BACKUP_FOLDER);
-
-    private static readonly string[] SourceArray = ["v1.0.0", "v1.1.0", "v2.0.0"];
 
     public void Dispose()
     {
@@ -392,7 +392,7 @@ public sealed class LauncherServiceTests : IDisposable
         await Service().InstallAsync(this.Install, Get("v1.0.0"), this.catalog);
         Dictionary<string, string> before = Tree(this.Install);
 
-        await Assert.ThrowsAsync<LauncherException>(() => new LauncherService(this.patches, "linux").InstallAsync(this.Install, Get("v1.1.0"), this.catalog));
+        await Assert.ThrowsAsync<LauncherException>(() => new LauncherService(this.patches, Platform.LINUX).InstallAsync(this.Install, Get("v1.1.0"), this.catalog));
 
         AssertTree(before, Tree(this.Install));
     }
@@ -528,10 +528,10 @@ public sealed class LauncherServiceTests : IDisposable
     [Fact]
     public void OnLinuxAWindowsInstallGetsTheWindowsPatch()
     {
-        InstallInfo info = KspInstall.Inspect(this.Stock, "linux");
+        InstallInfo info = KspInstall.Inspect(this.Stock, Platform.LINUX);
 
-        Assert.Equal("windows", info.Platform);
-        Assert.Equal("windows", KspInstall.PatchPlatform(info, "linux"));
+        Assert.Equal(Platform.WINDOWS, info.Platform);
+        Assert.Equal(Platform.WINDOWS, KspInstall.PatchPlatform(info, Platform.LINUX));
     }
 
     [Fact]
@@ -539,27 +539,27 @@ public sealed class LauncherServiceTests : IDisposable
     {
         Write(this.Stock, "KSP.x86_64", [1]);
 
-        Assert.Equal("linux", KspInstall.PatchPlatform(KspInstall.Inspect(this.Stock, "linux"), "linux"));
-        Assert.Equal("windows", KspInstall.PatchPlatform(KspInstall.Inspect(this.Stock, "windows"), "windows"));
+        Assert.Equal(Platform.LINUX, KspInstall.PatchPlatform(KspInstall.Inspect(this.Stock, Platform.LINUX), Platform.LINUX));
+        Assert.Equal(Platform.WINDOWS, KspInstall.PatchPlatform(KspInstall.Inspect(this.Stock, Platform.WINDOWS), Platform.WINDOWS));
     }
 
     [Fact]
     public void OnMacAWindowsInstallGetsTheWindowsPatch()
     {
-        InstallInfo info = KspInstall.Inspect(this.Stock, "macos");
+        InstallInfo info = KspInstall.Inspect(this.Stock, Platform.MACOS);
 
-        Assert.Equal("windows", info.Platform);
-        Assert.Equal("windows", KspInstall.PatchPlatform(info, "macos"));
+        Assert.Equal(Platform.WINDOWS, info.Platform);
+        Assert.Equal(Platform.WINDOWS, KspInstall.PatchPlatform(info, Platform.MACOS));
     }
 
     [Fact]
     public void OnWindowsALinuxInstallGetsTheLinuxPatch()
     {
         File.Move(Path.Combine(this.Stock, "KSP_x64.exe"), Path.Combine(this.Stock, "KSP.x86_64"));
-        InstallInfo info = KspInstall.Inspect(this.Stock, "windows");
+        InstallInfo info = KspInstall.Inspect(this.Stock, Platform.WINDOWS);
 
         Assert.Equal(InstallStatus.STOCK, info.Status);
-        Assert.Equal("linux", KspInstall.PatchPlatform(info, "windows"));
+        Assert.Equal(Platform.LINUX, KspInstall.PatchPlatform(info, Platform.WINDOWS));
     }
 
     [Fact]
@@ -568,7 +568,7 @@ public sealed class LauncherServiceTests : IDisposable
         File.Delete(Path.Combine(this.Stock, "KSP_x64.exe"));
         Directory.CreateDirectory(Path.Combine(this.Stock, "KSP.app"));
 
-        Assert.Equal("macos", KspInstall.PatchPlatform(KspInstall.Inspect(this.Stock, "linux"), "linux"));
+        Assert.Equal(Platform.MACOS, KspInstall.PatchPlatform(KspInstall.Inspect(this.Stock, Platform.LINUX), Platform.LINUX));
     }
 
     [Fact]
@@ -576,9 +576,9 @@ public sealed class LauncherServiceTests : IDisposable
     {
         await Service().InstallAsync(this.Install, Get("v1.0.0"), this.catalog);
 
-        InstallInfo info = KspInstall.Inspect(this.Install, "linux");
+        InstallInfo info = KspInstall.Inspect(this.Install, Platform.LINUX);
         Assert.Equal(PLATFORM, info.Platform);
-        Assert.Equal(PLATFORM, KspInstall.PatchPlatform(info, "linux"));
+        Assert.Equal(PLATFORM, KspInstall.PatchPlatform(info, Platform.LINUX));
     }
 
     [Fact]
@@ -601,12 +601,9 @@ public sealed class LauncherServiceTests : IDisposable
         Assert.EndsWith(@"\Kerbal Space Program", inspected, StringComparison.Ordinal);
     }
 
-    private static void AssertTree(
-        Dictionary<string, string> expected,
-        Dictionary<string, string> actual
-    ) =>
-        Assert.Equal(expected.OrderBy(p => p.Key, StringComparer.Ordinal),
-                     actual.OrderBy(p => p.Key, StringComparer.Ordinal));
+    private static void AssertTree(Dictionary<string, string> expected,
+                                   Dictionary<string, string> actual) => Assert.Equal(expected.OrderBy(p => p.Key, StringComparer.Ordinal),
+                                                                                      actual.OrderBy(p => p.Key, StringComparer.Ordinal));
 
     private static void Write(string dir, string relative, byte[] bytes)
     {
@@ -625,10 +622,9 @@ public sealed class LauncherServiceTests : IDisposable
         }
     }
 
-    private static Dictionary<string, string> Tree(string dir) =>
-        Directory
-           .EnumerateFiles(dir, "*", SearchOption.AllDirectories)
-           .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'),
-                         PatchApplier.Sha256Hex,
-                         StringComparer.Ordinal);
+    private static Dictionary<string, string> Tree(string dir) => Directory
+                                                                 .EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+                                                                 .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'),
+                                                                               PatchApplier.Sha256Hex,
+                                                                               StringComparer.Ordinal);
 }

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Installs;
 
 namespace KSP.Retooled.Launcher.Utils;
@@ -11,11 +12,11 @@ public static class GameStarter
     /// Starts the install's player for <paramref name="platform"/> with the install as its working directory, passing
     /// it the arguments in <paramref name="arguments"/> (see <see cref="SplitArguments"/>).
     /// </summary>
-    public static void Start(string install, string platform, string? arguments = null)
+    public static void Start(string install, Platform platform, string? arguments = null)
     {
         ProcessStartInfo start = StartInfo(install, platform, arguments);
-        string player = Path.Combine(install, KspInstall.Player(platform));
-        if (platform is "macos" ? !Directory.Exists(player) : !File.Exists(player))
+        string player = Path.Combine(install, platform.PlayerName);
+        if (platform is Platform.MACOS ? !Directory.Exists(player) : !File.Exists(player))
         {
             throw new LauncherException($"{player} is missing; reinstall Retooled");
         }
@@ -32,18 +33,18 @@ public static class GameStarter
     /// <summary>
     /// How <see cref="Start"/> runs the player.
     /// </summary>
-    internal static ProcessStartInfo StartInfo(string install, string platform, string? arguments)
+    internal static ProcessStartInfo StartInfo(string install, Platform platform, string? arguments)
     {
-        string player = Path.Combine(install, KspInstall.Player(platform));
+        string player = Path.Combine(install, platform.PlayerName);
         IReadOnlyList<string> args = SplitArguments(arguments);
         // open takes the app's own arguments after --args
         ProcessStartInfo start =
-            platform is "macos"
+            platform is Platform.MACOS
                 ? new ProcessStartInfo("open", ["-a", player, ..args is [] ? [] : args.Prepend("--args")])
                 : new ProcessStartInfo(player, args);
 
         start.WorkingDirectory = install;
-        start.UseShellExecute  = false;
+        start.UseShellExecute = false;
         return start;
     }
 
@@ -61,7 +62,7 @@ public static class GameStarter
         {
             if (c is '"')
             {
-                quoted  = !quoted;
+                quoted = !quoted;
                 started = true;
             }
             else if (char.IsWhiteSpace(c) && !quoted)

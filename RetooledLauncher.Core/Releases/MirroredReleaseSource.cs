@@ -1,5 +1,5 @@
 using System.Text.Json;
-using KSP.Retooled.Launcher.Exceptions;
+using KSP.Retooled.Launcher.Common.Exceptions;
 using KSP.Retooled.Launcher.Releases.GitCode;
 using KSP.Retooled.Launcher.Releases.GitHub;
 using KSP.Retooled.Launcher.Settings;
@@ -83,8 +83,7 @@ public sealed class MirroredReleaseSource(GitHubReleaseSource github,
                    : onGitHub.Concat(Fallback(onGitCode));
 
         // built lazily, so that the second host is only named once the first has failed
-        IEnumerable<HttpRequestMessage> Copy(IReleaseSource host, string url) =>
-            host.AssetRequests(release, asset with { DownloadUrl = url, ApiUrl = url });
+        IEnumerable<HttpRequestMessage> Copy(IReleaseSource host, string url) => host.AssetRequests(release, asset with { DownloadUrl = url, ApiUrl = url });
 
         IEnumerable<HttpRequestMessage> Fallback(IEnumerable<HttpRequestMessage> requests)
         {

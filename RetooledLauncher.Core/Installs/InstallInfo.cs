@@ -1,4 +1,6 @@
-﻿namespace KSP.Retooled.Launcher.Installs;
+﻿using KSP.Retooled.Launcher.Common;
+
+namespace KSP.Retooled.Launcher.Installs;
 
 public enum InstallStatus
 {
@@ -39,7 +41,7 @@ public sealed record InstallInfo(string Path, InstallStatus Status)
     /// For an install that has a patch applied, the platform that the patch was built for. For a stock install, the
     /// platform of the game executable that the folder contains. Null for a folder that is not a KSP install.
     /// </summary>
-    public string? Platform { get; init; }
+    public Platform? Platform { get; init; }
 
     /// <summary>
     /// The installed tag as <see cref="Releases.ReleaseCatalog.ActionFor"/> wants it: null when stock, "" when unknown.

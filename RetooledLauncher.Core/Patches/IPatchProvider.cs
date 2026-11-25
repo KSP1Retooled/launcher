@@ -1,4 +1,5 @@
-﻿using KSP.Retooled.Launcher.Releases;
+﻿using KSP.Retooled.Launcher.Common;
+using KSP.Retooled.Launcher.Releases;
 
 namespace KSP.Retooled.Launcher.Patches;
 
@@ -11,7 +12,7 @@ public interface IPatchProvider
     /// A local path to <paramref name="release"/>'s patch for <paramref name="platform"/>, downloading it if needed.
     /// </summary>
     Task<string> GetPatchAsync(Release release,
-                               string platform,
+                               Platform platform,
                                IProgress<LauncherProgress>? progress,
                                CancellationToken cancellation);
 

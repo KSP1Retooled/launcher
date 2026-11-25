@@ -14,10 +14,10 @@ public sealed class SectionReader : IDisposable
 
     internal SectionReader(string path, Section section)
     {
-        this.section       = section;
-        this.file          = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20);
+        this.section = section;
+        this.file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20);
         this.file.Position = section.Offset;
-        this.zstd          = new DecompressionStream(new BoundedStream(this.file, section.Length), 1 << 20, true, false);
+        this.zstd = new DecompressionStream(new BoundedStream(this.file, section.Length), 1 << 20, true, false);
         this.zstd.SetParameter(ZSTD_dParameter.ZSTD_d_windowLogMax, PatchFile.MAX_WINDOW_LOG);
     }
 
