@@ -11,18 +11,6 @@ public static class KspInstall
     private const string MARKER_FILE = InstallJournal.DIRECTORY + "/launcher.json";
 
     /// <summary>
-    /// The player each platform's build ships, relative to the install (the Retooled build keeps stock's names).
-    /// </summary>
-    public static string Player(Platform platform) => platform switch
-    {
-        Platform.WINDOWS => "KSP_x64.exe",
-        Platform.LINUX   => "KSP.x86_64",
-        Platform.MACOS   => "KSP.app",
-        Platform.UNKNOWN => throw new LauncherException($"Unsupported platform {platform.FastToString()}"),
-        _                => throw new LauncherException($"Unsupported platform {platform.FastToString()}")
-    };
-
-    /// <summary>
     /// Platforms with <paramref name="host"/> moved to the front. If a folder has game executables for
     /// more than one platform, the launcher uses the first platform in this order.
     /// </summary>
@@ -66,7 +54,7 @@ public static class KspInstall
 
         if (journal is not null)
         {
-            return new InstallInfo(full, journal.State == JournalState.APPLIED
+            return new InstallInfo(full, journal.State is JournalState.APPLIED
                                              ? InstallStatus.RETOOLED
                                              : InstallStatus.INTERRUPTED)
             {
@@ -87,7 +75,7 @@ public static class KspInstall
 
     private static bool PlayerExists(string install, Platform platform)
     {
-        string player = Path.Combine(install, Player(platform));
+        string player = Path.Combine(install, platform.PlayerName);
         return File.Exists(player) || Directory.Exists(player);
     }
 

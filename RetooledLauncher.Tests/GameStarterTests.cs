@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using KSP.Retooled.Launcher.Common;
 using KSP.Retooled.Launcher.Installs;
 using KSP.Retooled.Launcher.Utils;
@@ -23,7 +23,7 @@ public sealed class GameStarterTests
     public void ThePlayerIsGivenTheArguments(Platform platform)
     {
         ProcessStartInfo start = GameStarter.StartInfo("install", platform, "-a \"b c\"");
-        Assert.Equal(Path.Combine("install", KspInstall.Player(platform)), start.FileName);
+        Assert.Equal(Path.Combine("install", platform.PlayerName), start.FileName);
         Assert.Equal(["-a", "b c"], start.ArgumentList);
         Assert.Equal("install", start.WorkingDirectory);
         Assert.Empty(GameStarter.StartInfo("install", platform, null).ArgumentList);

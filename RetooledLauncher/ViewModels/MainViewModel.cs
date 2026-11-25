@@ -350,7 +350,7 @@ public sealed partial class MainViewModel : ObservableObject
                 ..KspInstall
                  .PlatformsOn(Platform.Current)
                  .Where(p => p is not Platform.MACOS)
-                 .Select(KspInstall.Player)
+                 .Select(p => p.PlayerName)
             ];
 
             string? player = await this.dialogs.PickPlayerAsync($"Select {string.Join(" or ", names)} in your KSP 1.12.5 folder", names);

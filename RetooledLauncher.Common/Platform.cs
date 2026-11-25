@@ -1,7 +1,10 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using FastEnumUtility;
 using JetBrains.Annotations;
+using KSP.Retooled.Launcher.Common.Exceptions;
 
 namespace KSP.Retooled.Launcher.Common;
 
@@ -11,22 +14,38 @@ namespace KSP.Retooled.Launcher.Common;
 [PublicAPI]
 public enum Platform
 {
-    [Label("Unknown", 1)]
+    /// <summary>
+    /// Unknown/undefined platform
+    /// </summary>
+    [Label("Unknown")]
+    [JsonStringEnumMemberName("unknown")]
     UNKNOWN,
-    [Label("windows")]
-    [Label("Windows", 1)]
+    /// <summary>
+    /// Windows platform
+    /// </summary>
+    [EnumMember(Value = "windows")]
+    [Label("Windows"), Label("KSP_x64.exe", 1)]
+    [JsonStringEnumMemberName("windows")]
     WINDOWS,
-    [Label("linux")]
-    [Label("Linux", 1)]
+    /// <summary>
+    /// Linux platform
+    /// </summary>
+    [EnumMember(Value = "linux")]
+    [Label("Linux"), Label("KSP.x86_64", 1)]
+    [JsonStringEnumMemberName("linux")]
     LINUX,
-    [Label("macos")]
-    [Label("macOS", 1)]
+    /// <summary>
+    /// MacOS platform
+    /// </summary>
+    [EnumMember(Value = "macos")]
+    [Label("macOS"), Label("KSP.app", 1)]
+    [JsonStringEnumMemberName("macos")]
     MACOS
 }
 
-[PublicAPI, FastEnum<Platform>]
-public partial class PlatformBooster;
-
+/// <summary>
+/// Platform enum utils
+/// </summary>
 [PublicAPI]
 public static class PlatformUtils
 {
@@ -53,6 +72,7 @@ public static class PlatformUtils
         }
     }
 
+    /// <param name="platform">Platform value</param>
     extension(Platform platform)
     {
         /// <summary>
@@ -68,17 +88,18 @@ public static class PlatformUtils
         /// <summary>
         /// Get the current platform being used
         /// </summary>
-        public string Name => platform switch
-        {
-            Platform.WINDOWS => platform.GetLabel()!,
-            Platform.LINUX   => platform.GetLabel()!,
-            Platform.MACOS   => platform.GetLabel()!,
-            _                => RuntimeInformation.OSDescription
-        };
+        public string Name => platform.GetEnumMemberValue(throwIfNotFound: false) ?? RuntimeInformation.OSDescription;
 
         /// <summary>
         /// Get the current platform being used
         /// </summary>
-        public string DisplayName => platform.GetLabel(1)!;
+        public string DisplayName => platform.GetLabel(throwIfNotFound: false) ?? platform.FastToString();
+
+        /// <summary>
+        /// Gets the executable name for the given platform
+        /// </summary>
+        /// <exception cref="LauncherException">If the platform isn't supported</exception>
+        public string PlayerName => platform.GetLabel(1, throwIfNotFound: false)
+                                 ?? throw new LauncherException($"Unsupported platform: {platform.FastToString()}");
     }
 }

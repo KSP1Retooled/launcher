@@ -15,7 +15,7 @@ public static class GameStarter
     public static void Start(string install, Platform platform, string? arguments = null)
     {
         ProcessStartInfo start = StartInfo(install, platform, arguments);
-        string player = Path.Combine(install, KspInstall.Player(platform));
+        string player = Path.Combine(install, platform.PlayerName);
         if (platform is Platform.MACOS ? !Directory.Exists(player) : !File.Exists(player))
         {
             throw new LauncherException($"{player} is missing; reinstall Retooled");
@@ -35,7 +35,7 @@ public static class GameStarter
     /// </summary>
     internal static ProcessStartInfo StartInfo(string install, Platform platform, string? arguments)
     {
-        string player = Path.Combine(install, KspInstall.Player(platform));
+        string player = Path.Combine(install, platform.PlayerName);
         IReadOnlyList<string> args = SplitArguments(arguments);
         // open takes the app's own arguments after --args
         ProcessStartInfo start =
